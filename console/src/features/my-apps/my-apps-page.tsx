@@ -28,7 +28,7 @@ import { clearMyAppsDetailOverlayIntent, markMyAppsDetailOverlayIntent } from '.
 import { useMyApps, type MyApp } from './use-my-apps'
 import { fetchMyAppDetail } from './use-my-app-detail'
 import { LegacyMyAppLogo } from './my-app-media'
-import { buildInstallLogRows, getInstallError, getInstallExportText, getInstallSourceSummary, getInstallSteps } from './install-log-model'
+import { buildInstallLogRows, formatInstallSourceReason, getInstallError, getInstallExportText, getInstallSourceGroups, getInstallSourceSummary, getInstallSteps } from './install-log-model'
 import './my-apps-page.css'
 
 // =====================
@@ -380,20 +380,24 @@ function LogDialog({
                         <Typography sx={{ fontSize: 12, color: dialogPalette.subtleText }}>{t(failure.category === 'image' ? 'myAppsPage.dialog.imageObject' : 'myAppsPage.dialog.failureObject')}</Typography>
                         <Typography sx={{ mt: 0.875, fontSize: 13, color: dialogPalette.text, fontFamily: 'Menlo, Consolas, "Courier New", monospace', overflowWrap: 'anywhere' }}>{failure.object}</Typography>
                     </Box> : null}
-                    {failure.sources.map((source, index) => {
-                        const summary = getInstallSourceSummary(source)
-                        return <Box component="details" key={`${index}:${source.reference}`} sx={{ ...detailSx, '&:first-of-type': { borderTop: `1px solid ${dialogPalette.border}` }, '& summary': { ...detailSx['& summary'], gridTemplateColumns: 'minmax(0, 1fr) auto 16px', gap: { xs: 1, sm: 2 }, py: 2 } }}>
-                            <summary>
-                                <Box component="span" sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: '108px minmax(0, 1fr)' }, alignItems: 'baseline', gap: { xs: 0.625, sm: 2 }, minWidth: 0 }}>
-                                    <span>{summary.nameKey ? t(`myAppsPage.dialog.${summary.nameKey}`) : source.label}</span>
-                                    <Box component="span" title={source.reference} sx={{ fontSize: { xs: 11, sm: 12 }, fontWeight: 400, fontFamily: 'Menlo, Consolas, "Courier New", monospace', color: dialogPalette.subtleText, overflowWrap: 'anywhere', minWidth: 0 }}>{summary.registry}</Box>
-                                </Box>
-                                <Box component="span" sx={{ fontSize: { xs: 11, sm: 12 }, fontWeight: 400, color: dialogPalette.subtleText, whiteSpace: 'nowrap' }}>{t(`myAppsPage.dialog.sourceResults.${summary.result}`)}</Box>
-                                <ChevronRight size={16} className="detail-chevron" />
-                            </summary>
-                            <pre>{source.reason}</pre>
+                    {getInstallSourceGroups(failure.sources).map(group => (
+                        <Box key={group.nameKey ?? group.label} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: '108px minmax(0, 1fr)' }, columnGap: 2, borderTop: `1px solid ${dialogPalette.border}` }}>
+                            <Typography sx={{ alignSelf: { xs: 'start', sm: 'center' }, pt: { xs: 2, sm: 0 }, fontSize: 13, fontWeight: 500, color: dialogPalette.text }}>{group.nameKey ? t(`myAppsPage.dialog.${group.nameKey}`) : group.label}</Typography>
+                            <Box sx={{ minWidth: 0 }}>
+                                {group.sources.map((source, index) => {
+                                    const summary = getInstallSourceSummary(source)
+                                    return <Box component="details" key={`${index}:${source.reference}`} sx={{ ...detailSx, '&:last-child': { borderBottom: 0 }, '& summary': { ...detailSx['& summary'], gridTemplateColumns: 'minmax(0, 1fr) auto 16px', gap: { xs: 1, sm: 2 }, py: 2 } }}>
+                                        <summary>
+                                            <Box component="span" title={source.reference} sx={{ fontSize: { xs: 11, sm: 12 }, fontWeight: 400, fontFamily: 'Menlo, Consolas, "Courier New", monospace', color: dialogPalette.subtleText, overflowWrap: 'anywhere', minWidth: 0 }}>{summary.registry}</Box>
+                                            <Box component="span" sx={{ fontSize: { xs: 11, sm: 12 }, fontWeight: 400, color: dialogPalette.subtleText, whiteSpace: 'nowrap' }}>{t(`myAppsPage.dialog.sourceResults.${summary.result}`)}</Box>
+                                            <ChevronRight size={16} className="detail-chevron" />
+                                        </summary>
+                                        <pre>{formatInstallSourceReason(source.reason)}</pre>
+                                    </Box>
+                                })}
+                            </Box>
                         </Box>
-                    })}
+                    ))}
                     {!failure.sources.length ? <Box component="pre" sx={{ m: 0, p: 1.5, borderLeft: `2px solid ${dialogPalette.border}`, backgroundColor: dialogPalette.panelSoft, color: dialogPalette.subtleText, fontFamily: 'Menlo, Consolas, "Courier New", monospace', fontSize: 12, lineHeight: 1.8, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{failure.raw || t('myAppsPage.dialog.noErrorDetails')}</Box> : null}
                 </Box>
             </Box> : null}

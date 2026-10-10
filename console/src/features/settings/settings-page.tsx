@@ -3,6 +3,7 @@ import {
     Box,
     Button,
     CircularProgress,
+    ClickAwayListener,
     IconButton,
     List,
     ListItemButton,
@@ -16,6 +17,7 @@ import {
     Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
+import { CircleHelp } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
@@ -553,6 +555,7 @@ export function SettingsPage() {
     const brandFaviconItem = items.find((item) => item.group === 'platform_brand' && item.key === 'favicon_url') ?? null
     const brandLoginBgItem = items.find((item) => item.group === 'platform_brand' && item.key === 'login_background') ?? null
     const brandCopyrightItem = items.find((item) => item.group === 'platform_brand' && item.key === 'copyright_text') ?? null
+    const [mirrorHelpOpen, setMirrorHelpOpen] = useState(false)
     const activeModuleConfig = SETTINGS_MODULES.find((module) => module.id === activeModule) ?? SETTINGS_MODULES[0]
     const currentSslCert = httpsItem?.metadata?.cert_path?.trim() || ''
     const currentSslKey = httpsItem?.metadata?.key_path?.trim() || ''
@@ -2435,7 +2438,42 @@ export function SettingsPage() {
                                 <Box className="settings-module-header">
                                     <span className="settings-module-indicator" />
                                     <Box className="settings-module-headline">
-                                        <Typography className="settings-module-title">{t(activeModuleConfig.titleKey)}</Typography>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                            <Typography className="settings-module-title">{t(activeModuleConfig.titleKey)}</Typography>
+                                            {activeModule === 'app-mirror' ? (
+                                                <ClickAwayListener onClickAway={() => setMirrorHelpOpen(false)}>
+                                                    <Tooltip
+                                                        describeChild
+                                                        disableTouchListener
+                                                        open={mirrorHelpOpen}
+                                                        onOpen={() => setMirrorHelpOpen(true)}
+                                                        onClose={() => setMirrorHelpOpen(false)}
+                                                        slotProps={{ tooltip: { sx: { maxWidth: 420 } } }}
+                                                        title={
+                                                            <Stack component="ol" spacing={1} sx={{ m: 0, pl: 2.5 }}>
+                                                                {['helper', 'orderHelper', 'testHelper'].map((key) => (
+                                                                    <Typography key={key} component="li" sx={{ display: 'list-item', fontSize: 12, lineHeight: 1.6 }}>
+                                                                        {t(`settingsPage.mirror.${key}`)}
+                                                                    </Typography>
+                                                                ))}
+                                                            </Stack>
+                                                        }
+                                                    >
+                                                        <IconButton
+                                                            aria-label={t('settingsPage.modules.appMirror.title')}
+                                                            size="small"
+                                                            onClick={() => setMirrorHelpOpen((current) => !current)}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Escape') setMirrorHelpOpen(false)
+                                                            }}
+                                                            sx={{ width: 28, height: 28, color: 'text.secondary' }}
+                                                        >
+                                                            <CircleHelp size={16} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </ClickAwayListener>
+                                            ) : null}
+                                        </Box>
                                         <Typography className="settings-module-subtitle">{t(activeModuleConfig.descriptionKey)}</Typography>
                                     </Box>
                                     {activeModule === 'app-mirror' ? (
@@ -2451,7 +2489,7 @@ export function SettingsPage() {
                                     ) : null}
                                 </Box>
 
-                                <Box className="settings-module-card">
+                                <Box className={`settings-module-card${activeModule === 'app-mirror' ? ' settings-module-card--mirror' : ''}`}>
                                     <Box className="settings-form-table">{renderActiveModuleRows()}</Box>
 
                                     {showModuleFooter ? (

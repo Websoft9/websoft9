@@ -4,6 +4,7 @@ websockets
 keyring
 keyrings.alt
 requests
+websocket-client
 GitPython
 PyJWT
 click

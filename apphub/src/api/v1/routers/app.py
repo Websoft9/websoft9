@@ -4,7 +4,7 @@ from http.client import HTTPException
 import json
 import time
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Cookie, Query,Path, Body, Request
+from fastapi import APIRouter, Cookie, Query,Path, Body, Request, Response
 from fastapi.responses import StreamingResponse
 from src.core import logger
 from src.core.exception import CustomException
@@ -16,13 +16,13 @@ from src.schemas.appInstall import ExternalDatabaseConnectionTestRequest, appIns
 from src.schemas.appPhpInfo import AppPhpInfoResponse
 from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
-from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessCustomCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest, AppAccessRootUrlRequest
+from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessCustomCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest, AppAccessRootUrlRequest, AppCliCommandRequest, AppCliCommandResult, AppCredentialResult
 from src.schemas.appCustomFields import AppCustomFieldResponse, AppCustomFieldsRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_access_manager import AppAccessManager
 from src.services.app_status import get_app_custom_fields, request_install_cancel, save_app_custom_fields
 from src.services.image_prewarm import ImagePrewarmService
-from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
+from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
 from src.services.scheduled_tasks import ScheduledTaskService
 from src.schemas.scheduledTasks import ImagePrewarmRequest
 from src.services.app_manager import AppManger
@@ -217,6 +217,42 @@ def get_app_access(
     endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
 ):
     return AppAccessManager().get_access_overview(app_id, endpointId)
+
+
+@router.post(
+    "/apps/{app_id}/access/credentials/{field}",
+    response_model=AppCredentialResult,
+    summary="Read App Runtime Credential",
+)
+def read_app_credential(
+    response: Response,
+    app_id: str = Path(...),
+    field: str = Path(..., regex="^(username|password|token)$"),
+    endpointId: int = Query(None),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return AppAccessManager().resolve_credential(app_id, field, endpointId)
+
+
+@router.post(
+    "/apps/{app_id}/access/cli",
+    response_model=AppCliCommandResult,
+    summary="Execute Allowed App CLI Command",
+)
+def execute_app_cli_command(
+    response: Response,
+    payload: AppCliCommandRequest = Body(...),
+    app_id: str = Path(...),
+    endpointId: int = Query(None),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return AppAccessManager().execute_cli_command(app_id, payload.command, endpointId)
 
 
 @router.put(

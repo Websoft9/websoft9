@@ -104,7 +104,10 @@ export function getInstallError(app: MyApp) {
         const match = line.match(/^\s*-\s*(.+?)\s*\[(.+?)\]:\s*(.*)$/)
         return match ? [{ label: match[1], reference: match[2], reason: match[3] }] : []
     }) : []
-    return { category, raw, phase: phase === undefined ? undefined : INSTALL_STAGE_KEYS[phase], object: image ?? (category === 'port' ? port : undefined), sources }
+    return {
+        category, raw, phase: phase === undefined ? undefined : INSTALL_STAGE_KEYS[phase], object: image ?? (category === 'port' ? port : undefined),
+        sources,
+    }
 }
 
 export function getInstallSourceSummary(source: { label: string; reference: string; reason: string }) {
@@ -112,12 +115,29 @@ export function getInstallSourceSummary(source: { label: string; reference: stri
     const isMirror = /^mirror(?:\s|$)/.test(source.label)
     const hasRegistry = source.reference.includes('/') && (firstComponent.includes('.') || firstComponent.includes(':') || firstComponent === 'localhost')
     const registry = isMirror || hasRegistry ? firstComponent : 'docker.io'
-    const nameKey = isMirror ? 'mirrorSource' : source.label === 'direct pull' ? /^(docker\.io|index\.docker\.io)$/.test(registry) ? 'dockerHub' : 'originalSource' : undefined
+    const nameKey = isMirror ? 'mirrorSource' : source.label === 'direct pull' ? 'originalSource' : undefined
     const result = /access denied|permission denied|unauthorized|authentication required/i.test(source.reason) ? 'denied'
         : /not found|does not exist/i.test(source.reason) ? 'missing'
             : /timeout|timed out/i.test(source.reason) ? 'timeout'
                 : /EOF|internal server error|connection refused|unreachable/i.test(source.reason) ? 'connection' : 'failed'
     return { registry, nameKey, result }
+}
+
+export function formatInstallSourceReason(reason: string) {
+    const wrapper = reason.trim().match(/^(?:Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|Bad Request|Not Found|Unauthorized|Forbidden)\s*(?:\(\s*"([\s\S]+)"\s*\)|:\s*([\s\S]+))$/i)
+    return wrapper ? (wrapper[1] ?? wrapper[2]).trim() : reason
+}
+
+export function getInstallSourceGroups(sources: { label: string; reference: string; reason: string }[]) {
+    const groups = new Map<string, { label: string; nameKey: string | undefined; sources: typeof sources }>()
+    for (const source of sources) {
+        const { nameKey } = getInstallSourceSummary(source)
+        const key = nameKey ?? source.label
+        const group = groups.get(key) ?? { label: source.label, nameKey, sources: [] }
+        group.sources.push(source)
+        groups.set(key, group)
+    }
+    return [...groups.values()]
 }
 
 export function getInstallExportText(app: MyApp, stageTitle: (title: string) => string) {

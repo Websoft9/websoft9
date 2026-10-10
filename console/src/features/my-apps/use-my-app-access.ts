@@ -31,6 +31,31 @@ export type MyAppCertificate = {
     provider?: string | null
 }
 
+export type MyAppCredentialDescriptor = {
+    field: 'username' | 'password' | 'token'
+    source: 'container-file' | 'container-log'
+}
+
+export type MyAppCredentialResult = MyAppCredentialDescriptor & {
+    status: 'ready' | 'unavailable' | 'error'
+    content?: string | null
+    error_code?: string | null
+}
+
+export type MyAppCliCommand = {
+    id: string
+    command: string
+    field?: 'password' | 'token'
+    action?: 'read' | 'generate' | 'set'
+}
+
+export type MyAppCliCommandResult = {
+    command: string
+    status: 'ready' | 'error'
+    output?: string | null
+    error_code?: string | null
+}
+
 export type MyAppAccessOverview = {
     app_id: string
     app_dist?: string | null
@@ -39,6 +64,9 @@ export type MyAppAccessOverview = {
     candidates: MyAppAccessCandidate[]
     proxy_hosts: MyAppProxyHost[]
     certificates: MyAppCertificate[]
+    credentials?: MyAppCredentialDescriptor[]
+    cli_commands?: MyAppCliCommand[]
+    credential_login_help?: string | null
 }
 
 type MyAppAccessError = Error & {
@@ -60,6 +88,39 @@ async function fetchJson<T>(url: string, errorMessage: string) {
     }
 
     return (await response.json()) as T
+}
+
+export async function readMyAppCredential(appId: string, field: string, signal: AbortSignal): Promise<MyAppCredentialResult> {
+    const response = await fetch(`/api/apps/${encodeURIComponent(appId)}/access/credentials/${encodeURIComponent(field)}`, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        signal,
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+        const error = new Error('Credential request failed') as MyAppAccessError
+        error.statusCode = response.status
+        throw error
+    }
+    return response.json() as Promise<MyAppCredentialResult>
+}
+
+export async function executeMyAppCliCommand(appId: string, command: string, signal: AbortSignal): Promise<MyAppCliCommandResult> {
+    const response = await fetch(`/api/apps/${encodeURIComponent(appId)}/access/cli`, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        signal,
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command }),
+    })
+    if (!response.ok) {
+        const error = new Error('CLI command request failed') as MyAppAccessError
+        error.statusCode = response.status
+        throw error
+    }
+    return response.json() as Promise<MyAppCliCommandResult>
 }
 
 export function useMyAppAccess(appId: string | undefined) {

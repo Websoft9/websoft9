@@ -249,6 +249,7 @@
 }
 
 .scheduled-tasks-log-dialog {
+    border-radius: 0;
     width: min(960px, calc(100% - 24px));
     height: min(640px, calc(100% - 32px));
 }

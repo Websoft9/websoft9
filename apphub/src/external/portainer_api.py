@@ -3,8 +3,11 @@ import json
 import os
 import socket
 import threading
+import time
 from typing import Optional
 from urllib.parse import urlparse
+
+import requests
 
 from src.core.apiHelper import APIHelper
 from src.core.config import ConfigManager
@@ -400,6 +403,81 @@ class PortainerAPI:
         return self.api.get(
             path=f"endpoints/{endpointId}/docker/containers/{container_id}/json",
         )
+
+    @auto_refresh_token
+    def _container_output_response(self, endpoint_id: int, container_id: str, resource: str, params: dict):
+        return requests.get(
+            f"{self.api.base_url}/endpoints/{endpoint_id}/docker/containers/{container_id}/{resource}",
+            params=params,
+            headers={**self.api.headers, "Accept": "application/octet-stream"},
+            verify=self.api.verify,
+            stream=True,
+            timeout=(5, 20),
+        )
+
+    def read_container_output(self, endpoint_id: int, container_id: str, resource: str, params: dict, max_bytes: int) -> bytes | None:
+        if resource not in {"archive", "logs"}:
+            raise ValueError("Unsupported container output")
+        deadline = time.monotonic() + 20
+        with self._container_output_response(endpoint_id, container_id, resource, params) as response:
+            if response.status_code == 404:
+                return None
+            if response.status_code != 200:
+                raise RuntimeError("Container output unavailable")
+            content = bytearray()
+            for chunk in response.iter_content(chunk_size=8192):
+                if time.monotonic() > deadline:
+                    raise TimeoutError("Container output timed out")
+                if len(content) + len(chunk) > max_bytes:
+                    raise OverflowError("Container output too large")
+                content.extend(chunk)
+            return bytes(content)
+
+    @auto_refresh_token
+    def create_container_exec(self, endpoint_id: int, container_id: str, command: list[str]):
+        return self.api.post(
+            path=f"endpoints/{endpoint_id}/docker/containers/{container_id}/exec",
+            json={"AttachStdout": True, "AttachStderr": True, "AttachStdin": False, "Tty": True, "Cmd": command},
+        )
+
+    def run_container_command(self, endpoint_id: int, container_id: str, command: list[str], max_bytes: int, timeout: int = 20) -> str:
+        import websocket
+
+        if not command or any(not isinstance(part, str) or not part or "\x00" in part for part in command):
+            raise ValueError("Invalid container command")
+        response = self.create_container_exec(endpoint_id, container_id, command)
+        if response.status_code != 201:
+            raise RuntimeError("Container command could not be created")
+        exec_id = response.json().get("Id")
+        if not isinstance(exec_id, str) or not exec_id:
+            raise RuntimeError("Container command response is invalid")
+
+        parsed = urlparse(self.api.base_url)
+        scheme = "wss" if parsed.scheme == "https" else "ws"
+        url = f"{scheme}://{parsed.netloc}{parsed.path}/websocket/exec?endpointId={endpoint_id}&id={exec_id}"
+        headers = {"Authorization": f"Bearer {JWTManager.get_token()}"}
+        ssl_options = {"cert_reqs": 0} if not self.api.verify and scheme == "wss" else None
+        socket = websocket.create_connection(url, header=headers, timeout=timeout, sslopt=ssl_options)
+        output = bytearray()
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                if time.monotonic() > deadline:
+                    raise TimeoutError("Container command timed out")
+                try:
+                    chunk = socket.recv()
+                except websocket.WebSocketConnectionClosedException:
+                    break
+                if not chunk:
+                    break
+                if isinstance(chunk, str):
+                    chunk = chunk.encode("utf-8")
+                if len(output) + len(chunk) > max_bytes:
+                    raise OverflowError("Container command output too large")
+                output.extend(chunk)
+        finally:
+            socket.close()
+        return output.decode("utf-8", errors="replace")
 
     @auto_refresh_token
     def stop_container(self, endpointId: int, container_id: str):

@@ -1,4 +1,5 @@
 import { Alert, Box, Button, CircularProgress, IconButton, Snackbar, Switch, Typography } from '@mui/material'
+import { Info, KeyRound } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,6 +8,8 @@ import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
 import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { useMyAppAccess } from './use-my-app-access'
+import { MyAppCredentials } from './my-app-credentials'
+import { IconCopy, IconEye, IconEyeOff } from './my-app-credential-icons'
 
 type ContentScopeRect = {
     top: number
@@ -45,18 +48,6 @@ type NonWebConnectionEntry = {
 
 function IconDelete() {
     return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2h4v2H4V6h4l1-2z" /></svg>
-}
-
-function IconEye() {
-    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.2A2.8 2.8 0 1 0 12 9.2a2.8 2.8 0 0 0 0 5.6z" /></svg>
-}
-
-function IconEyeOff() {
-    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="m3.28 2 18.72 18.72-1.41 1.41-3.02-3.02A12.72 12.72 0 0 1 12 20c-5 0-9.27-3.11-11-7a12.67 12.67 0 0 1 4.32-5.04L1.86 3.41 3.28 2zm6.1 6.1 1.53 1.53A2.96 2.96 0 0 0 9 12c0 1.66 1.34 3 3 3 .52 0 1.01-.13 1.44-.37l1.53 1.53A4.93 4.93 0 0 1 12 17a5 5 0 0 1-5-5c0-1.13.37-2.18 1-3.1zm2.98-2.04A5 5 0 0 1 17 11c0 .72-.15 1.4-.42 2.02l3.1 3.1A12.82 12.82 0 0 0 23 13c-1.73-3.89-6-7-11-7-1.58 0-3.1.31-4.48.88l2.31 2.31A4.98 4.98 0 0 1 12 7c.12 0 .24 0 .36.01z" /></svg>
-}
-
-function IconCopy() {
-    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1zm4 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h12v14z" /></svg>
 }
 
 function IconPlus() {
@@ -1134,7 +1125,7 @@ ${customCertIntermediate.trim()}`
                 </div>
             ) : null}
 
-            {(serviceAccessCards.length > 0 || accountEntries.length > 0) ? (
+            {(serviceAccessCards.length > 0 || accountEntries.length > 0 || Boolean(data?.credentials?.length || data?.cli_commands?.length)) ? (
                 <div className="myapps-creds-section">
                     <div className="myapps-creds-section-head">
                         <div className="myapps-section-label-bar">
@@ -1142,6 +1133,17 @@ ${customCertIntermediate.trim()}`
                             <span className="myapps-section-label-text">{combinedSectionTitle}</span>
                         </div>
                     </div>
+                    {data?.credentials?.length || data?.cli_commands?.length ? (
+                        <div className="myapps-access-entry-grid is-single">
+                            <MyAppCredentials
+                                appId={appId}
+                                credentials={data.credentials ?? []}
+                                cliCommands={data.cli_commands ?? []}
+                                onCopy={copyTextWithFallback}
+                                onCopyFeedback={success => setFeedback({ severity: success ? 'success' : 'error', message: t(`myAppsDetailPage.accessPanel.copy${success ? 'Success' : 'Failed'}`) })}
+                            />
+                        </div>
+                    ) : null}
                     {serviceAccessCards.length > 0 ? (
                         <div className={`myapps-access-entry-grid ${serviceAccessCards.length === 1 ? 'is-single' : ''}`}>
                             {serviceAccessCards.map((card) => {
@@ -1185,44 +1187,59 @@ ${customCertIntermediate.trim()}`
                         </div>
                     ) : null}
                     {accountEntries.length > 0 ? (
-                        <div className="myapps-creds-rows">
-                            {accountEntries.map((entry) => (
-                                <div className="myapps-creds-row" key={entry.key}>
-                                    <label className="myapps-creds-label">{formatAccountLabel(entry.key, t)}</label>
-                                    <span className="myapps-creds-value">
-                                        <span className="myapps-creds-value-text">
-                                            {entry.isPassword && !visibleCredKeys.has(entry.key)
-                                                ? <span className="myapps-creds-dots">{'•'.repeat(10)}</span>
-                                                : entry.value}
-                                        </span>
-                                        <span className="myapps-creds-actions">
-                                            {entry.isPassword ? (
-                                                <button className="myapps-creds-eye-btn" onClick={() => {
-                                                    setVisibleCredKeys((prev) => {
-                                                        const next = new Set(prev)
-                                                        if (next.has(entry.key)) next.delete(entry.key)
-                                                        else next.add(entry.key)
-                                                        return next
-                                                    })
-                                                }} title={visibleCredKeys.has(entry.key) ? t('myAppsDetailPage.accessPanel.hidePlainText') : t('myAppsDetailPage.accessPanel.showPlainText')} type="button">
-                                                    {visibleCredKeys.has(entry.key) ? <IconEyeOff /> : <IconEye />}
-                                                </button>
-                                            ) : null}
-                                            <button className="myapps-creds-copy-btn" onClick={async () => {
-                                                try {
-                                                    await copyTextWithFallback(entry.value)
-                                                    setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.copySuccess') })
-                                                } catch {
-                                                    setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.copyFailed') })
-                                                }
-                                            }} title={t('myAppsDetailPage.accessPanel.copySuccess')} type="button">
-                                                <IconCopy />
-                                            </button>
-                                        </span>
-                                    </span>
+                        <div className="myapps-access-entry-grid is-single">
+                            <section className="myapps-access-entry-card myapps-login-credentials">
+                                <div className="myapps-access-entry-card-main">
+                                    <div className="myapps-access-entry-icon myapps-runtime-credential-icon"><KeyRound size={18} /></div>
+                                    <div className="myapps-access-entry-content">
+                                        <div className="myapps-access-entry-title-row">
+                                            <div className="myapps-access-entry-title">{t('myAppsDetailPage.accessPanel.loginCredentialsTitle')}</div>
+                                        </div>
+                                        <div className="myapps-creds-rows">
+                                            {accountEntries.map((entry) => (
+                                                <div className="myapps-creds-row" key={entry.key}>
+                                                    <label className="myapps-creds-label">{formatAccountLabel(entry.key, t)}</label>
+                                                    <span className="myapps-creds-value">
+                                                        <span className="myapps-creds-value-text">
+                                                            {entry.isPassword && !visibleCredKeys.has(entry.key)
+                                                                ? <span className="myapps-creds-dots">{'•'.repeat(10)}</span>
+                                                                : entry.value}
+                                                        </span>
+                                                        <span className="myapps-creds-actions">
+                                                            {entry.isPassword ? (
+                                                                <button className="myapps-creds-eye-btn" onClick={() => {
+                                                                    setVisibleCredKeys((prev) => {
+                                                                        const next = new Set(prev)
+                                                                        if (next.has(entry.key)) next.delete(entry.key)
+                                                                        else next.add(entry.key)
+                                                                        return next
+                                                                    })
+                                                                }} title={visibleCredKeys.has(entry.key) ? t('myAppsDetailPage.accessPanel.hidePlainText') : t('myAppsDetailPage.accessPanel.showPlainText')} type="button">
+                                                                    {visibleCredKeys.has(entry.key) ? <IconEyeOff /> : <IconEye />}
+                                                                </button>
+                                                            ) : null}
+                                                            <button className="myapps-creds-copy-btn" onClick={async () => {
+                                                                try {
+                                                                    await copyTextWithFallback(entry.value)
+                                                                    setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.copySuccess') })
+                                                                } catch {
+                                                                    setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.copyFailed') })
+                                                                }
+                                                            }} title={t('myAppsDetailPage.accessPanel.copySuccess')} type="button">
+                                                                <IconCopy />
+                                                            </button>
+                                                        </span>
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
+                            </section>
                         </div>
+                    ) : null}
+                    {data?.credential_login_help ? (
+                        <p className="myapps-login-help" role="note"><Info size={14} aria-hidden="true" /><span>{data.credential_login_help}</span></p>
                     ) : null}
                 </div>
             ) : null}

@@ -1008,6 +1008,10 @@
 }
 
 /* ── Mirror accelerator editor ───────────────────────── */
+.settings-module-card.settings-module-card--mirror {
+    border: 0;
+}
+
 .settings-mirror-panel {
     display: flex;
     flex-direction: column;

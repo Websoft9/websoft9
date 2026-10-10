@@ -22,6 +22,37 @@ class AppAccessProfile(BaseModel):
     forward_scheme: Literal["http", "https"] = Field(default="http")
 
 
+class AppCredentialDescriptor(BaseModel):
+    field: str
+    source: Literal["container-file", "container-log"]
+
+
+class AppCredentialResult(BaseModel):
+    field: str
+    source: Literal["container-file", "container-log"]
+    status: Literal["ready", "unavailable", "error"]
+    content: Optional[str] = None
+    error_code: Optional[str] = None
+
+
+class AppCliCommand(BaseModel):
+    id: str
+    command: str
+    field: Literal["password", "token"] = "token"
+    action: Literal["read", "generate", "set"] = "read"
+
+
+class AppCliCommandResult(BaseModel):
+    command: str
+    status: Literal["ready", "error"]
+    output: Optional[str] = None
+    error_code: Optional[str] = None
+
+
+class AppCliCommandRequest(BaseModel):
+    command: str = Field(..., min_length=1, max_length=256)
+
+
 class AppAccessOverviewResponse(BaseModel):
     app_id: str
     app_dist: Optional[str] = None
@@ -30,6 +61,9 @@ class AppAccessOverviewResponse(BaseModel):
     candidates: list[AppAccessCandidate] = Field(default_factory=list)
     proxy_hosts: list[ProxyHost] = Field(default_factory=list)
     certificates: list[dict] = Field(default_factory=list)
+    credentials: list[AppCredentialDescriptor] = Field(default_factory=list)
+    cli_commands: list[AppCliCommand] = Field(default_factory=list)
+    credential_login_help: Optional[str] = None
 
 
 class AppAccessProfileUpdateRequest(BaseModel):

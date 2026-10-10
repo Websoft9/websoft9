@@ -4,6 +4,7 @@ import os
 import base64
 import fcntl
 import json
+import re
 import shlex
 import shutil
 import signal
@@ -183,15 +184,35 @@ class ScheduledTaskService:
         with self._lock:
             syncing_task_ids = self._background_syncing_task_ids.get(operator_id, set()).copy()
         tasks = []
+        prewarm_tasks = []
         for task in self._list_tasks(operator_id):
             public_task = self._public_task(task)
+            if task["category"] == "prewarm":
+                prewarm_tasks.append(public_task)
+                continue
             public_task["syncing"] = task["task_id"] in syncing_task_ids
             tasks.append(public_task)
         # Platform tasks travel separately: they belong to the product rather than to the operator,
         # and the console renders them read-only next to the operator's own tasks.
         return {
             "tasks": tasks,
-            "system_tasks": [self._public_task(task) for task in self._list_system_tasks()],
+            "system_tasks": [self._public_task(task) for task in self._list_system_tasks()] + [self._prewarm_summary(prewarm_tasks)],
+        }
+
+    def _prewarm_summary(self, records: list[dict]) -> dict[str, Any]:
+        latest = max(records, key=lambda record: record["updated_at"], default={})
+        running = sum(record["queue_state"] == "running" for record in records)
+        queued = sum(record["queue_state"] == "queued" for record in records)
+        return {
+            "task_id": "system:image-prewarm", "name": "Image Prewarm", "target": "container",
+            "profile_id": None, "schedule": "@once", "timezone": self._platform_timezone(),
+            "command": "", "execution_mode": "command", "script_path": None, "script_name": None,
+            "timeout_seconds": 7200, "retry_count": 0, "enabled": True,
+            "last_run_at": latest.get("last_run_at"), "last_status": "running" if running else latest.get("queue_state", "never") if not queued else "never",
+            "sync_status": "synced", "next_run_at": None, "created_at": latest.get("created_at", ""),
+            "updated_at": latest.get("updated_at", ""), "execution_path": "", "origin": "system",
+            "category": "prewarm", "subject_app": None, "subject_version": None, "queue_state": None,
+            "running_count": running, "queued_count": queued,
         }
 
     def start_sync(self, session_token: Optional[str]) -> dict[str, str]:
@@ -336,21 +357,11 @@ class ScheduledTaskService:
             with self._db_connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 existing = connection.execute(
-                    "SELECT * FROM scheduled_tasks WHERE operator_id = ? AND category = 'prewarm' AND subject_app = ? AND subject_version = ?",
+                    "SELECT * FROM scheduled_tasks WHERE operator_id = ? AND category = 'prewarm' AND subject_app = ? AND subject_version = ? AND queue_state IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1",
                     (str(operator["id"]), app_name, version),
                 ).fetchone()
                 if existing:
                     task_id = str(existing["task_id"])
-                    # Every finished task can be re-queued. The console only offers the pull button
-                    # while the local images are missing, which is exactly what happens once a
-                    # previously successful pull has been removed from the machine, so treating
-                    # `success` as terminal here left the button doing nothing at all.
-                    if existing["queue_state"] not in {"queued", "running"}:
-                        connection.execute(
-                            "UPDATE scheduled_tasks SET queue_state = 'queued', claimed_at = NULL, claimed_by = NULL, runner_pgid = NULL, updated_at = ? WHERE task_id = ?",
-                            (now, task_id),
-                        )
-                        created_or_requeued = True
                 else:
                     active_count = connection.execute(
                         "SELECT COUNT(*) FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state IN ('queued', 'running')"
@@ -358,7 +369,7 @@ class ScheduledTaskService:
                     if active_count >= 5:
                         raise CustomException(409, "Prewarm Queue Full", "The image prewarm queue is full")
                     task_id = str(uuid.uuid4())
-                    task_name = f"Prewarm images {app_name} {version}"[:64]
+                    task_name = f"Prewarm images {app_name} {version}"[:54] + f" {task_id[:8]}"
                     command = f"{PLATFORM_CLI_PATH} images prewarm --app {shlex.quote(app_name)} --version {shlex.quote(version)}"
                     connection.execute(
                         """
@@ -386,7 +397,7 @@ class ScheduledTaskService:
         self.reconcile_prewarm_state()
         with self._db_connect() as connection:
             task = connection.execute(
-                "SELECT * FROM scheduled_tasks WHERE operator_id = ? AND category = 'prewarm' AND subject_app = ? AND subject_version = ?",
+                "SELECT * FROM scheduled_tasks WHERE operator_id = ? AND category = 'prewarm' AND subject_app = ? AND subject_version = ? ORDER BY CASE WHEN queue_state IN ('queued', 'running') THEN 0 ELSE 1 END, created_at DESC, rowid DESC LIMIT 1",
                 (str(operator["id"]), str(app_name or "").strip(), str(version or "").strip()),
             ).fetchone()
         return self._public_task(task) if task else None
@@ -466,7 +477,7 @@ class ScheduledTaskService:
                     return {"status": "running", "task_id": running["task_id"]}
 
                 queued = connection.execute(
-                    "SELECT * FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state = 'queued' ORDER BY created_at ASC LIMIT 1"
+                    "SELECT * FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state = 'queued' ORDER BY created_at ASC, rowid ASC LIMIT 1"
                 ).fetchone()
                 if not queued:
                     return {"status": "idle"}
@@ -629,20 +640,112 @@ class ScheduledTaskService:
             task = self._get_task(str(operator["id"]), task_id)
             if str(task["category"] or "") != "prewarm":
                 raise CustomException(404, "Prewarm Task Not Found", "The requested task is not an image prewarm task")
-            if task["queue_state"] not in {"failed", "cancelled"}:
-                raise CustomException(409, "Prewarm Not Retryable", "Only a failed or cancelled image prewarm can be retried")
+            if task["queue_state"] not in {"success", "failed", "cancelled"}:
+                raise CustomException(409, "Prewarm Not Retryable", "Only a completed image prewarm can be retried")
             if self._prewarm_runner_alive(task["runner_pgid"]):
                 raise CustomException(409, "Prewarm Task Running", "The previous image prewarm process has not stopped")
-            self._write_task(
-                task_id,
-                queue_state="queued",
-                claimed_at=None,
-                claimed_by=None,
-                runner_pgid=None,
-                updated_at=self._now_iso(),
-            )
+            self._sync_task_runs(session_token, task)
+            with self._db_connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                active = connection.execute(
+                    "SELECT task_id FROM scheduled_tasks WHERE operator_id = ? AND category = 'prewarm' AND subject_app = ? AND subject_version = ? AND queue_state IN ('queued', 'running')",
+                    (str(operator["id"]), task["subject_app"], task["subject_version"]),
+                ).fetchone()
+                if active:
+                    raise CustomException(409, "Prewarm Already Active", "This application version already has an active image prewarm")
+                active_count = connection.execute("SELECT COUNT(*) FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state IN ('queued', 'running')").fetchone()[0]
+                if active_count >= 5:
+                    raise CustomException(409, "Prewarm Queue Full", "The image prewarm queue is full")
+                now = self._now_iso()
+                connection.execute(
+                    "UPDATE scheduled_tasks SET rowid = (SELECT MAX(rowid) + 1 FROM scheduled_tasks), queue_state = 'queued', claimed_at = NULL, claimed_by = NULL, runner_pgid = NULL, created_at = ?, updated_at = ? WHERE task_id = ?",
+                    (now, now, task_id),
+                )
+                self._state_path(task_id).unlink(missing_ok=True)
+                connection.commit()
+            self._write_runner(self._get_task(str(operator["id"]), task_id))
         self.dispatch_prewarm()
         return self._public_task(self._get_task(str(operator["id"]), task_id))
+
+    def list_prewarm_records(self, session_token: Optional[str], offset: int = 0, limit: int = 20, search: str = "", status: str = "all") -> dict[str, Any]:
+        operator = self.auth_service._require_authenticated_operator(session_token)
+        self._ensure_storage()
+        self.reconcile_prewarm_state()
+        tasks = [task for task in self._list_tasks(str(operator["id"])) if task["category"] == "prewarm"]
+        for task in tasks:
+            self._sync_task_runs(session_token, task)
+        query = """
+            FROM scheduled_tasks task LEFT JOIN (
+                SELECT task_id, run_id, started_at, finished_at, status, exit_code, trigger, log_path FROM (
+                    SELECT runs.*, ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY started_at DESC, rowid DESC) AS position
+                    FROM scheduled_task_runs runs
+                ) latest WHERE position = 1 AND NOT EXISTS (
+                    SELECT 1 FROM scheduled_tasks pending WHERE pending.task_id = latest.task_id
+                    AND pending.queue_state IN ('queued', 'running') AND latest.status != 'running'
+                )
+                UNION ALL
+                SELECT task_id, '__pending__', created_at, NULL, queue_state, NULL, 'manual', '' FROM scheduled_tasks pending
+                WHERE pending.queue_state IN ('queued', 'running')
+                AND EXISTS (SELECT 1 FROM scheduled_task_runs WHERE task_id = pending.task_id)
+                AND NOT EXISTS (SELECT 1 FROM scheduled_task_runs WHERE task_id = pending.task_id AND status = 'running')
+            ) run ON task.task_id = run.task_id
+            WHERE task.operator_id = ? AND task.category = 'prewarm'
+            AND (? = '' OR instr(lower(COALESCE(task.subject_app, '') || ' ' || COALESCE(task.subject_version, '')), ?) > 0)
+            AND (? = 'all' OR task.queue_state = ?)
+        """
+        parameters = (str(operator["id"]), search.strip().lower(), search.strip().lower(), status, status)
+        with self._db_connect() as connection:
+            total = connection.execute("SELECT COUNT(*) " + query, parameters).fetchone()[0]
+            rows = connection.execute("""
+                SELECT task.task_id, COALESCE(run.run_id, '__pending__') AS run_id,
+                    COALESCE(run.started_at, task.created_at) AS started_at, run.finished_at,
+                    task.queue_state AS status, run.exit_code,
+                    COALESCE(run.trigger, 'manual') AS trigger, COALESCE(run.log_path, '') AS log_path
+                """ + query + """ ORDER BY
+                    CASE task.queue_state WHEN 'running' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END,
+                    CASE WHEN task.queue_state IN ('running', 'queued') THEN task.created_at END ASC,
+                    CASE WHEN task.queue_state IN ('running', 'queued') THEN task.rowid END ASC,
+                    started_at DESC, task.rowid DESC, run.run_id DESC LIMIT ? OFFSET ?""",
+                (*parameters, limit, offset),
+            ).fetchall()
+        tasks_by_id = {task["task_id"]: task for task in tasks}
+        active_subjects = {(task["subject_app"], task["subject_version"]) for task in tasks if task["queue_state"] in {"queued", "running"}}
+        records = []
+        for row in rows:
+            record = dict(row)
+            task = self._public_task(tasks_by_id[row["task_id"]])
+            record["task"] = task
+            record["name"] = f"{task['subject_app']} {task['subject_version']}"
+            record["retry_blocked"] = (task["subject_app"], task["subject_version"]) in active_subjects
+            records.append(record)
+        return {"runs": records, "total": total, "offset": offset, "limit": limit}
+
+    def delete_prewarm_record(self, session_token: Optional[str], task_id: str, run_id: str) -> None:
+        operator = self.auth_service._require_authenticated_operator(session_token)
+        with self._lock:
+            task = self._get_task(str(operator["id"]), task_id)
+            if task["category"] != "prewarm":
+                raise CustomException(404, "Prewarm Task Not Found", "The requested task is not an image prewarm task")
+            if task["queue_state"] in {"queued", "running"} or self._prewarm_runner_alive(task["runner_pgid"]):
+                raise CustomException(409, "Prewarm Task Running", "Cancel the image prewarm before deleting it")
+            self._sync_task_runs(session_token, task)
+            with self._db_connect() as connection:
+                runs = connection.execute("SELECT run_id FROM scheduled_task_runs WHERE task_id = ? ORDER BY started_at DESC, rowid DESC", (task_id,)).fetchall()
+            if run_id == "__pending__" and not runs:
+                self.delete_task(session_token, task_id)
+                return
+            if not any(run["run_id"] == run_id for run in runs):
+                raise CustomException(404, "Scheduled Task Run Not Found", "The requested task execution does not exist")
+            if runs[0]["run_id"] == run_id:
+                self.delete_task(session_token, task_id)
+                return
+            if not re.fullmatch(r"[A-Za-z0-9_-]+", run_id):
+                raise CustomException(400, "Invalid Run ID", "Invalid execution record identifier")
+            (self._runs_dir(task_id) / f"{run_id}.json").unlink(missing_ok=True)
+            (self._task_logs_dir(task_id) / f"{run_id}.log").unlink(missing_ok=True)
+            with self._db_connect() as connection:
+                connection.execute("DELETE FROM scheduled_task_runs WHERE task_id = ? AND run_id = ?", (task_id, run_id))
+                connection.commit()
 
     def update_task(self, session_token: Optional[str], task_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)

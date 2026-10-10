@@ -471,6 +471,13 @@ export function MirrorAccelerators({
 
     return (
         <Box className="settings-mirror-panel">
+            {rows.length === 0 ? (
+                <Box sx={{ minHeight: 96, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                        {t('settingsPage.mirror.empty')}
+                    </Typography>
+                </Box>
+            ) : null}
             <div className="settings-mirror-list">
                 {rows.map((entry, index) => {
                     const probe = probes[entry.key]
@@ -675,29 +682,6 @@ export function MirrorAccelerators({
                     )
                 })}
             </div>
-
-            <Typography className="settings-field-helper settings-field-helper--inline settings-port-hint settings-mirror-hint">
-                <svg className="settings-port-hint-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-                    <path d="M12 11.2v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                    <circle cx="12" cy="7.9" r="1.15" fill="currentColor" />
-                </svg>
-                <span>{t('settingsPage.mirror.helper')}</span>
-            </Typography>
-            <Typography className="settings-field-helper settings-field-helper--inline settings-port-hint settings-mirror-hint">
-                <svg className="settings-port-hint-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
-                    <path d="M7 4.7h10M7 12h10M7 19.3h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                    <path d="m14.2 16.5 2.8 2.8-2.8 2.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span>{t('settingsPage.mirror.orderHelper')}</span>
-            </Typography>
-            <Typography className="settings-field-helper settings-field-helper--inline settings-port-hint settings-mirror-hint">
-                <svg className="settings-port-hint-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-                    <path d="M12 7.7v4.8l3.2 1.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span>{t('settingsPage.mirror.testHelper')}</span>
-            </Typography>
 
             {rows.length > 0 || hasChanges ? (
                 <div className="settings-mirror-actions">

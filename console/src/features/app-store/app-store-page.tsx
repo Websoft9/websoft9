@@ -880,6 +880,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [selectedSubCatalogKey, setSelectedSubCatalogKey] = useState('all')
     const [selectedApp, setSelectedApp] = useState<AppStoreApp | null>(null)
     const [isInstallMode, setIsInstallMode] = useState(false)
+    const [installSeedAppKey, setInstallSeedAppKey] = useState<string | null>(null)
     // The page unmounts on navigation, so the surface the operator left behind is kept outside the
     // component and read back on mount.
     const appStoreSessionRef = useRef<AppStoreSessionState | null>(readAppStoreSessionState())
@@ -906,12 +907,16 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [installConfirmOpen, setInstallConfirmOpen] = useState(false)
     const [prewarmResumeOpen, setPrewarmResumeOpen] = useState(false)
     const [prewarmStatus, setPrewarmStatus] = useState<ImagePrewarmStatus | null>(null)
+    const [imageCheck, setImageCheck] = useState<{ key: string; state: 'ready' | 'failed' } | null>(null)
+    const [imageCheckRevision, setImageCheckRevision] = useState(0)
+    const [showInstallPreparation, setShowInstallPreparation] = useState(false)
     const [prewarmQueueState, setPrewarmQueueState] = useState<ImagePrewarmTask['queue_state'] | null>(null)
     const [isRefreshingStore, setIsRefreshingStore] = useState(false)
     const [isLocalRefreshing, setIsLocalRefreshing] = useState(false)
     const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false)
     const [refreshFeedback, setRefreshFeedback] = useState<{ severity: 'success' | 'error'; message: string } | null>(null)
     const [wildcardDomain, setWildcardDomain] = useState(() => appStoreSessionRef.current?.wildcardDomain ?? '')
+    const [domainSettingsPending, setDomainSettingsPending] = useState(true)
     const [isDomainEnabled, setIsDomainEnabled] = useState(() => appStoreSessionRef.current?.isDomainEnabled ?? true)
     const MAX_CUSTOM_DOMAINS = 5
     const [customDomains, setCustomDomains] = useState<string[]>(() => appStoreSessionRef.current?.customDomains ?? [])
@@ -1232,7 +1237,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             onClick={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
             onMouseUp={(event) => event.stopPropagation()}
-            to="/cronjob"
+            to={`/cronjob?${new URLSearchParams({ view: 'image-prewarm', app: selectedApp?.key ?? '', version: selectedVersion }).toString()}`}
             sx={{ fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}
         >
             {t('appStorePage.install.prewarm.viewTask')}
@@ -1396,7 +1401,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     useEffect(() => {
         let isActive = true
 
+        const controller = new AbortController()
+        const timeout = window.setTimeout(() => controller.abort(), 15_000)
         void fetch('/api/settings/domain', {
+            signal: controller.signal,
             credentials: 'include',
             headers: {
                 Accept: 'application/json',
@@ -1423,9 +1431,15 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
                 setWildcardDomain('')
             })
+            .finally(() => {
+                window.clearTimeout(timeout)
+                if (isActive) setDomainSettingsPending(false)
+            })
 
         return () => {
             isActive = false
+            controller.abort()
+            window.clearTimeout(timeout)
         }
     }, [])
 
@@ -1437,8 +1451,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
     useEffect(() => {
         if (!selectedApp || !isInstallMode) {
+            setInstallSeedAppKey(null)
             return
         }
+        setInstallSeedAppKey(selectedApp.key ?? '')
 
         // Restoring a remembered install form must not be re-seeded from the app template; that would
         // discard every value the operator had already typed.
@@ -1584,40 +1600,65 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     // One polling loop covers every case: the first load, a failed lookup, an in-flight pull and a
     // pull that finishes while the dialog is open. Splitting these across two effects meant a single
     // failed request left the field showing "Prewarm images" even when the images were present.
+    const imageCheckKey = `${selectedApp?.key ?? ''}:${selectedVersion}`
+    const imageCheckPending = isInstallMode && imageCheck?.key !== imageCheckKey
+    const imageCheckFailed = isInstallMode && imageCheck?.key === imageCheckKey && imageCheck.state === 'failed'
+    const installPreparationPending = isInstallMode && (installSeedAppKey !== selectedApp?.key || isPortSuggestionPending || imageCheckPending || domainSettingsPending)
+
+    useEffect(() => {
+        setShowInstallPreparation(false)
+        if (!installPreparationPending) return
+        const timer = window.setTimeout(() => setShowInstallPreparation(true), 300)
+        return () => window.clearTimeout(timer)
+    }, [installPreparationPending, imageCheckKey])
+
     useEffect(() => {
         if (!selectedApp?.key || !isInstallMode || !selectedVersion) {
             setPrewarmStatus(null)
             setPrewarmQueueState(null)
+            setImageCheck(null)
             return
         }
+        if (installSeedAppKey !== selectedApp.key) return
         let cancelled = false
+        let pollTimer: ReturnType<typeof window.setTimeout> | undefined
+        let controller: AbortController | undefined
+        let hasResult = false
         setPrewarmStatus(null)
         setPrewarmQueueState(null)
+        setImageCheck(null)
 
         const load = async () => {
+            controller = new AbortController()
+            const timeout = window.setTimeout(() => controller?.abort(), 15_000)
             try {
                 const status = await requestJson<ImagePrewarmStatus>(
                     `/api/apps/images/prewarm/status?app_name=${encodeURIComponent(selectedApp.key!)}&version=${encodeURIComponent(selectedVersion)}`,
-                    { method: 'GET' },
+                    { method: 'GET', signal: controller.signal },
                 )
                 if (cancelled) return
+                hasResult = true
                 setPrewarmStatus(status)
+                setImageCheck({ key: imageCheckKey, state: 'ready' })
                 // The task's own state must survive even when the images are already present.
                 // Collapsing it to `success` whenever `ready` was true hid an in-flight pull and made
                 // this field disagree with the task list, which showed the same pull as running.
                 setPrewarmQueueState(status.task?.queue_state ?? null)
             } catch {
-                if (!cancelled) setPrewarmStatus(null)
+                if (!cancelled && !hasResult) setImageCheck({ key: imageCheckKey, state: 'failed' })
+            } finally {
+                window.clearTimeout(timeout)
+                if (!cancelled) pollTimer = window.setTimeout(() => void load(), 5_000)
             }
         }
 
         void load()
-        const timer = window.setInterval(() => void load(), 5_000)
         return () => {
             cancelled = true
-            window.clearInterval(timer)
+            controller?.abort()
+            window.clearTimeout(pollTimer)
         }
-    }, [isInstallMode, selectedApp?.key, selectedVersion])
+    }, [isInstallMode, selectedApp?.key, selectedVersion, imageCheckKey, imageCheckRevision, installSeedAppKey])
 
     function clearPortSuggestionSpinnerTimer() {
         if (portSuggestionSpinnerTimerRef.current !== null) {
@@ -1865,6 +1906,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     }, [contentScopeContainer, isFavoritesOpen, selectedApp])
 
     async function handleInstallSubmit() {
+        if (installPreparationPending || imageCheckFailed) return
         if (!selectedApp) {
             return
         }
@@ -2017,7 +2059,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     }
 
     async function handleImagePrewarm() {
-        if (!selectedApp || !selectedApp.key || !selectedVersion || isSubmittingPrewarm) return
+        if (!selectedApp || !selectedApp.key || !selectedVersion || isSubmittingPrewarm || installPreparationPending || imageCheckFailed) return
         setIsSubmittingPrewarm(true)
         try {
             const task = await requestJson<ImagePrewarmTask>('/api/apps/images/prewarm', {
@@ -2033,7 +2075,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     }
 
     function requestImagePrewarm() {
-        if (!prewarmStatus || isSubmittingPrewarm) return
+        if (!prewarmStatus || isSubmittingPrewarm || installPreparationPending || imageCheckFailed) return
         if (prewarmQueueState === 'cancelled') {
             setPrewarmResumeOpen(true)
         } else {
@@ -3676,552 +3718,556 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     </IconButton>
                                 </Box>
                             </DialogTitle>
-                            <DialogContent dividers sx={{ px: 0, py: 0, flex: 1, overflowY: 'auto', backgroundColor: palette.dialogBg, '&.MuiDialogContent-dividers': { borderTopColor: palette.border, borderBottomColor: palette.border } }}>
-                                {!isInstallMode ? (
-                                    <>
-                                        <AppScreenshot
-                                            alt={selectedApp.trademark ?? selectedApp.key ?? t('appStorePage.card.imageFallbackAlt')}
-                                            app={selectedApp}
-                                        />
+                            <Box sx={{ position: 'relative', display: 'flex', flex: 1, minHeight: 0 }} aria-busy={installPreparationPending}>
+                                <DialogContent inert={installPreparationPending} dividers sx={{ px: 0, py: 0, flex: 1, overflowY: 'auto', backgroundColor: palette.dialogBg, pointerEvents: installPreparationPending ? 'none' : 'auto', '&.MuiDialogContent-dividers': { borderTopColor: palette.border, borderBottomColor: palette.border } }}>
+                                    {!isInstallMode ? (
+                                        <>
+                                            <AppScreenshot
+                                                alt={selectedApp.trademark ?? selectedApp.key ?? t('appStorePage.card.imageFallbackAlt')}
+                                                app={selectedApp}
+                                            />
 
-                                        <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 0.5, pb: 2.25 }}>
-                                            <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: palette.text }}>{t('appStorePage.detail.overviewTitle')}</Typography>
-                                            <Typography sx={{ mb: 2.5, lineHeight: 1.75, fontSize: 14, color: palette.subtleText, fontWeight: 400 }}>
-                                                {selectedApp.overview || selectedApp.summary || t('appStorePage.card.summaryFallback')}
-                                            </Typography>
+                                            <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 0.5, pb: 2.25 }}>
+                                                <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: palette.text }}>{t('appStorePage.detail.overviewTitle')}</Typography>
+                                                <Typography sx={{ mb: 2.5, lineHeight: 1.75, fontSize: 14, color: palette.subtleText, fontWeight: 400 }}>
+                                                    {selectedApp.overview || selectedApp.summary || t('appStorePage.card.summaryFallback')}
+                                                </Typography>
 
-                                            <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: palette.text }}>{t('appStorePage.detail.descriptionTitle')}</Typography>
-                                            <Typography sx={{ lineHeight: 1.75, whiteSpace: 'pre-wrap', fontSize: 14, color: palette.subtleText, fontWeight: 400 }}>
-                                                {selectedApp.description || selectedApp.overview || selectedApp.summary || t('appStorePage.card.summaryFallback')}
-                                            </Typography>
-                                        </Box>
-                                    </>
-                                ) : (
-                                    <Box sx={{ display: 'grid', gap: 1.25, px: { xs: 2, md: 2.5 }, py: 2.25 }}>
-                                        <Box>
-                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.appIdLabel')}</Typography>
-                                            <Box
-                                                sx={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns:
-                                                        selectedApp.is_web_app && wildcardDomain
-                                                            ? 'minmax(0, 1fr) 180px 74px'
-                                                            : '1fr',
-                                                    gap: 0,
-                                                    alignItems: 'center',
-                                                }}
-                                            >
-                                                <TextField
-                                                    autoFocus
-                                                    error={Boolean(installFieldErrors.appId)}
-                                                    fullWidth
-                                                    inputRef={appIdInputRef}
-                                                    placeholder={t('appStorePage.install.appIdPlaceholder')}
-                                                    size="small"
-                                                    value={installName}
-                                                    onChange={(event) => {
-                                                        setInstallFieldErrors((currentValue) => ({ ...currentValue, appId: undefined }))
-                                                        setInstallError(null)
-                                                        setInstallName(normalizeInstallName(event.target.value))
-                                                    }}
+                                                <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: palette.text }}>{t('appStorePage.detail.descriptionTitle')}</Typography>
+                                                <Typography sx={{ lineHeight: 1.75, whiteSpace: 'pre-wrap', fontSize: 14, color: palette.subtleText, fontWeight: 400 }}>
+                                                    {selectedApp.description || selectedApp.overview || selectedApp.summary || t('appStorePage.card.summaryFallback')}
+                                                </Typography>
+                                            </Box>
+                                        </>
+                                    ) : (
+                                        <Box sx={{ display: 'grid', gap: 1.25, px: { xs: 2, md: 2.5 }, py: 2.25 }}>
+                                            {imageCheckFailed ? <Alert severity="warning" action={<Button color="inherit" size="small" onClick={() => setImageCheckRevision(revision => revision + 1)}>{t('appStorePage.installPreparation.retry')}</Button>}>{t('appStorePage.installPreparation.imageCheckFailed')}</Alert> : null}
+                                            <Box>
+                                                <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.appIdLabel')}</Typography>
+                                                <Box
                                                     sx={{
-                                                        ...installDialogFieldSx,
-                                                        '& .MuiOutlinedInput-root': {
-                                                            ...installDialogFieldSx['& .MuiOutlinedInput-root'],
-                                                            borderRadius: selectedApp.is_web_app && wildcardDomain ? '4px 0 0 4px' : '4px',
-                                                        },
+                                                        display: 'grid',
+                                                        gridTemplateColumns:
+                                                            selectedApp.is_web_app && wildcardDomain
+                                                                ? 'minmax(0, 1fr) 180px 74px'
+                                                                : '1fr',
+                                                        gap: 0,
+                                                        alignItems: 'center',
                                                     }}
-                                                />
-                                                {selectedApp.is_web_app && wildcardDomain ? (
-                                                    <>
-                                                        <Box
-                                                            sx={{
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                px: 1.25,
-                                                                border: `1px solid ${palette.border}`,
-                                                                borderLeft: 0,
-                                                                backgroundColor: isDomainEnabled ? palette.panelBg : palette.panelSoft,
-                                                                color: isDomainEnabled ? palette.subtleText : palette.placeholderText,
-                                                                fontSize: 13.5,
-                                                                height: 38,
-                                                                boxSizing: 'border-box',
-                                                            }}
-                                                        >
+                                                >
+                                                    <TextField
+                                                        autoFocus
+                                                        error={Boolean(installFieldErrors.appId)}
+                                                        fullWidth
+                                                        inputRef={appIdInputRef}
+                                                        placeholder={t('appStorePage.install.appIdPlaceholder')}
+                                                        size="small"
+                                                        value={installName}
+                                                        onChange={(event) => {
+                                                            setInstallFieldErrors((currentValue) => ({ ...currentValue, appId: undefined }))
+                                                            setInstallError(null)
+                                                            setInstallName(normalizeInstallName(event.target.value))
+                                                        }}
+                                                        sx={{
+                                                            ...installDialogFieldSx,
+                                                            '& .MuiOutlinedInput-root': {
+                                                                ...installDialogFieldSx['& .MuiOutlinedInput-root'],
+                                                                borderRadius: selectedApp.is_web_app && wildcardDomain ? '4px 0 0 4px' : '4px',
+                                                            },
+                                                        }}
+                                                    />
+                                                    {selectedApp.is_web_app && wildcardDomain ? (
+                                                        <>
                                                             <Box
-                                                                component="span"
                                                                 sx={{
-                                                                    display: 'inline-block',
-                                                                    textDecoration: isDomainEnabled ? 'none' : 'line-through',
-                                                                    textDecorationThickness: isDomainEnabled ? undefined : '1px',
-                                                                    textDecorationColor: isDomainEnabled ? undefined : palette.placeholderText,
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    px: 1.25,
+                                                                    border: `1px solid ${palette.border}`,
+                                                                    borderLeft: 0,
+                                                                    backgroundColor: isDomainEnabled ? palette.panelBg : palette.panelSoft,
+                                                                    color: isDomainEnabled ? palette.subtleText : palette.placeholderText,
+                                                                    fontSize: 13.5,
+                                                                    height: 38,
+                                                                    boxSizing: 'border-box',
                                                                 }}
                                                             >
-                                                                {domainSuffix}
+                                                                <Box
+                                                                    component="span"
+                                                                    sx={{
+                                                                        display: 'inline-block',
+                                                                        textDecoration: isDomainEnabled ? 'none' : 'line-through',
+                                                                        textDecorationThickness: isDomainEnabled ? undefined : '1px',
+                                                                        textDecorationColor: isDomainEnabled ? undefined : palette.placeholderText,
+                                                                    }}
+                                                                >
+                                                                    {domainSuffix}
+                                                                </Box>
                                                             </Box>
-                                                        </Box>
-                                                        <Button
-                                                            onClick={() => setIsDomainEnabled((currentValue) => !currentValue)}
-                                                            sx={{
-                                                                minWidth: 82,
-                                                                border: `1px solid ${isDomainEnabled ? palette.borderStrong : palette.accent}`,
-                                                                background: isDomainEnabled ? palette.actionBg : palette.accentSoft,
-                                                                color: isDomainEnabled ? palette.subtleText : palette.accent,
-                                                                boxShadow: 'none',
-                                                                borderRadius: '0 4px 4px 0',
-                                                                '&:hover': {
-                                                                    background: isDomainEnabled ? palette.actionHover : palette.accentSoft,
-                                                                    color: isDomainEnabled ? palette.text : palette.accent,
+                                                            <Button
+                                                                onClick={() => setIsDomainEnabled((currentValue) => !currentValue)}
+                                                                sx={{
+                                                                    minWidth: 82,
+                                                                    border: `1px solid ${isDomainEnabled ? palette.borderStrong : palette.accent}`,
+                                                                    background: isDomainEnabled ? palette.actionBg : palette.accentSoft,
+                                                                    color: isDomainEnabled ? palette.subtleText : palette.accent,
                                                                     boxShadow: 'none',
-                                                                },
-                                                            }}
-                                                            variant="contained"
-                                                        >
-                                                            {isDomainEnabled ? t('appStorePage.install.disableDomain') : t('appStorePage.install.enableDomain')}
-                                                        </Button>
-                                                    </>
-                                                ) : null}
-                                            </Box>
-                                        </Box>
-
-                                        {selectedApp.is_web_app ? (
-                                            <Box sx={{ mt: 1 }}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: customDomains.length > 0 ? 0.75 : 0 }}>
-                                                    <Typography sx={{ fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.customDomainLabel')}</Typography>
-                                                    {customDomains.length < MAX_CUSTOM_DOMAINS ? (
-                                                        <Button
-                                                            onClick={() => {
-                                                                setCustomDomainErrorIndex(null)
-                                                                setInstallFieldErrors((currentValue) => ({ ...currentValue, customDomain: undefined }))
-                                                                setInstallError(null)
-                                                                setCustomDomains((currentValue) => [...currentValue, ''])
-                                                            }}
-                                                            variant="text"
-                                                            size="small"
-                                                            sx={{
-                                                                fontSize: 13,
-                                                                fontWeight: 500,
-                                                                color: palette.accent,
-                                                                textTransform: 'none',
-                                                                px: 1,
-                                                                py: 0.25,
-                                                                minWidth: 0,
-                                                                '&:hover': { backgroundColor: palette.accentSoft },
-                                                            }}
-                                                        >
-                                                            + {t('appStorePage.install.addCustomDomain')}
-                                                        </Button>
+                                                                    borderRadius: '0 4px 4px 0',
+                                                                    '&:hover': {
+                                                                        background: isDomainEnabled ? palette.actionHover : palette.accentSoft,
+                                                                        color: isDomainEnabled ? palette.text : palette.accent,
+                                                                        boxShadow: 'none',
+                                                                    },
+                                                                }}
+                                                                variant="contained"
+                                                            >
+                                                                {isDomainEnabled ? t('appStorePage.install.disableDomain') : t('appStorePage.install.enableDomain')}
+                                                            </Button>
+                                                        </>
                                                     ) : null}
                                                 </Box>
-                                                {customDomains.length > 0 ? (
-                                                    <Box sx={{ display: 'grid', gap: 1 }}>
-                                                        {customDomains.map((domain, index) => (
-                                                            <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-                                                                <TextField
-                                                                    error={customDomainErrorIndex === index}
-                                                                    fullWidth
-                                                                    inputRef={(element) => {
-                                                                        customDomainInputRefs.current[index] = element
-                                                                    }}
-                                                                    placeholder={t('appStorePage.install.customDomainPlaceholder')}
-                                                                    size="small"
-                                                                    value={domain}
-                                                                    onChange={(event) => {
-                                                                        setCustomDomainErrorIndex(null)
-                                                                        setInstallFieldErrors((currentValue) => ({ ...currentValue, customDomain: undefined }))
-                                                                        setInstallError(null)
-                                                                        setCustomDomains((currentValue) => {
-                                                                            const next = [...currentValue]
-                                                                            next[index] = event.target.value
-                                                                            return next
-                                                                        })
-                                                                    }}
-                                                                    sx={installDialogFieldSx}
-                                                                />
-                                                                <IconButton
-                                                                    onClick={() => {
-                                                                        setCustomDomainErrorIndex(null)
-                                                                        setInstallFieldErrors((currentValue) => ({ ...currentValue, customDomain: undefined }))
-                                                                        setInstallError(null)
-                                                                        setCustomDomains((currentValue) => currentValue.filter((_, i) => i !== index))
-                                                                    }}
-                                                                    size="small"
-                                                                    sx={{
-                                                                        mt: 0.5,
-                                                                        width: 32,
-                                                                        height: 32,
-                                                                        color: palette.subtleText,
-                                                                        borderRadius: '4px',
-                                                                        '&:hover': { color: palette.danger, backgroundColor: palette.panelHover },
-                                                                    }}
-                                                                    title={t('appStorePage.install.removeCustomDomain')}
-                                                                >
-                                                                    <RemoveIcon />
-                                                                </IconButton>
-                                                            </Box>
-                                                        ))}
-                                                    </Box>
-                                                ) : null}
                                             </Box>
-                                        ) : null}
 
-                                        <Box>
-                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.versionLabel')}</Typography>
-                                            {availableVersions.length > 1 ? (
-                                                <TextField
-                                                    select
-                                                    fullWidth
-                                                    size="small"
-                                                    value={selectedVersion}
-                                                    onChange={(event) => {
-                                                        setInstallError(null)
-                                                        setSelectedVersion(event.target.value)
-                                                    }}
-                                                    sx={versionFieldSx}
-                                                    slotProps={{
-                                                        select: {
-                                                            MenuProps: installDialogSelectMenuProps,
-                                                            renderValue: (value) => (
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                                                    <span>{String(value)}</span>
-                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
-                                                                        {prewarmStatusNode}
-                                                                        {prewarmLinkNode}
-                                                                    </Box>
-                                                                </Box>
-                                                            ),
-                                                        },
-                                                    }}
-                                                >
-                                                    {availableVersions.map((version) => (
-                                                        <MenuItem key={version} value={version}>
-                                                            {version}
-                                                        </MenuItem>
-                                                    ))}
-                                                </TextField>
-                                            ) : (
-                                                <TextField
-                                                    fullWidth
-                                                    size="small"
-                                                    value={effectiveVersionLabel}
-                                                    slotProps={{
-                                                        input: {
-                                                            readOnly: true,
-                                                            endAdornment: prewarmStatusNode || prewarmLinkNode ? (
-                                                                <InputAdornment position="end" sx={{ gap: 1 }}>
-                                                                    {prewarmStatusNode}
-                                                                    {prewarmLinkNode}
-                                                                </InputAdornment>
-                                                            ) : undefined,
-                                                        },
-                                                    }}
-                                                    sx={{
-                                                        ...versionFieldSx,
-                                                        '& .MuiOutlinedInput-root': {
-                                                            ...installDialogFieldSx['& .MuiOutlinedInput-root'],
-                                                            backgroundColor: palette.panelSoft,
-                                                        },
-                                                        '& .MuiInputBase-input': {
-                                                            ...appStoreControlTextSx,
-                                                            color: palette.text,
-                                                            WebkitTextFillColor: palette.text,
-                                                        },
-                                                    }}
-                                                />
-                                            )}
-                                            {showLatestVersionWarning ? (
-                                                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.75, fontSize: 12, color: palette.warning }}>
-                                                    <SvgIcon viewBox="0 0 24 24" sx={{ fontSize: 15, color: palette.warning }}>
-                                                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
-                                                    </SvgIcon>
-                                                    {t('appStorePage.install.latestVersionWarning')}
-                                                </Box>
-                                            ) : null}
-                                        </Box>
-
-                                        {portRangeExhausted ? (
-                                            <Alert severity="warning" sx={{ fontSize: 13, gridColumn: '1 / -1' }}>
-                                                {t('appStorePage.install.portRange.exhaustedPrefix')}
-                                                <Link
-                                                    component={RouterLink}
-                                                    to="/settings#application-ports"
-                                                    sx={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}
-                                                >
-                                                    {t('appStorePage.install.portRange.exhaustedLink')}
-                                                </Link>
-                                                {t('appStorePage.install.portRange.exhaustedSuffix')}
-                                            </Alert>
-                                        ) : null}
-
-                                        {sharedInstallSettings.map(([key, value]) => (
-                                            <Box key={key}>
-                                                {(() => {
-                                                    const isPortField = isPortSettingKey(key, { externalDatabase: isExternalDatabaseProfile })
-                                                    // Port fields stay disabled while the platform assigns their ports, so a
-                                                    // manual value can never race the suggestion response.
-                                                    const isPortAllocationPending = isPortField && isPortSuggestionPending
-
-                                                    return (
-                                                        <>
-                                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getInstallSettingLabel(key, t)}</Typography>
-                                                            <TextField
-                                                                disabled={isPortAllocationPending}
-                                                                error={Boolean(installFieldErrors.settings?.[key])}
-                                                                fullWidth
-                                                                inputRef={(element) => {
-                                                                    installSettingInputRefs.current[key] = element
-                                                                }}
-                                                                size="small"
-                                                                type={key.endsWith('_PASSWORD_SET') ? 'password' : 'text'}
-                                                                value={value}
-                                                                onChange={(event) => {
-                                                                    setInstallFieldErrors((currentValue) => ({
-                                                                        ...currentValue,
-                                                                        settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
-                                                                    }))
+                                            {selectedApp.is_web_app ? (
+                                                <Box sx={{ mt: 1 }}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: customDomains.length > 0 ? 0.75 : 0 }}>
+                                                        <Typography sx={{ fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.customDomainLabel')}</Typography>
+                                                        {customDomains.length < MAX_CUSTOM_DOMAINS ? (
+                                                            <Button
+                                                                onClick={() => {
+                                                                    setCustomDomainErrorIndex(null)
+                                                                    setInstallFieldErrors((currentValue) => ({ ...currentValue, customDomain: undefined }))
                                                                     setInstallError(null)
-                                                                    clearPortCheckState(key)
-                                                                    if (selectedInstallProfile) {
-                                                                        setProfileInstallSettings((currentValue) => ({
-                                                                            ...currentValue,
-                                                                            [selectedInstallProfile]: {
-                                                                                ...(currentValue[selectedInstallProfile] ?? selectedProfileTemplateSettings),
-                                                                                [key]: event.target.value,
-                                                                            },
-                                                                        }))
-                                                                    } else {
-                                                                        setInstallSettings((currentValue) => ({
-                                                                            ...currentValue,
-                                                                            [key]: event.target.value,
-                                                                        }))
-                                                                    }
+                                                                    setCustomDomains((currentValue) => [...currentValue, ''])
                                                                 }}
-                                                                placeholder={isPortAllocationPending ? t('appStorePage.install.portAllocating') : undefined}
-                                                                slotProps={{
-                                                                    input: isPortField ? { endAdornment: renderPortCheckAdornment(key, value) } : undefined,
-                                                                    htmlInput: key.toLowerCase().includes('port')
-                                                                        ? {
-                                                                            inputMode: 'numeric',
-                                                                            pattern: '[0-9]*',
-                                                                        }
-                                                                        : undefined,
-                                                                }}
+                                                                variant="text"
+                                                                size="small"
                                                                 sx={{
-                                                                    ...installDialogFieldSx,
-                                                                    '& .MuiInputBase-input': {
-                                                                        ...appStoreControlTextSx,
-                                                                        color: palette.text,
-                                                                        WebkitTextFillColor: palette.text,
-                                                                    },
+                                                                    fontSize: 13,
+                                                                    fontWeight: 500,
+                                                                    color: palette.accent,
+                                                                    textTransform: 'none',
+                                                                    px: 1,
+                                                                    py: 0.25,
+                                                                    minWidth: 0,
+                                                                    '&:hover': { backgroundColor: palette.accentSoft },
                                                                 }}
-                                                            />
-                                                        </>
-                                                    )
-                                                })()}
-                                            </Box>
-                                        ))}
-
-                                        {Object.keys(selectedAppProfiles).length > 0 ? (
-                                            <Box sx={{ pt: 0.5 }}>
-                                                <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>
-                                                    {t('appStorePage.install.databaseProfile.label')}
-                                                </Typography>
-                                                <TextField
-                                                    select
-                                                    fullWidth
-                                                    size="small"
-                                                    value={selectedInstallProfile ?? ''}
-                                                    helperText={isExternalDatabaseProfile && externalDatabaseHelp ? (
-                                                        <Box component="span" sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
-                                                            <SvgIcon viewBox="0 0 24 24" sx={{ mt: '1px', flexShrink: 0, fontSize: 15, color: palette.warning }}>
-                                                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
-                                                            </SvgIcon>
-                                                            <Box component="span">{externalDatabaseHelp}</Box>
-                                                        </Box>
-                                                    ) : undefined}
-                                                    onChange={(event) => {
-                                                        const profile = event.target.value || null
-                                                        setInstallError(null)
-                                                        setInstallFieldErrors({})
-                                                        setPortCheckStates({})
-                                                        setTestedDatabaseConnectionSignature(null)
-                                                        if (profile) {
-                                                            setProfileInstallSettings((currentValue) => {
-                                                                const userModifiedSharedSettings = Object.fromEntries(
-                                                                    Object.entries(installSettings).filter(([key, value]) => (
-                                                                        !externalDatabaseSettingKeys.includes(key)
-                                                                        && value !== selectedAppSettings[key]
-                                                                    )),
-                                                                )
-                                                                return {
-                                                                    ...currentValue,
-                                                                    [profile]: {
-                                                                        ...(currentValue[profile] ?? selectedAppProfiles[profile]?.settings ?? {}),
-                                                                        ...userModifiedSharedSettings,
-                                                                    },
-                                                                }
-                                                            })
-                                                        }
-                                                        setSelectedInstallProfile(profile)
-                                                    }}
-                                                    sx={{
-                                                        ...installDialogFieldSx,
-                                                        '& .MuiSelect-select': { ...appStoreControlTextSx, color: palette.text },
-                                                        '& .MuiFormHelperText-root': {
-                                                            color: palette.warning,
-                                                            whiteSpace: 'normal',
-                                                            overflowWrap: 'anywhere',
-                                                            lineHeight: 1.5,
-                                                        },
-                                                    }}
-                                                    slotProps={{ select: { MenuProps: installDialogSelectMenuProps, displayEmpty: true } }}
-                                                >
-                                                    <MenuItem value="">{t('appStorePage.install.databaseProfile.builtIn')}</MenuItem>
-                                                    {Object.entries(selectedAppProfiles)
-                                                        .map(([profile, metadata]) => (
-                                                            <MenuItem key={profile} value={profile}>
-                                                                {metadata.is_external_database
-                                                                    ? t('appStorePage.install.databaseProfile.custom')
-                                                                    : profile.replace(/-/g, ' ')}
-                                                            </MenuItem>
-                                                        ))}
-                                                </TextField>
-
-                                                {isExternalDatabaseProfile ? (
-                                                    <Box
-                                                        component="fieldset"
-                                                        sx={{
-                                                            mt: 1.5,
-                                                            p: { xs: 1.25, md: 1.5 },
-                                                            border: `1px solid ${palette.border}`,
-                                                            borderRadius: '4px',
-                                                            backgroundColor: palette.panelSoft,
-                                                            minWidth: 0,
-                                                        }}
-                                                    >
-                                                        <Typography component="legend" sx={{ px: 0.75, fontSize: 14, fontWeight: 500, color: palette.text, backgroundColor: palette.panelSoft }}>
-                                                            {t('appStorePage.install.databaseProfile.connection')}
-                                                        </Typography>
-                                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(6, minmax(0, 1fr))' }, gap: 1.25 }}>
-                                                            {displayedProfileInstallSettings.map(([key, value]) => (
-                                                                <Box
-                                                                    key={key}
-                                                                    sx={{
-                                                                        gridColumn: {
-                                                                            xs: 'span 1',
-                                                                            md: key === 'W9_DB_HOST_SET' ? 'span 3' : key === 'W9_DB_PORT_SET' ? 'span 1' : key === 'W9_DB_NAME_SET' ? 'span 2' : 'span 3',
-                                                                        },
-                                                                    }}
-                                                                >
-                                                                    <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getDatabaseSettingLabel(key)}</Typography>
-                                                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                                                        <TextField
-                                                                            error={Boolean(installFieldErrors.settings?.[key])}
-                                                                            fullWidth
-                                                                            inputRef={(element) => {
-                                                                                installSettingInputRefs.current[key] = element
-                                                                            }}
-                                                                            size="small"
-                                                                            type={key === 'W9_DB_PASSWORD_SET' && !isDatabasePasswordVisible ? 'password' : 'text'}
-                                                                            value={value}
-                                                                            onChange={(event) => {
-                                                                                const profile = selectedInstallProfile
-                                                                                if (!profile) {
-                                                                                    return
-                                                                                }
-                                                                                setInstallFieldErrors((currentValue) => ({
-                                                                                    ...currentValue,
-                                                                                    settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
-                                                                                }))
-                                                                                setInstallError(null)
-                                                                                setTestedDatabaseConnectionSignature(null)
-                                                                                setProfileInstallSettings((currentValue) => ({
-                                                                                    ...currentValue,
-                                                                                    [profile]: {
-                                                                                        ...(currentValue[profile] ?? selectedProfileTemplateSettings),
-                                                                                        [key]: event.target.value,
-                                                                                    },
-                                                                                }))
-                                                                            }}
-                                                                            slotProps={{
-                                                                                input: key === 'W9_DB_PASSWORD_SET' ? {
-                                                                                    endAdornment: (
-                                                                                        <InputAdornment position="end">
-                                                                                            <IconButton
-                                                                                                aria-label={isDatabasePasswordVisible ? t('appStorePage.install.databaseProfile.hidePassword') : t('appStorePage.install.databaseProfile.showPassword')}
-                                                                                                edge="end"
-                                                                                                onClick={() => setIsDatabasePasswordVisible((currentValue) => !currentValue)}
-                                                                                            >
-                                                                                                <DatabasePasswordVisibilityIcon visible={isDatabasePasswordVisible} />
-                                                                                            </IconButton>
-                                                                                        </InputAdornment>
-                                                                                    ),
-                                                                                } : undefined,
-                                                                                htmlInput: key.toLowerCase().includes('port')
-                                                                                    ? { inputMode: 'numeric', pattern: '[0-9]*' }
-                                                                                    : undefined,
-                                                                            }}
-                                                                            sx={{
-                                                                                ...installDialogFieldSx,
-                                                                                '& .MuiInputBase-input': {
-                                                                                    ...appStoreControlTextSx,
-                                                                                    color: palette.text,
-                                                                                    WebkitTextFillColor: palette.text,
-                                                                                },
-                                                                            }}
-                                                                        />
-                                                                        {key === 'W9_DB_PASSWORD_SET' ? (
-                                                                            <Button
-                                                                                disabled={isTestingDatabase}
-                                                                                onClick={async () => {
-                                                                                    const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings, displayedProfileInstallSettings.map(([key]) => key))
-                                                                                    if (Object.keys(databaseErrors).length > 0) {
-                                                                                        setInstallFieldErrors({ settings: databaseErrors })
-                                                                                        setInstallError(Object.values(databaseErrors)[0] ?? null)
-                                                                                        installSettingInputRefs.current[Object.keys(databaseErrors)[0]]?.focus()
-                                                                                        return
-                                                                                    }
-                                                                                    setIsTestingDatabase(true)
-                                                                                    setInstallError(null)
-                                                                                    setInstallFeedback(null)
-                                                                                    try {
-                                                                                        if (!selectedInstallProfile) {
-                                                                                            return
-                                                                                        }
-                                                                                        await testExternalDatabaseConnection(selectedApp, selectedVersion, selectedInstallProfile, effectiveInstallSettings)
-                                                                                        setTestedDatabaseConnectionSignature(getDatabaseConnectionSignature(selectedInstallProfile, effectiveInstallSettings, displayedProfileInstallSettings.map(([key]) => key)))
-                                                                                        setInstallFeedback({ severity: 'success', message: t('appStorePage.install.databaseConnection.success') })
-                                                                                    } catch (error) {
-                                                                                        const message = error instanceof Error ? error.message : t('appStorePage.install.databaseConnection.failed')
-                                                                                        setInstallToastRevision((currentValue) => currentValue + 1)
-                                                                                        setInstallError(
-                                                                                            /Unable to connect to the specified database\.?/i.test(message)
-                                                                                                ? t('appStorePage.install.databaseConnection.failed')
-                                                                                                : message,
-                                                                                        )
-                                                                                    } finally {
-                                                                                        setIsTestingDatabase(false)
-                                                                                    }
-                                                                                }}
-                                                                                variant="outlined"
-                                                                                size="small"
-                                                                                sx={{ flexShrink: 0, minWidth: 96, height: 40, borderRadius: '4px', textTransform: 'none' }}
-                                                                            >
-                                                                                {isTestingDatabase ? t('appStorePage.install.databaseConnection.testing') : t('appStorePage.install.databaseConnection.test')}
-                                                                            </Button>
-                                                                        ) : null}
-                                                                    </Box>
+                                                            >
+                                                                + {t('appStorePage.install.addCustomDomain')}
+                                                            </Button>
+                                                        ) : null}
+                                                    </Box>
+                                                    {customDomains.length > 0 ? (
+                                                        <Box sx={{ display: 'grid', gap: 1 }}>
+                                                            {customDomains.map((domain, index) => (
+                                                                <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                                                                    <TextField
+                                                                        error={customDomainErrorIndex === index}
+                                                                        fullWidth
+                                                                        inputRef={(element) => {
+                                                                            customDomainInputRefs.current[index] = element
+                                                                        }}
+                                                                        placeholder={t('appStorePage.install.customDomainPlaceholder')}
+                                                                        size="small"
+                                                                        value={domain}
+                                                                        onChange={(event) => {
+                                                                            setCustomDomainErrorIndex(null)
+                                                                            setInstallFieldErrors((currentValue) => ({ ...currentValue, customDomain: undefined }))
+                                                                            setInstallError(null)
+                                                                            setCustomDomains((currentValue) => {
+                                                                                const next = [...currentValue]
+                                                                                next[index] = event.target.value
+                                                                                return next
+                                                                            })
+                                                                        }}
+                                                                        sx={installDialogFieldSx}
+                                                                    />
+                                                                    <IconButton
+                                                                        onClick={() => {
+                                                                            setCustomDomainErrorIndex(null)
+                                                                            setInstallFieldErrors((currentValue) => ({ ...currentValue, customDomain: undefined }))
+                                                                            setInstallError(null)
+                                                                            setCustomDomains((currentValue) => currentValue.filter((_, i) => i !== index))
+                                                                        }}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            mt: 0.5,
+                                                                            width: 32,
+                                                                            height: 32,
+                                                                            color: palette.subtleText,
+                                                                            borderRadius: '4px',
+                                                                            '&:hover': { color: palette.danger, backgroundColor: palette.panelHover },
+                                                                        }}
+                                                                        title={t('appStorePage.install.removeCustomDomain')}
+                                                                    >
+                                                                        <RemoveIcon />
+                                                                    </IconButton>
                                                                 </Box>
                                                             ))}
                                                         </Box>
+                                                    ) : null}
+                                                </Box>
+                                            ) : null}
+
+                                            <Box>
+                                                <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.versionLabel')}</Typography>
+                                                {availableVersions.length > 1 ? (
+                                                    <TextField
+                                                        select
+                                                        fullWidth
+                                                        size="small"
+                                                        value={selectedVersion}
+                                                        onChange={(event) => {
+                                                            setInstallError(null)
+                                                            setSelectedVersion(event.target.value)
+                                                        }}
+                                                        sx={versionFieldSx}
+                                                        slotProps={{
+                                                            select: {
+                                                                MenuProps: installDialogSelectMenuProps,
+                                                                renderValue: (value) => (
+                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                                                        <span>{String(value)}</span>
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+                                                                            {prewarmStatusNode}
+                                                                            {prewarmLinkNode}
+                                                                        </Box>
+                                                                    </Box>
+                                                                ),
+                                                            },
+                                                        }}
+                                                    >
+                                                        {availableVersions.map((version) => (
+                                                            <MenuItem key={version} value={version}>
+                                                                {version}
+                                                            </MenuItem>
+                                                        ))}
+                                                    </TextField>
+                                                ) : (
+                                                    <TextField
+                                                        fullWidth
+                                                        size="small"
+                                                        value={effectiveVersionLabel}
+                                                        slotProps={{
+                                                            input: {
+                                                                readOnly: true,
+                                                                endAdornment: prewarmStatusNode || prewarmLinkNode ? (
+                                                                    <InputAdornment position="end" sx={{ gap: 1 }}>
+                                                                        {prewarmStatusNode}
+                                                                        {prewarmLinkNode}
+                                                                    </InputAdornment>
+                                                                ) : undefined,
+                                                            },
+                                                        }}
+                                                        sx={{
+                                                            ...versionFieldSx,
+                                                            '& .MuiOutlinedInput-root': {
+                                                                ...installDialogFieldSx['& .MuiOutlinedInput-root'],
+                                                                backgroundColor: palette.panelSoft,
+                                                            },
+                                                            '& .MuiInputBase-input': {
+                                                                ...appStoreControlTextSx,
+                                                                color: palette.text,
+                                                                WebkitTextFillColor: palette.text,
+                                                            },
+                                                        }}
+                                                    />
+                                                )}
+                                                {showLatestVersionWarning ? (
+                                                    <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.75, fontSize: 12, color: palette.warning }}>
+                                                        <SvgIcon viewBox="0 0 24 24" sx={{ fontSize: 15, color: palette.warning }}>
+                                                            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                                                        </SvgIcon>
+                                                        {t('appStorePage.install.latestVersionWarning')}
                                                     </Box>
                                                 ) : null}
                                             </Box>
-                                        ) : null}
 
-                                    </Box>
-                                )}
-                            </DialogContent>
+                                            {portRangeExhausted ? (
+                                                <Alert severity="warning" sx={{ fontSize: 13, gridColumn: '1 / -1' }}>
+                                                    {t('appStorePage.install.portRange.exhaustedPrefix')}
+                                                    <Link
+                                                        component={RouterLink}
+                                                        to="/settings#application-ports"
+                                                        sx={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                                                    >
+                                                        {t('appStorePage.install.portRange.exhaustedLink')}
+                                                    </Link>
+                                                    {t('appStorePage.install.portRange.exhaustedSuffix')}
+                                                </Alert>
+                                            ) : null}
+
+                                            {sharedInstallSettings.map(([key, value]) => (
+                                                <Box key={key}>
+                                                    {(() => {
+                                                        const isPortField = isPortSettingKey(key, { externalDatabase: isExternalDatabaseProfile })
+                                                        // Port fields stay disabled while the platform assigns their ports, so a
+                                                        // manual value can never race the suggestion response.
+                                                        const isPortAllocationPending = isPortField && isPortSuggestionPending
+
+                                                        return (
+                                                            <>
+                                                                <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getInstallSettingLabel(key, t)}</Typography>
+                                                                <TextField
+                                                                    disabled={isPortAllocationPending}
+                                                                    error={Boolean(installFieldErrors.settings?.[key])}
+                                                                    fullWidth
+                                                                    inputRef={(element) => {
+                                                                        installSettingInputRefs.current[key] = element
+                                                                    }}
+                                                                    size="small"
+                                                                    type={key.endsWith('_PASSWORD_SET') ? 'password' : 'text'}
+                                                                    value={value}
+                                                                    onChange={(event) => {
+                                                                        setInstallFieldErrors((currentValue) => ({
+                                                                            ...currentValue,
+                                                                            settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
+                                                                        }))
+                                                                        setInstallError(null)
+                                                                        clearPortCheckState(key)
+                                                                        if (selectedInstallProfile) {
+                                                                            setProfileInstallSettings((currentValue) => ({
+                                                                                ...currentValue,
+                                                                                [selectedInstallProfile]: {
+                                                                                    ...(currentValue[selectedInstallProfile] ?? selectedProfileTemplateSettings),
+                                                                                    [key]: event.target.value,
+                                                                                },
+                                                                            }))
+                                                                        } else {
+                                                                            setInstallSettings((currentValue) => ({
+                                                                                ...currentValue,
+                                                                                [key]: event.target.value,
+                                                                            }))
+                                                                        }
+                                                                    }}
+                                                                    placeholder={isPortAllocationPending ? t('appStorePage.install.portAllocating') : undefined}
+                                                                    slotProps={{
+                                                                        input: isPortField ? { endAdornment: renderPortCheckAdornment(key, value) } : undefined,
+                                                                        htmlInput: key.toLowerCase().includes('port')
+                                                                            ? {
+                                                                                inputMode: 'numeric',
+                                                                                pattern: '[0-9]*',
+                                                                            }
+                                                                            : undefined,
+                                                                    }}
+                                                                    sx={{
+                                                                        ...installDialogFieldSx,
+                                                                        '& .MuiInputBase-input': {
+                                                                            ...appStoreControlTextSx,
+                                                                            color: palette.text,
+                                                                            WebkitTextFillColor: palette.text,
+                                                                        },
+                                                                    }}
+                                                                />
+                                                            </>
+                                                        )
+                                                    })()}
+                                                </Box>
+                                            ))}
+
+                                            {Object.keys(selectedAppProfiles).length > 0 ? (
+                                                <Box sx={{ pt: 0.5 }}>
+                                                    <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>
+                                                        {t('appStorePage.install.databaseProfile.label')}
+                                                    </Typography>
+                                                    <TextField
+                                                        select
+                                                        fullWidth
+                                                        size="small"
+                                                        value={selectedInstallProfile ?? ''}
+                                                        helperText={isExternalDatabaseProfile && externalDatabaseHelp ? (
+                                                            <Box component="span" sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+                                                                <SvgIcon viewBox="0 0 24 24" sx={{ mt: '1px', flexShrink: 0, fontSize: 15, color: palette.warning }}>
+                                                                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                                                                </SvgIcon>
+                                                                <Box component="span">{externalDatabaseHelp}</Box>
+                                                            </Box>
+                                                        ) : undefined}
+                                                        onChange={(event) => {
+                                                            const profile = event.target.value || null
+                                                            setInstallError(null)
+                                                            setInstallFieldErrors({})
+                                                            setPortCheckStates({})
+                                                            setTestedDatabaseConnectionSignature(null)
+                                                            if (profile) {
+                                                                setProfileInstallSettings((currentValue) => {
+                                                                    const userModifiedSharedSettings = Object.fromEntries(
+                                                                        Object.entries(installSettings).filter(([key, value]) => (
+                                                                            !externalDatabaseSettingKeys.includes(key)
+                                                                            && value !== selectedAppSettings[key]
+                                                                        )),
+                                                                    )
+                                                                    return {
+                                                                        ...currentValue,
+                                                                        [profile]: {
+                                                                            ...(currentValue[profile] ?? selectedAppProfiles[profile]?.settings ?? {}),
+                                                                            ...userModifiedSharedSettings,
+                                                                        },
+                                                                    }
+                                                                })
+                                                            }
+                                                            setSelectedInstallProfile(profile)
+                                                        }}
+                                                        sx={{
+                                                            ...installDialogFieldSx,
+                                                            '& .MuiSelect-select': { ...appStoreControlTextSx, color: palette.text },
+                                                            '& .MuiFormHelperText-root': {
+                                                                color: palette.warning,
+                                                                whiteSpace: 'normal',
+                                                                overflowWrap: 'anywhere',
+                                                                lineHeight: 1.5,
+                                                            },
+                                                        }}
+                                                        slotProps={{ select: { MenuProps: installDialogSelectMenuProps, displayEmpty: true } }}
+                                                    >
+                                                        <MenuItem value="">{t('appStorePage.install.databaseProfile.builtIn')}</MenuItem>
+                                                        {Object.entries(selectedAppProfiles)
+                                                            .map(([profile, metadata]) => (
+                                                                <MenuItem key={profile} value={profile}>
+                                                                    {metadata.is_external_database
+                                                                        ? t('appStorePage.install.databaseProfile.custom')
+                                                                        : profile.replace(/-/g, ' ')}
+                                                                </MenuItem>
+                                                            ))}
+                                                    </TextField>
+
+                                                    {isExternalDatabaseProfile ? (
+                                                        <Box
+                                                            component="fieldset"
+                                                            sx={{
+                                                                mt: 1.5,
+                                                                p: { xs: 1.25, md: 1.5 },
+                                                                border: `1px solid ${palette.border}`,
+                                                                borderRadius: '4px',
+                                                                backgroundColor: palette.panelSoft,
+                                                                minWidth: 0,
+                                                            }}
+                                                        >
+                                                            <Typography component="legend" sx={{ px: 0.75, fontSize: 14, fontWeight: 500, color: palette.text, backgroundColor: palette.panelSoft }}>
+                                                                {t('appStorePage.install.databaseProfile.connection')}
+                                                            </Typography>
+                                                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(6, minmax(0, 1fr))' }, gap: 1.25 }}>
+                                                                {displayedProfileInstallSettings.map(([key, value]) => (
+                                                                    <Box
+                                                                        key={key}
+                                                                        sx={{
+                                                                            gridColumn: {
+                                                                                xs: 'span 1',
+                                                                                md: key === 'W9_DB_HOST_SET' ? 'span 3' : key === 'W9_DB_PORT_SET' ? 'span 1' : key === 'W9_DB_NAME_SET' ? 'span 2' : 'span 3',
+                                                                            },
+                                                                        }}
+                                                                    >
+                                                                        <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getDatabaseSettingLabel(key)}</Typography>
+                                                                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                                            <TextField
+                                                                                error={Boolean(installFieldErrors.settings?.[key])}
+                                                                                fullWidth
+                                                                                inputRef={(element) => {
+                                                                                    installSettingInputRefs.current[key] = element
+                                                                                }}
+                                                                                size="small"
+                                                                                type={key === 'W9_DB_PASSWORD_SET' && !isDatabasePasswordVisible ? 'password' : 'text'}
+                                                                                value={value}
+                                                                                onChange={(event) => {
+                                                                                    const profile = selectedInstallProfile
+                                                                                    if (!profile) {
+                                                                                        return
+                                                                                    }
+                                                                                    setInstallFieldErrors((currentValue) => ({
+                                                                                        ...currentValue,
+                                                                                        settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
+                                                                                    }))
+                                                                                    setInstallError(null)
+                                                                                    setTestedDatabaseConnectionSignature(null)
+                                                                                    setProfileInstallSettings((currentValue) => ({
+                                                                                        ...currentValue,
+                                                                                        [profile]: {
+                                                                                            ...(currentValue[profile] ?? selectedProfileTemplateSettings),
+                                                                                            [key]: event.target.value,
+                                                                                        },
+                                                                                    }))
+                                                                                }}
+                                                                                slotProps={{
+                                                                                    input: key === 'W9_DB_PASSWORD_SET' ? {
+                                                                                        endAdornment: (
+                                                                                            <InputAdornment position="end">
+                                                                                                <IconButton
+                                                                                                    aria-label={isDatabasePasswordVisible ? t('appStorePage.install.databaseProfile.hidePassword') : t('appStorePage.install.databaseProfile.showPassword')}
+                                                                                                    edge="end"
+                                                                                                    onClick={() => setIsDatabasePasswordVisible((currentValue) => !currentValue)}
+                                                                                                >
+                                                                                                    <DatabasePasswordVisibilityIcon visible={isDatabasePasswordVisible} />
+                                                                                                </IconButton>
+                                                                                            </InputAdornment>
+                                                                                        ),
+                                                                                    } : undefined,
+                                                                                    htmlInput: key.toLowerCase().includes('port')
+                                                                                        ? { inputMode: 'numeric', pattern: '[0-9]*' }
+                                                                                        : undefined,
+                                                                                }}
+                                                                                sx={{
+                                                                                    ...installDialogFieldSx,
+                                                                                    '& .MuiInputBase-input': {
+                                                                                        ...appStoreControlTextSx,
+                                                                                        color: palette.text,
+                                                                                        WebkitTextFillColor: palette.text,
+                                                                                    },
+                                                                                }}
+                                                                            />
+                                                                            {key === 'W9_DB_PASSWORD_SET' ? (
+                                                                                <Button
+                                                                                    disabled={isTestingDatabase}
+                                                                                    onClick={async () => {
+                                                                                        const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings, displayedProfileInstallSettings.map(([key]) => key))
+                                                                                        if (Object.keys(databaseErrors).length > 0) {
+                                                                                            setInstallFieldErrors({ settings: databaseErrors })
+                                                                                            setInstallError(Object.values(databaseErrors)[0] ?? null)
+                                                                                            installSettingInputRefs.current[Object.keys(databaseErrors)[0]]?.focus()
+                                                                                            return
+                                                                                        }
+                                                                                        setIsTestingDatabase(true)
+                                                                                        setInstallError(null)
+                                                                                        setInstallFeedback(null)
+                                                                                        try {
+                                                                                            if (!selectedInstallProfile) {
+                                                                                                return
+                                                                                            }
+                                                                                            await testExternalDatabaseConnection(selectedApp, selectedVersion, selectedInstallProfile, effectiveInstallSettings)
+                                                                                            setTestedDatabaseConnectionSignature(getDatabaseConnectionSignature(selectedInstallProfile, effectiveInstallSettings, displayedProfileInstallSettings.map(([key]) => key)))
+                                                                                            setInstallFeedback({ severity: 'success', message: t('appStorePage.install.databaseConnection.success') })
+                                                                                        } catch (error) {
+                                                                                            const message = error instanceof Error ? error.message : t('appStorePage.install.databaseConnection.failed')
+                                                                                            setInstallToastRevision((currentValue) => currentValue + 1)
+                                                                                            setInstallError(
+                                                                                                /Unable to connect to the specified database\.?/i.test(message)
+                                                                                                    ? t('appStorePage.install.databaseConnection.failed')
+                                                                                                    : message,
+                                                                                            )
+                                                                                        } finally {
+                                                                                            setIsTestingDatabase(false)
+                                                                                        }
+                                                                                    }}
+                                                                                    variant="outlined"
+                                                                                    size="small"
+                                                                                    sx={{ flexShrink: 0, minWidth: 96, height: 40, borderRadius: '4px', textTransform: 'none' }}
+                                                                                >
+                                                                                    {isTestingDatabase ? t('appStorePage.install.databaseConnection.testing') : t('appStorePage.install.databaseConnection.test')}
+                                                                                </Button>
+                                                                            ) : null}
+                                                                        </Box>
+                                                                    </Box>
+                                                                ))}
+                                                            </Box>
+                                                        </Box>
+                                                    ) : null}
+                                                </Box>
+                                            ) : null}
+
+                                        </Box>
+                                    )}
+                                </DialogContent>
+                                {installPreparationPending ? <Box role="status" aria-label={t('appStorePage.installPreparation.loading')} sx={{ position: 'absolute', inset: 0, zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.25, backgroundColor: palette.dialogBg }}>{showInstallPreparation ? <><CircularProgress size={24} /><Typography sx={{ fontSize: 14, color: palette.subtleText }}>{t('appStorePage.installPreparation.loading')}</Typography></> : null}</Box> : null}
+                            </Box>
                             <DialogActions sx={{ px: 2.5, py: 2, flexShrink: 0, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.dialogBg }}>
                                 <Button
                                     color="inherit"
@@ -4267,7 +4313,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     </Button>
                                 ) : (
                                     <>
-                                        {!isPrewarmReady && !isPrewarmActive ? (
+                                        {!installPreparationPending && !imageCheckFailed && !isPrewarmReady && !isPrewarmActive ? (
                                             <Button
                                                 disabled={isSubmittingPrewarm || !prewarmStatus}
                                                 onClick={requestImagePrewarm}
@@ -4287,7 +4333,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             </Button>
                                         ) : null}
                                         <Button
-                                            disabled={isSubmittingInstall}
+                                            disabled={isSubmittingInstall || installPreparationPending || imageCheckFailed}
                                             onClick={() => {
                                                 if (isPrewarmActive) {
                                                     setInstallConfirmOpen(true)

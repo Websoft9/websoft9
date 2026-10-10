@@ -44,6 +44,17 @@ def cancel_image_prewarm(task_id: str, session_token: Optional[str] = Cookie(def
     return Response(status_code=204)
 
 
+@router.get("/scheduled-tasks/prewarm/records")
+def list_image_prewarm_records(offset: int = Query(default=0, ge=0), limit: int = Query(default=20, ge=1, le=100), search: str = Query(default="", max_length=128), status: str = Query(default="all", pattern="^(all|queued|running|success|failed|cancelled|skipped)$"), session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    return _get_scheduled_task_service().list_prewarm_records(session_token, offset, limit, search, status)
+
+
+@router.delete("/scheduled-tasks/prewarm/{task_id}/records/{run_id}", status_code=204)
+def delete_image_prewarm_record(task_id: str, run_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    _get_scheduled_task_service().delete_prewarm_record(session_token, task_id, run_id)
+    return Response(status_code=204)
+
+
 @router.post("/scheduled-tasks/prewarm/{task_id}/retry", responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}})
 def retry_image_prewarm(task_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     return _get_scheduled_task_service().retry_prewarm(session_token, task_id)

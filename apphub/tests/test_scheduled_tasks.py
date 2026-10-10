@@ -1,4 +1,5 @@
 import subprocess
+import json
 import os
 import signal
 import sys
@@ -182,7 +183,7 @@ def test_platform_task_crud_renders_cron_and_preserves_operator_isolation(monkey
         # The platform's own tasks are exposed beside them, marked as system-owned.
         assert {item["task_id"] for item in payload["system_tasks"]} == {
             definition["task_id"] for definition in SYSTEM_TASKS
-        }
+        } | {"system:image-prewarm"}
         assert all(item["origin"] == "system" for item in payload["system_tasks"])
 
         toggled = client.post(
@@ -309,6 +310,168 @@ def test_dispatch_prewarm_claims_and_starts_oldest_task(monkeypatch, tmp_path):
     assert refreshed["runner_pgid"] == 12345
     with pytest.raises(CustomException):
         service.run_task("valid-session", task["task_id"])
+
+
+def test_prewarm_tasks_are_grouped_under_one_fixed_task(tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    service.enqueue_prewarm("valid-session", "openclaw", "2026.9.6")
+    snapshot = service.list_cached_tasks("valid-session")
+    assert not any(task["category"] == "prewarm" for task in snapshot["tasks"])
+    summaries = [task for task in snapshot["system_tasks"] if task["category"] == "prewarm"]
+    assert len(summaries) == 1
+    assert summaries[0]["task_id"] == "system:image-prewarm"
+    assert summaries[0]["queued_count"] == 2
+
+
+def test_prewarm_records_follow_fifo_queue_across_pages(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    monkeypatch.setattr(service, "_now_iso", lambda: "2026-10-10T09:00:00+08:00")
+    oldest = service.enqueue_prewarm("valid-session", "mysql", "9.1")
+    service._write_task(oldest["task_id"], queue_state="success")
+    newer = service.enqueue_prewarm("valid-session", "mysql", "9.2")
+    service._write_task(newer["task_id"], queue_state="success", created_at="2026-10-10T09:01:00+08:00")
+    first = service.enqueue_prewarm("valid-session", "mysql", "9.3")
+    second = service.enqueue_prewarm("valid-session", "mysql", "9.4")
+    running = service.enqueue_prewarm("valid-session", "mysql", "9.5")
+    service._write_task(running["task_id"], queue_state="running")
+    monkeypatch.setattr(service, "reconcile_prewarm_state", lambda: None)
+    expected = [running["task_id"], first["task_id"], second["task_id"], newer["task_id"], oldest["task_id"]]
+    pages = [service.list_prewarm_records("valid-session", offset=offset, limit=2) for offset in (0, 2, 4)]
+    assert [record["task_id"] for page in pages for record in page["runs"]] == expected
+    assert [record["task_id"] for record in service.list_prewarm_records("valid-session", status="queued")["runs"]] == [first["task_id"], second["task_id"]]
+    service._write_task(running["task_id"], queue_state="success")
+    monkeypatch.setattr(subprocess, "Popen", lambda *_args, **_kwargs: type("Process", (), {"pid": 12345})())
+    assert service.dispatch_prewarm()["task_id"] == first["task_id"]
+
+
+def test_prewarm_records_preserve_attempts_and_filter_by_subject(tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    first = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    service._write_task(first["task_id"], queue_state="success")
+    second = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    assert second["task_id"] != first["task_id"]
+    service.enqueue_prewarm("valid-session", "openclaw", "2026.9.6")
+    records = service.list_prewarm_records("valid-session", limit=1, search="gitea")
+    assert records["total"] == 2
+    assert len(records["runs"]) == 1
+    assert records["runs"][0]["name"] == "gitea 1.27"
+    assert service.list_prewarm_records("valid-session", status="queued")["total"] == 2
+    with pytest.raises(CustomException):
+        service.delete_prewarm_record("valid-session", second["task_id"], "__pending__")
+    service.delete_prewarm_record("valid-session", first["task_id"], "__pending__")
+    assert service.list_prewarm_records("valid-session")["total"] == 2
+
+
+def test_prewarm_records_preserve_legacy_logs_and_delete_only_selected_run(tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    task_id = task["task_id"]
+    service._write_task(task_id, queue_state="success")
+    for run_id in ("old-run", "new-run"):
+        log_path = service._task_logs_dir(task_id) / f"{run_id}.log"
+        log_path.write_text(f"{run_id} retained log\n")
+        (service._runs_dir(task_id) / f"{run_id}.json").write_text(json.dumps({"task_id": task_id, "run_id": run_id, "status": "success", "started_at": service._now_iso(), "log_path": str(log_path)}))
+    assert service.list_prewarm_records("valid-session")["total"] == 1
+    assert "old-run retained log" in service.get_run_log("valid-session", task_id, "old-run")["content"]
+    service.delete_prewarm_record("valid-session", task_id, "old-run")
+    assert service.list_prewarm_records("valid-session")["total"] == 1
+    assert not (service._runs_dir(task_id) / "old-run.json").exists()
+    assert not (service._task_logs_dir(task_id) / "old-run.log").exists()
+    assert "new-run retained log" in service.get_run_log("valid-session", task_id, "new-run")["content"]
+    service._write_task(task_id, queue_state="queued")
+    assert service.list_prewarm_records("valid-session", status="queued")["total"] == 1
+
+
+def test_prewarm_records_api_auth_pagination_and_operator_isolation(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    owned = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    foreign = service.enqueue_prewarm("valid-session", "openclaw", "2026.9.6")
+    service._write_task(foreign["task_id"], operator_id="operator-2", queue_state="success")
+    monkeypatch.setattr(scheduled_tasks_router, "_get_scheduled_task_service", lambda: service)
+    with TestClient(create_test_app()) as client:
+        headers = {"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"}
+        assert client.get("/scheduled-tasks/prewarm/records").status_code == 401
+        result = client.get("/scheduled-tasks/prewarm/records?limit=1&search=gitea", headers=headers)
+        assert result.status_code == 200
+        assert result.json()["total"] == 1
+        assert result.json()["runs"][0]["task_id"] == owned["task_id"]
+        assert client.get("/scheduled-tasks/prewarm/records?offset=1", headers=headers).json()["runs"] == []
+        assert client.get("/scheduled-tasks/prewarm/records?status=invalid", headers=headers).status_code == 422
+        assert client.delete(f"/scheduled-tasks/prewarm/{foreign['task_id']}/records/__pending__", headers=headers).status_code == 404
+
+
+def test_prewarm_retry_reuses_record_and_blocks_duplicate_attempts(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    old = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    service._write_task(old["task_id"], queue_state="success")
+    monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
+    retry = service.retry_prewarm("valid-session", old["task_id"])
+    assert retry["task_id"] == old["task_id"]
+    assert service._get_task("operator-1", old["task_id"])["queue_state"] == "queued"
+    assert service.get_prewarm_task("valid-session", "gitea", "1.27")["task_id"] == retry["task_id"]
+    with pytest.raises(CustomException):
+        service.retry_prewarm("valid-session", old["task_id"])
+    service._write_task(old["task_id"], queue_state="cancelled")
+    assert service.retry_prewarm("valid-session", old["task_id"])["task_id"] == old["task_id"]
+    assert service.list_prewarm_records("valid-session")["total"] == 1
+
+
+def test_prewarm_retry_blocks_other_record_for_active_subject(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    old = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    service._write_task(old["task_id"], queue_state="cancelled")
+    active = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
+    with pytest.raises(CustomException):
+        service.retry_prewarm("valid-session", old["task_id"])
+    page = service.list_prewarm_records("valid-session", status="cancelled", limit=1)
+    assert page["runs"][0]["retry_blocked"] is True
+    service._write_task(active["task_id"], queue_state="cancelled")
+    assert service.list_prewarm_records("valid-session", status="cancelled")["runs"][0]["retry_blocked"] is False
+
+
+def test_prewarm_retry_keeps_one_visible_record_and_preserves_logs(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    task_id = task["task_id"]
+    service._write_task(task_id, queue_state="cancelled")
+    old_log = service._task_logs_dir(task_id) / "old-run.log"
+    old_log.write_text("old attempt log\n")
+    (service._runs_dir(task_id) / "old-run.json").write_text(json.dumps({"task_id": task_id, "run_id": "old-run", "status": "cancelled", "started_at": service._now_iso(), "log_path": str(old_log)}))
+    service._state_path(task_id).write_text("status=success\nrun_id=old-run\n")
+    monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
+    service.retry_prewarm("valid-session", task_id)
+    assert not service._state_path(task_id).exists()
+    records = service.list_prewarm_records("valid-session")
+    assert records["total"] == 1
+    assert records["runs"][0]["status"] == "queued"
+    assert "old attempt log" in service.get_run_log("valid-session", task_id, "old-run")["content"]
+    service._write_task(task_id, queue_state="success")
+    new_log = service._task_logs_dir(task_id) / "new-run.log"
+    new_log.write_text("new attempt log\n")
+    (service._runs_dir(task_id) / "new-run.json").write_text(json.dumps({"task_id": task_id, "run_id": "new-run", "status": "success", "started_at": "2099-01-01T00:00:00+00:00", "log_path": str(new_log)}))
+    records = service.list_prewarm_records("valid-session")
+    assert records["total"] == 1
+    assert records["runs"][0]["run_id"] == "new-run"
+    service.retry_prewarm("valid-session", task_id)
+    service._write_task(task_id, queue_state="cancelled")
+    records = service.list_prewarm_records("valid-session", status="cancelled")
+    assert records["total"] == 1
+    assert records["runs"][0]["status"] == "cancelled"
+    service.delete_prewarm_record("valid-session", task_id, "new-run")
+    assert service.list_prewarm_records("valid-session")["total"] == 0
+
+
+def test_prewarm_retry_joins_tail_of_same_second_queue(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    monkeypatch.setattr(service, "_now_iso", lambda: "2026-10-10T09:00:00+08:00")
+    old = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    service._write_task(old["task_id"], queue_state="cancelled")
+    waiting = service.enqueue_prewarm("valid-session", "mysql", "9.4")
+    monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
+    service.retry_prewarm("valid-session", old["task_id"])
+    assert [record["task_id"] for record in service.list_prewarm_records("valid-session", status="queued")["runs"]] == [waiting["task_id"], old["task_id"]]
 
 
 def test_dispatch_prewarm_requeues_task_claimed_by_old_instance(monkeypatch, tmp_path):
@@ -887,7 +1050,7 @@ def test_system_tasks_are_seeded_once_visible_and_read_only(tmp_path):
 
     tasks = service.list_tasks("valid-session")
     system_tasks = tasks["system_tasks"]
-    assert [task["task_id"] for task in system_tasks] == [definition["task_id"] for definition in SYSTEM_TASKS]
+    assert [task["task_id"] for task in system_tasks] == [definition["task_id"] for definition in SYSTEM_TASKS] + ["system:image-prewarm"]
     assert all(task["enabled"] for task in system_tasks)
     assert all(task["target"] == "container" for task in system_tasks)
     # They are not part of an operator's own task list.
@@ -912,7 +1075,7 @@ def test_system_tasks_are_seeded_once_visible_and_read_only(tmp_path):
     # The refused writes must not have changed anything.
     assert [task["task_id"] for task in service.list_tasks("valid-session")["system_tasks"]] == [
         definition["task_id"] for definition in SYSTEM_TASKS
-    ]
+    ] + ["system:image-prewarm"]
 
 
 def test_system_task_runner_reports_a_skip_instead_of_a_failure():

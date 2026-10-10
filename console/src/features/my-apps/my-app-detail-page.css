@@ -1824,6 +1824,233 @@
     margin-right: 0;
 }
 
+.myapps-runtime-credentials .myapps-access-entry-content {
+    display: block;
+}
+
+.myapps-runtime-credential-icon {
+    color: #b47a00;
+    background: rgba(255, 188, 0, 0.12);
+}
+
+.myapps-runtime-credential-help {
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--myapps-detail-muted);
+    overflow-wrap: anywhere;
+}
+
+.myapps-runtime-credential-field {
+    margin-top: 4px;
+    min-width: 0;
+}
+
+.myapps-runtime-credential-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.myapps-runtime-credential-commands {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.myapps-runtime-credential-commands .myapps-creds-actions {
+    border-left: 0;
+    padding-left: 0;
+    margin-left: 0;
+}
+
+.myapps-runtime-credential-password {
+    margin-top: 8px;
+}
+
+.myapps-runtime-credential-content {
+    min-width: 0;
+}
+
+.myapps-runtime-credential-fetch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 104px;
+    min-height: 32px;
+    padding: 5px 10px;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 6px;
+    background: var(--myapps-detail-surface);
+    color: var(--myapps-detail-text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.myapps-runtime-credential-fetch:hover:not(:disabled) {
+    background: var(--myapps-detail-surface-soft);
+}
+
+.myapps-login-help {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 10px 16px 8px;
+    padding: 8px 0;
+    color: var(--myapps-detail-muted);
+    font-size: 12px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.myapps-login-help svg {
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+
+.myapps-runtime-credential-fetch:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.myapps-runtime-credential-result {
+    margin-top: 8px;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--myapps-detail-surface);
+}
+
+.myapps-runtime-credential-result pre {
+    margin: 0;
+    padding: 10px 12px;
+    max-height: 280px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: 12px/1.7 Consolas, monospace;
+    letter-spacing: 0;
+    background: var(--myapps-detail-surface-soft);
+    color: var(--myapps-detail-text);
+}
+
+.myapps-runtime-credential-error {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-runtime-output .myapps-runtime-credential-result {
+    position: relative;
+    background: var(--myapps-detail-surface-soft);
+    padding-top: 34px;
+}
+
+.myapps-runtime-output-actions {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.myapps-runtime-output-actions .myapps-creds-actions {
+    border-left: 0;
+    margin-left: 0;
+    padding-left: 0;
+}
+
+.myapps-runtime-output .myapps-runtime-credential-result pre {
+    padding-top: 4px;
+}
+
+.myapps-runtime-credential-spinner {
+    animation: myapps-credential-spin 1s linear infinite;
+}
+
+.myapps-runtime-cli {
+    margin-top: 14px;
+    min-width: 0;
+}
+
+.myapps-runtime-cli-command-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+    min-width: 0;
+}
+
+.myapps-runtime-cli-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--myapps-detail-text);
+    font: 12px/1.5 Consolas, monospace;
+    letter-spacing: 0;
+}
+
+.myapps-runtime-cli-execute {
+    flex: 0 0 auto;
+}
+
+.myapps-runtime-cli-command {
+    flex: 1 1 140px;
+}
+
+.myapps-runtime-cli-output-head {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.myapps-runtime-cli-output:empty {
+    display: none;
+}
+
+.myapps-runtime-cli-output pre+pre {
+    border-top: 1px solid var(--myapps-detail-border);
+}
+
+@keyframes myapps-credential-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 600px) {
+    .myapps-runtime-credential-fetch {
+        min-width: 94px;
+    }
+
+    .myapps-runtime-cli-command-row {
+        align-items: stretch;
+    }
+
+    .myapps-runtime-cli-execute {
+        padding-left: 9px;
+        padding-right: 9px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .myapps-runtime-credential-spinner {
+        animation: none;
+    }
+}
+
 .myapps-access-settings-group .myapps-access-panel-row {
     border: none;
     border-radius: 0;
@@ -3668,6 +3895,11 @@
 }
 
 @media (max-width: 540px) {
+    .myapps-login-help {
+        margin-left: 12px;
+        margin-right: 12px;
+    }
+
     .myapps-root-url-list {
         grid-template-columns: 1fr;
         gap: 10px;
@@ -4630,6 +4862,25 @@
 
 .myapps-creds-row:last-child {
     border-bottom: none;
+}
+
+.myapps-login-credentials .myapps-creds-rows {
+    margin: 8px 0 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.myapps-login-credentials .myapps-creds-row {
+    grid-template-columns: 100px minmax(0, 1fr);
+    padding: 8px 0;
+}
+
+@media (max-width: 600px) {
+    .myapps-login-credentials .myapps-creds-row {
+        grid-template-columns: 64px minmax(0, 1fr);
+        gap: 8px;
+    }
 }
 
 .myapps-creds-label {

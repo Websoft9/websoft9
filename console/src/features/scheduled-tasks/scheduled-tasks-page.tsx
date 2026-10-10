@@ -11,6 +11,7 @@ import {
     IconButton,
     InputAdornment,
     MenuItem,
+    Pagination,
     Paper,
     Stack,
     Switch,
@@ -24,6 +25,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 
 import { useAppColorMode } from "../../app/providers/color-mode";
 import { PageDescriptionHeader } from "../../shared/design-system/page-description-header";
@@ -66,6 +68,9 @@ type ScheduledTask = {
     subject_app?: string | null;
     subject_version?: string | null;
     queue_state?: "queued" | "running" | "success" | "failed" | "cancelled" | null;
+    running_count?: number;
+    queued_count?: number;
+    record_run_id?: string;
 };
 
 type TaskForm = Pick<
@@ -110,7 +115,15 @@ type ScheduledTaskRun = {
     exit_code: number | null;
     trigger: "cron" | "manual";
     log_path: string;
+    name?: string;
+    task?: ScheduledTask;
 };
+
+type PrewarmRecord = Omit<ScheduledTaskRun, "status"> & { status: ScheduledTaskRun["status"] | "queued"; task: ScheduledTask; name: string; retry_blocked: boolean };
+
+function isPrewarmSummary(task: ScheduledTask) {
+    return task.task_id === "system:image-prewarm";
+}
 
 type ScheduledTasksResponse = {
     tasks: ScheduledTask[];
@@ -406,7 +419,11 @@ export function ScheduledTasksPage() {
     const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
     const [refreshingTaskIds, setRefreshingTaskIds] = useState<Set<string>>(() => new Set());
     const [logTask, setLogTask] = useState<ScheduledTask | null>(null);
+    const [routeSearchParams, setRouteSearchParams] = useSearchParams();
     const [taskRuns, setTaskRuns] = useState<ScheduledTaskRun[]>([]);
+    const [recordPage, setRecordPage] = useState(0);
+    const [recordSearch, setRecordSearch] = useState("");
+    const [recordStatus, setRecordStatus] = useState("all");
     const [selectedRun, setSelectedRun] = useState<ScheduledTaskRun | null>(null);
     const [logBefore, setLogBefore] = useState<number | null>(null);
     const [logContent, setLogContent] = useState("");
@@ -434,6 +451,12 @@ export function ScheduledTasksPage() {
         queryKey: taskQueryKey,
         queryFn: () => requestJson("/api/scheduled-tasks"),
         refetchOnWindowFocus: false,
+    });
+    const prewarmRecordsQuery = useQuery<{ runs: PrewarmRecord[]; total: number }, Error>({
+        queryKey: ["prewarm-records", recordPage, recordSearch, recordStatus],
+        queryFn: () => requestJson(`/api/scheduled-tasks/prewarm/records?offset=${recordPage * 20}&limit=20&search=${encodeURIComponent(recordSearch)}&status=${recordStatus}`),
+        enabled: Boolean(logTask && isPrewarmSummary(logTask)),
+        refetchInterval: logTask && isPrewarmSummary(logTask) ? 3000 : false,
     });
     const hostProfilesQuery = useQuery<HostAccessProfileResponse, Error>({
         queryKey: ["host-access-profiles"],
@@ -503,7 +526,7 @@ export function ScheduledTasksPage() {
         host: tasks.filter((task) => task.target === "host").length,
     };
     const runningTaskIds = tasks
-        .filter((task) => task.last_status === "running")
+        .filter((task) => task.last_status === "running" && !isPrewarmSummary(task))
         .map((task) => task.task_id)
         .join(",");
     const executionReady =
@@ -895,7 +918,7 @@ export function ScheduledTasksPage() {
     }
 
     function scheduleLabel(schedule: string) {
-        if (schedule === "@once") return t("scheduledTasks.prewarm.oneTime");
+        if (schedule === "@once") return t("scheduledTasks.executionRecordLabels.onDemand");
         const parts = schedule.trim().split(/\s+/);
         if (parts.length !== 5) return schedule;
         const [minute, hour, day, month, weekday] = parts;
@@ -931,7 +954,10 @@ export function ScheduledTasksPage() {
             setRefreshingTaskIds((current) => new Set(current).add(task.task_id));
         }
         try {
-            if (action === "toggle") {
+            if (action === "refresh" && isPrewarmSummary(task)) {
+                await refreshTasks();
+                if (logTask && isPrewarmSummary(logTask)) await prewarmRecordsQuery.refetch();
+            } else if (action === "toggle") {
                 const updatedTask = await requestJson<ScheduledTask>(`/api/scheduled-tasks/${task.task_id}/toggle`, {
                     method: "POST",
                     body: JSON.stringify({ enabled: !task.enabled }),
@@ -984,6 +1010,7 @@ export function ScheduledTasksPage() {
         try {
             await requestJson(`/api/scheduled-tasks/prewarm/${task.task_id}`, { method: "DELETE" });
             await refreshTasks();
+            await prewarmRecordsQuery.refetch();
             setCancelPrewarmTask(null);
             setFeedback({ severity: "success", message: t("scheduledTasks.prewarm.cancelled") });
         } catch (error) {
@@ -999,6 +1026,7 @@ export function ScheduledTasksPage() {
         try {
             await requestJson(`/api/scheduled-tasks/prewarm/${task.task_id}/retry`, { method: "POST" });
             await refreshTasks();
+            await prewarmRecordsQuery.refetch();
             setFeedback({ severity: "success", message: t("scheduledTasks.prewarm.retryQueued") });
         } catch (error) {
             setFeedback({ severity: "error", message: localizedTaskError(error) });
@@ -1020,6 +1048,13 @@ export function ScheduledTasksPage() {
         setTaskRuns([]);
         setSelectedRun(null);
         setLogContent("");
+        if (isPrewarmSummary(task)) {
+            setRecordPage(0);
+            setRecordSearch("");
+            setRecordStatus("all");
+            setLogLoading(false);
+            return;
+        }
         setLogLoading(true);
         try {
             const response = await requestJson<{ runs: ScheduledTaskRun[] }>(
@@ -1036,17 +1071,31 @@ export function ScheduledTasksPage() {
         }
     }
 
-    async function openRunLog(task: ScheduledTask, run: ScheduledTaskRun, before?: number) {
+    function closeLogView() {
+        if (selectedRun) {
+            setSelectedRun(null);
+            setLogContent("");
+            setLogBefore(null);
+        } else {
+            setLogTask(null);
+        }
+    }
+
+    async function openRunLog(_task: ScheduledTask, run: ScheduledTaskRun, before?: number) {
         setSelectedRun(run);
         if (before === undefined) {
             setLogContent("");
             setLogBefore(null);
         }
         setLogLoading(true);
+        if (run.run_id === "__pending__") {
+            setLogLoading(false);
+            return;
+        }
         try {
             const query = before === undefined ? "" : `?before=${before}`;
             const response = await requestJson<{ content: string; next_before: number | null }>(
-                `/api/scheduled-tasks/${task.task_id}/runs/${run.run_id}/log${query}`,
+                `/api/scheduled-tasks/${run.task_id}/runs/${run.run_id}/log${query}`,
             );
             setLogContent((current) => before === undefined ? response.content : `${response.content}${current ? `\n${current}` : ""}`);
             setLogBefore(response.next_before);
@@ -1056,6 +1105,31 @@ export function ScheduledTasksPage() {
             setLogLoading(false);
         }
     }
+
+    useEffect(() => {
+        if (routeSearchParams.get("view") !== "image-prewarm") return;
+        const summary = tasksQuery.data?.system_tasks?.find(isPrewarmSummary);
+        if (!summary) return;
+        setLogTask(summary);
+        setSelectedRun(null);
+        setTaskRuns([]);
+        setLogContent("");
+        setLogLoading(false);
+        setRecordPage(0);
+        setRecordStatus("all");
+        setRecordSearch([routeSearchParams.get("app"), routeSearchParams.get("version")].filter(Boolean).join(" "));
+        const remaining = new URLSearchParams(routeSearchParams);
+        remaining.delete("view");
+        remaining.delete("app");
+        remaining.delete("version");
+        setRouteSearchParams(remaining, { replace: true });
+    }, [routeSearchParams, setRouteSearchParams, tasksQuery.data]);
+
+    useEffect(() => {
+        if (!logTask || !isPrewarmSummary(logTask) || selectedRun?.run_id !== "__pending__") return;
+        const started = prewarmRecordsQuery.data?.runs.find(record => record.task_id === selectedRun.task_id && record.run_id !== "__pending__");
+        if (started && started.status !== "queued") void openRunLog(logTask, { ...started, status: started.status });
+    }, [prewarmRecordsQuery.data, logTask, selectedRun]);
 
     // Newest lines sit at the end of the log, so a run should open there instead of at the top of a
     // wall of pull progress. The update fires on every refresh too, so it keeps following along.
@@ -1077,20 +1151,20 @@ export function ScheduledTasksPage() {
         const tick = async () => {
             try {
                 const [runsResponse, log] = await Promise.all([
-                    requestJson<{ runs: ScheduledTaskRun[] }>(`/api/scheduled-tasks/${logTask.task_id}/runs`),
+                    requestJson<{ runs: ScheduledTaskRun[] }>(`/api/scheduled-tasks/${selectedRun.task_id}/runs`),
                     requestJson<{ content: string; next_before: number | null }>(
-                        `/api/scheduled-tasks/${logTask.task_id}/runs/${selectedRun.run_id}/log`,
+                        `/api/scheduled-tasks/${selectedRun.task_id}/runs/${selectedRun.run_id}/log`,
                     ),
                 ]);
                 if (cancelled) {
                     return;
                 }
-                setTaskRuns(runsResponse.runs);
+                if (!isPrewarmSummary(logTask)) setTaskRuns(runsResponse.runs);
                 setLogContent(log.content);
                 setLogBefore(log.next_before);
                 const updated = runsResponse.runs.find((run) => run.run_id === selectedRun.run_id);
                 if (updated && updated.status !== "running") {
-                    setSelectedRun(updated);
+                    setSelectedRun({ ...selectedRun, ...updated });
                 }
             } catch {
                 // Keep the last snapshot; the next tick retries.
@@ -1104,9 +1178,9 @@ export function ScheduledTasksPage() {
         };
     }, [logTask, selectedRun]);
 
-    function downloadRunLog(task: ScheduledTask, run: ScheduledTaskRun) {
+    function downloadRunLog(_task: ScheduledTask, run: ScheduledTaskRun) {
         const link = document.createElement("a");
-        link.href = `/api/scheduled-tasks/${task.task_id}/runs/${run.run_id}/log/download`;
+        link.href = `/api/scheduled-tasks/${run.task_id}/runs/${run.run_id}/log/download`;
         link.download = "";
         document.body.appendChild(link);
         link.click();
@@ -1117,10 +1191,11 @@ export function ScheduledTasksPage() {
         if (!deleteTask) return;
         setPendingTaskId(deleteTask.task_id);
         try {
-            await requestJson(`/api/scheduled-tasks/${deleteTask.task_id}`, {
+            await requestJson(deleteTask.record_run_id ? `/api/scheduled-tasks/prewarm/${deleteTask.task_id}/records/${deleteTask.record_run_id}` : `/api/scheduled-tasks/${deleteTask.task_id}`, {
                 method: "DELETE",
             });
             await refreshTasks();
+            await prewarmRecordsQuery.refetch();
             setDeleteTask(null);
             setFeedback({
                 severity: "success",
@@ -1458,7 +1533,7 @@ export function ScheduledTasksPage() {
                                                     <Tooltip title={task.schedule}><Typography sx={{ fontSize: 13 }}>{scheduleLabel(task.schedule)}</Typography></Tooltip>
                                                 </td>
                                                 <td>
-                                                    {isPrewarmTask(task) ? (
+                                                    {isPrewarmTask(task) && !isPrewarmSummary(task) ? (
                                                         <PrewarmStatusChip height={20} label={t(`scheduledTasks.prewarm.status.${task.queue_state ?? "queued"}`)} state={task.queue_state ?? "queued"} />
                                                     ) : task.syncing || refreshingTaskIds.has(task.task_id) ? (
                                                         <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
@@ -1548,7 +1623,7 @@ export function ScheduledTasksPage() {
                                                                 <LogIcon />
                                                             </IconButton>
                                                         </Tooltip>
-                                                        {isPrewarmTask(task) ? (
+                                                        {isPrewarmTask(task) && !isPrewarmSummary(task) ? (
                                                             task.queue_state === "queued" || task.queue_state === "running" ? (
                                                                 <Tooltip title={t("scheduledTasks.prewarm.cancel")}><span><IconButton color="warning" disabled={pendingTaskId === task.task_id} onClick={() => setCancelPrewarmTask(task)} size="small"><CancelIcon /></IconButton></span></Tooltip>
                                                             ) : (
@@ -1687,7 +1762,7 @@ export function ScheduledTasksPage() {
                                     }}
                                 >
                                     <Stack spacing={0.3}>
-                                        {isPrewarmTask(task) ? (
+                                        {isPrewarmTask(task) && !isPrewarmSummary(task) ? (
                                             <PrewarmStatusChip height={20} label={t(`scheduledTasks.prewarm.status.${task.queue_state ?? "queued"}`)} state={task.queue_state ?? "queued"} />
                                         ) : (
                                             <Chip
@@ -1743,7 +1818,7 @@ export function ScheduledTasksPage() {
                                                 <LogIcon />
                                             </IconButton>
                                         </Tooltip>
-                                        {isPrewarmTask(task) ? (
+                                        {isPrewarmTask(task) && !isPrewarmSummary(task) ? (
                                             task.queue_state === "queued" || task.queue_state === "running" ? (
                                                 <Tooltip title={t("scheduledTasks.prewarm.cancel")}>
                                                     <span>
@@ -2506,13 +2581,13 @@ export function ScheduledTasksPage() {
 
             {logTask && editorScope ? (
                 <Box className="scheduled-tasks-scoped-overlay" sx={editorScope}>
-                    <Box className="scheduled-tasks-scoped-backdrop" onClick={() => setLogTask(null)} />
+                    <Box className="scheduled-tasks-scoped-backdrop" onClick={closeLogView} />
                     <Box className="scheduled-tasks-scoped-dialog scheduled-tasks-log-dialog" role="dialog" aria-modal="true">
                         <DialogTitle className="scheduled-tasks-scoped-title">
                             <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
-                                {selectedRun ? t("scheduledTasks.runLogTitle", { name: logTask.name }) : t("scheduledTasks.runHistoryTitle", { name: logTask.name })}
+                                {selectedRun ? t("scheduledTasks.runLogTitle", { name: selectedRun.name ?? logTask.name }) : t("scheduledTasks.runHistoryTitle", { name: isPrewarmSummary(logTask) ? systemTaskName(logTask, t) : logTask.name })}
                             </Typography>
-                            <IconButton aria-label={t("scheduledTasks.actions.close")} onClick={() => setLogTask(null)} size="small">
+                            <IconButton aria-label={t("scheduledTasks.actions.close")} onClick={closeLogView} size="small">
                                 <CloseIcon />
                             </IconButton>
                         </DialogTitle>
@@ -2521,6 +2596,46 @@ export function ScheduledTasksPage() {
                                 <Box component="pre" className="scheduled-tasks-log-panel" ref={logPanelRef}>
                                     {logLoading ? t("scheduledTasks.loading") : logContent || t("scheduledTasks.logEmpty")}
                                 </Box>
+                            ) : isPrewarmSummary(logTask) ? (
+                                <Stack spacing={1} sx={{ width: "100%", minHeight: 0 }}>
+                                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+                                        <TextField size="small" placeholder={t("scheduledTasks.prewarm.searchRecords")} value={recordSearch} onChange={event => { setRecordSearch(event.target.value); setRecordPage(0); }} sx={{ flex: 1, minWidth: 180, "& .MuiOutlinedInput-root": { borderRadius: 0 } }} />
+                                        <TextField select size="small" value={recordStatus} onChange={event => { setRecordStatus(event.target.value); setRecordPage(0); }} slotProps={{ select: { MenuProps: { sx: { zIndex: 1501 }, slotProps: { paper: { sx: { borderRadius: 0 } } } } } }} sx={{ minWidth: 130, "& .MuiOutlinedInput-root": { borderRadius: 0 } }}>
+                                            <MenuItem value="all">{t("scheduledTasks.filters.allStatuses")}</MenuItem>
+                                            {["queued", "running", "success", "failed", "cancelled"].map(status => <MenuItem key={status} value={status}>{t(`scheduledTasks.prewarm.status.${status}`)}</MenuItem>)}
+                                        </TextField>
+                                    </Stack>
+                                    <Box sx={{ overflow: "auto", flex: 1, minHeight: 0 }}>
+                                        {prewarmRecordsQuery.isLoading ? <CircularProgress size={20} /> : prewarmRecordsQuery.error ? <Alert severity="error">{localizedTaskError(prewarmRecordsQuery.error)}</Alert> : (
+                                            <Box component="table" sx={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", minWidth: 520, "& th, & td": { textAlign: "left", p: 1, borderBottom: "1px solid", borderColor: "divider", fontSize: 12 }, "& th": { color: palette.subtleText, fontWeight: 500 }, "& th:last-child, & td:last-child:not([colspan])": { textAlign: "right", whiteSpace: "nowrap" } }}>
+                                                <colgroup><col style={{ width: "30%" }} /><col style={{ width: "20%" }} /><col style={{ width: "30%" }} /><col style={{ width: "20%" }} /></colgroup>
+                                                <thead><tr><th>{t("scheduledTasks.columns.name")}</th><th>{t("scheduledTasks.prewarm.recordStatus")}</th><th>{t("scheduledTasks.executionRecordLabels.time")}</th><th>{t("scheduledTasks.columns.actions")}</th></tr></thead>
+                                                <tbody>
+                                                    {(prewarmRecordsQuery.data?.runs ?? []).map(record => {
+                                                        const active = record.status === "running" || record.status === "queued";
+                                                        const executionTask = { ...record.task, name: record.name, record_run_id: record.run_id, queue_state: record.status === "never" || record.status === "skipped" ? "failed" as const : record.status };
+                                                        return <tr key={`${record.task_id}:${record.run_id}`}>
+                                                            <td><Typography sx={{ fontSize: 13 }}>{record.name}</Typography></td>
+                                                            <td><PrewarmStatusChip height={20} label={t(`scheduledTasks.prewarm.status.${record.status}`)} state={record.status === "skipped" || record.status === "never" ? "failed" : record.status} /></td>
+                                                            <td><Tooltip title={t(record.run_id === "__pending__" ? "scheduledTasks.executionRecordLabels.queuedAt" : "scheduledTasks.executionRecordLabels.startedAt")}><Typography sx={{ fontSize: 12, color: palette.subtleText, whiteSpace: "nowrap" }}>{formatDateTime(record.started_at, formatter)}</Typography></Tooltip></td>
+                                                            <td><Stack direction="row" spacing={0.25} sx={{ justifyContent: "flex-end" }}>
+                                                                <Tooltip title={t("scheduledTasks.prewarm.viewLog")}><IconButton aria-label={t("scheduledTasks.prewarm.viewLog")} size="small" onClick={() => void openRunLog(logTask, { ...record, status: record.status === "queued" ? "never" : record.status })}><LogIcon /></IconButton></Tooltip>
+                                                                {active ? <Tooltip title={t("scheduledTasks.prewarm.cancel")}><span><IconButton aria-label={t("scheduledTasks.prewarm.cancel")} color="warning" size="small" disabled={pendingTaskId === record.task_id} onClick={() => setCancelPrewarmTask(executionTask)}><CancelIcon /></IconButton></span></Tooltip> : <>
+                                                                    {record.status === "failed" || record.status === "cancelled" ? <Tooltip title={t("scheduledTasks.prewarm.resume")}><span><IconButton aria-label={t("scheduledTasks.prewarm.resume")} size="small" disabled={pendingTaskId !== null || record.retry_blocked || record.task.queue_state === "running" || record.task.queue_state === "queued"} onClick={() => requestPrewarmRetry(executionTask)}><PrewarmAgainIcon /></IconButton></span></Tooltip> : null}
+                                                                    <Tooltip title={t("scheduledTasks.actions.delete")}><span><IconButton aria-label={t("scheduledTasks.actions.delete")} color="error" size="small" disabled={pendingTaskId === record.task_id || record.task.queue_state === "running" || record.task.queue_state === "queued"} onClick={() => setDeleteTask(executionTask)}><DeleteIcon /></IconButton></span></Tooltip>
+                                                                </>}
+                                                            </Stack></td>
+                                                        </tr>;
+                                                    })}
+                                                    {!prewarmRecordsQuery.data?.runs.length ? <tr><td colSpan={4} style={{ textAlign: "center", padding: "24px 8px" }}>{t("scheduledTasks.runEmpty")}</td></tr> : null}
+                                                </tbody>
+                                            </Box>
+                                        )}
+                                    </Box>
+                                    <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", alignItems: "center" }}>
+                                        <Pagination size="small" sx={{ "& .MuiPaginationItem-root": { borderRadius: 0 } }} count={Math.max(1, Math.ceil((prewarmRecordsQuery.data?.total ?? 0) / 20))} page={recordPage + 1} onChange={(_event, page) => setRecordPage(page - 1)} />
+                                    </Stack>
+                                </Stack>
                             ) : logLoading ? (
                                 <Box sx={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, color: palette.subtleText }}>
                                     <CircularProgress size={20} />
@@ -2540,9 +2655,9 @@ export function ScheduledTasksPage() {
                         </DialogContent>
                         <DialogActions className="scheduled-tasks-scoped-actions">
                             {selectedRun && logBefore !== null ? <Button onClick={() => void openRunLog(logTask, selectedRun, logBefore)}>{t("scheduledTasks.actions.loadEarlier")}</Button> : null}
-                            {selectedRun ? <Button onClick={() => downloadRunLog(logTask, selectedRun)}>{t("scheduledTasks.actions.download")}</Button> : null}
-                            {selectedRun ? <Button onClick={() => { setSelectedRun(null); setLogContent(""); }}>{t("scheduledTasks.actions.back")}</Button> : <Button onClick={() => void openLog(logTask)}>{t("scheduledTasks.actions.refreshRuns")}</Button>}
-                            <Button onClick={() => setLogTask(null)}>{t("scheduledTasks.actions.close")}</Button>
+                            {selectedRun ? <Button disabled={selectedRun.run_id === "__pending__"} onClick={() => downloadRunLog(logTask, selectedRun)}>{t("scheduledTasks.actions.download")}</Button> : null}
+                            {selectedRun ? <Button onClick={closeLogView}>{t("scheduledTasks.actions.back")}</Button> : <Button onClick={() => isPrewarmSummary(logTask) ? void prewarmRecordsQuery.refetch() : void openLog(logTask)}>{t("scheduledTasks.actions.refreshRuns")}</Button>}
+                            <Button onClick={closeLogView}>{t("scheduledTasks.actions.close")}</Button>
                         </DialogActions>
                     </Box>
                 </Box>
