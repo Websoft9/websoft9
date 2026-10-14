@@ -47,6 +47,7 @@ from src.core.logger import logger
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.proxy_manager import ProxyManager
 from src.services.install_profile import get_external_database_type, get_port_check_settings, is_external_database_profile, materialize_profile_template, validate_external_database_connection
+from src.services.install_secrets import forget_install_secrets, initialize_install_secrets
 from src.utils.async_utils import AsyncWrapper
 from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
@@ -1321,6 +1322,7 @@ class AppManger:
 
             # Copy the entire directory.
             shutil.copytree(local_path, app_tmp_dir_path)
+            os.chmod(app_tmp_dir_path, 0o700)
 
             materialize_profile_template(app_tmp_dir_path, profile)
 
@@ -1334,17 +1336,7 @@ class AppManger:
             envHelper.set_value("W9_DIST", "community")
             envHelper.set_value("W9_VERSION", app_version)
 
-            # Verify if a rcode needs to be set
-            is_set_rcode = envHelper.get_value("W9_RCODE")
-            if is_set_rcode is not None:
-                # Set the rcode to env file
-                envHelper.set_value("W9_RCODE", PasswordGenerator.generate_random_string_with_rules(12))
-            
-            # Verify if a password needs to be set
-            is_set_password = envHelper.get_value("W9_POWER_PASSWORD")
-            if is_set_password is not None:
-                # Set the password to env file
-                envHelper.set_value("W9_POWER_PASSWORD", PasswordGenerator.generate_strong_password())
+            initialize_install_secrets(app_tmp_dir_path, app_id, app_name, settings)
 
             # Set the settings to env file
             if settings:
@@ -1878,6 +1870,7 @@ class AppManger:
             giteaManager.remove_repo(app_id)
         # remove stack and volumes
         portainerManager.remove_stack_and_volumes(stack_id,endpointId)
+        forget_install_secrets(app_id)
 
         logger.access(f"Removed app: [{app_id}]")
 
@@ -1902,6 +1895,7 @@ class AppManger:
             # hit a port conflict).  Without this the first remove call only
             # deletes the tracking entry, leaving the broken stack behind.
             self._cleanup_error_app_resources(app_id)
+            forget_install_secrets(app_id)
             # remove app from appInstallingError
             remove_app_from_errors_by_app_id(app_id)
         except CustomException as e:

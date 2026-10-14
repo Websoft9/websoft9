@@ -341,6 +341,70 @@ def test_prewarm_tasks_are_grouped_under_one_fixed_task(tmp_path):
     assert len(summaries) == 1
     assert summaries[0]["task_id"] == "system:image-prewarm"
     assert summaries[0]["queued_count"] == 2
+    assert summaries[0]["last_run_at"] is None
+    assert summaries[0]["last_status"] == "never"
+
+
+@pytest.mark.parametrize("active", [False, True])
+def test_prewarm_summary_uses_active_or_latest_run_time(monkeypatch, tmp_path, active):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    first = service.enqueue_prewarm("valid-session", "dify", "1.9.2")
+    first_status = "running" if active else "success"
+    service._write_task(first["task_id"], queue_state=first_status, runner_pgid=12345 if active else None)
+    recent = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    service._write_task(recent["task_id"], queue_state="success")
+    pending = service.enqueue_prewarm("valid-session", "nginx", "1.27")
+    service._write_task(pending["task_id"], updated_at="2099-01-02T00:00:00+00:00")
+    for task, started_at, status in (
+        (first, "2099-01-01T09:00:00+08:00", first_status),
+        (recent, "2099-01-01T03:00:00+00:00", "success"),
+    ):
+        task_id = task["task_id"]
+        (service._runs_dir(task_id) / "run.json").write_text(json.dumps({
+            "task_id": task_id, "run_id": task_id, "started_at": started_at,
+            "finished_at": "" if status == "running" else "2099-01-01T04:00:00+00:00",
+            "status": status,
+        }))
+        service._state_path(task_id).write_text(f"run_id={task_id}\nstatus={status}\n")
+    monkeypatch.setattr(service, "_prewarm_runner_alive", lambda pgid: bool(pgid))
+
+    snapshot = service.list_cached_tasks("valid-session")
+    summary = next(task for task in snapshot["system_tasks"] if task["task_id"] == "system:image-prewarm")
+
+    assert summary["last_run_at"] == ("2099-01-01T09:00:00+08:00" if active else "2099-01-01T03:00:00+00:00")
+    assert summary["last_status"] == first_status
+    assert summary["running_count"] == int(active)
+
+
+@pytest.mark.parametrize("live", [False, True])
+def test_prewarm_interrupted_current_run_is_closed_and_logged_once(monkeypatch, tmp_path, live):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "dify", "1.9.2")
+    task_id = task["task_id"]
+    service._write_task(task_id, queue_state="failed", runner_pgid=12345 if live else None)
+    monkeypatch.setattr(service, "_prewarm_runner_alive", lambda pgid: bool(pgid) and live)
+    started_at = "2099-01-01T09:00:00+08:00"
+    log_path = service._task_logs_dir(task_id) / "interrupted.log"
+    log_path.write_text("[prewarm] Downloading\n")
+    (service._runs_dir(task_id) / "interrupted.json").write_text(json.dumps({
+        "task_id": task_id, "run_id": "interrupted", "started_at": started_at,
+        "finished_at": "", "status": "running", "exit_code": None, "log_path": str(log_path),
+    }))
+    service._state_path(task_id).write_text("run_id=interrupted\nstatus=running\n")
+
+    for repeat in range(2):
+        snapshot = service.list_cached_tasks("valid-session")
+        with service._db_connect() as connection:
+            run = connection.execute("SELECT * FROM scheduled_task_runs WHERE task_id = ?", (task_id,)).fetchone()
+        cached = service._get_task("operator-1", task_id)
+        assert run["status"] == ("running" if live else "failed")
+        assert bool(run["finished_at"]) is not live
+        assert run["exit_code"] is None
+        assert cached["last_status"] == run["status"]
+        assert cached["last_run_at"] == (started_at if live else run["finished_at"])
+        assert log_path.read_text().count("INTERRUPTED:") == (0 if live else 1)
+        summary = next(item for item in snapshot["system_tasks"] if item["task_id"] == "system:image-prewarm")
+        assert summary["last_run_at"] == started_at
 
 
 def test_prewarm_records_follow_fifo_queue_across_pages(monkeypatch, tmp_path):

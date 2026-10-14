@@ -186,6 +186,9 @@ class ScheduledTaskService:
         tasks = []
         prewarm_tasks = []
         for task in self._list_tasks(operator_id):
+            if task["category"] == "prewarm":
+                self._sync_task_runs(session_token, task)
+                task = self._get_task(operator_id, task["task_id"])
             public_task = self._public_task(task)
             if task["category"] == "prewarm":
                 prewarm_tasks.append(public_task)
@@ -203,12 +206,24 @@ class ScheduledTaskService:
         latest = max(records, key=lambda record: record["updated_at"], default={})
         running = sum(record["queue_state"] == "running" for record in records)
         queued = sum(record["queue_state"] == "queued" for record in records)
+        latest_run = None
+        if records:
+            placeholders = ",".join("?" for record in records)
+            with self._db_connect() as connection:
+                latest_run = connection.execute(
+                    f"""SELECT runs.started_at, runs.status FROM scheduled_task_runs runs
+                    JOIN scheduled_tasks task ON task.task_id = runs.task_id
+                    WHERE task.task_id IN ({placeholders}) AND NULLIF(runs.started_at, '') IS NOT NULL
+                    ORDER BY CASE WHEN runs.status = 'running' AND task.queue_state = 'running' THEN 0 ELSE 1 END,
+                        julianday(runs.started_at) DESC, runs.rowid DESC LIMIT 1""",
+                    tuple(record["task_id"] for record in records),
+                ).fetchone()
         return {
             "task_id": "system:image-prewarm", "name": "Image Prewarm", "target": "container",
             "profile_id": None, "schedule": "@once", "timezone": self._platform_timezone(),
             "command": "", "execution_mode": "command", "script_path": None, "script_name": None,
             "timeout_seconds": 7200, "retry_count": 0, "enabled": True,
-            "last_run_at": latest.get("last_run_at"), "last_status": "running" if running else latest.get("queue_state", "never") if not queued else "never",
+            "last_run_at": latest_run["started_at"] if latest_run else None, "last_status": latest_run["status"] if latest_run else "never",
             "sync_status": "synced", "next_run_at": None, "created_at": latest.get("created_at", ""),
             "updated_at": latest.get("updated_at", ""), "execution_path": "", "origin": "system",
             "category": "prewarm", "subject_app": None, "subject_version": None, "queue_state": None,
@@ -558,6 +573,9 @@ class ScheduledTaskService:
 
     def _append_cancel_marker(self, log_path: object) -> None:
         """Close a cancelled run's log with a line that explains the early ending."""
+        self._append_run_marker(log_path, "CANCELLED by operator")
+
+    def _append_run_marker(self, log_path: object, message: str) -> None:
         if not log_path:
             return
         try:
@@ -566,9 +584,9 @@ class ScheduledTaskService:
                 return
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("a", encoding="utf-8") as handle:
-                handle.write(f"[{self._now_iso()}] CANCELLED by operator\n")
+                handle.write(f"[{self._now_iso()}] {message}\n")
         except OSError as exc:
-            logger.warning(f"Unable to annotate cancelled prewarm log {log_path}: {exc}")
+            logger.warning(f"Unable to annotate task log {log_path}: {exc}")
 
     @staticmethod
     def _prewarm_session_pids(session_id: object) -> list[int]:
@@ -1200,18 +1218,40 @@ class ScheduledTaskService:
         current_run_id = str(self._read_state(str(task["task_id"])).get("run_id") or "")
         # An interrupted run of a cancelled task is a cancellation, not a failure.
         final_status = "cancelled" if str(task["queue_state"] or "") == "cancelled" else "failed"
-        statement = (
-            "UPDATE scheduled_task_runs SET status = ?, finished_at = COALESCE(NULLIF(finished_at, ''), ?) "
-            "WHERE task_id = ? AND status = 'running'"
+        condition = "task_id = ? AND status = 'running'"
+        parameters: list[Any] = [task["task_id"]]
+        protect_current = final_status != "cancelled" and (
+            task["category"] != "prewarm" or task["queue_state"] == "running"
+            or self._prewarm_runner_alive(task["runner_pgid"])
         )
-        parameters: list[Any] = [final_status, self._now_iso(), task["task_id"]]
-        if final_status != "cancelled":
-            # A live runner owns the run recorded in its state file; other runs were interrupted.
-            statement += " AND run_id != ?"
+        if protect_current:
+            condition += " AND run_id != ?"
             parameters.append(current_run_id)
-        with self._db_connect() as connection:
-            connection.execute(statement, parameters)
+        with self._lock, self._db_connect() as connection:
+            interrupted = connection.execute(
+                f"SELECT run_id, log_path FROM scheduled_task_runs WHERE {condition}", parameters,
+            ).fetchall()
+            if not interrupted:
+                return
+            finished_at = self._now_iso()
+            connection.execute(
+                f"UPDATE scheduled_task_runs SET status = ?, finished_at = COALESCE(NULLIF(finished_at, ''), ?) WHERE {condition}",
+                [final_status, finished_at, *parameters],
+            )
+            latest = connection.execute(
+                "SELECT status, COALESCE(NULLIF(finished_at, ''), started_at) AS run_at FROM scheduled_task_runs WHERE task_id = ? ORDER BY julianday(started_at) DESC, rowid DESC LIMIT 1",
+                (task["task_id"],),
+            ).fetchone()
             connection.commit()
+            self._write_task(task["task_id"], last_status=latest["status"], last_run_at=latest["run_at"], updated_at=finished_at)
+            for record in interrupted:
+                if final_status == "cancelled":
+                    self._append_cancel_marker(record["log_path"])
+                else:
+                    self._append_run_marker(
+                        record["log_path"],
+                        "INTERRUPTED: execution ended without a final result; the container may have restarted or the process was terminated. Exit code unavailable.",
+                    )
 
     def _sync_task_run_records(self, task: sqlite3.Row, records: list[dict[str, Any]]) -> None:
         if not records:
@@ -1238,7 +1278,7 @@ class ScheduledTaskService:
                     "INSERT INTO scheduled_task_runs (run_id, task_id, started_at, finished_at, status, exit_code, trigger, log_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(run_id) DO UPDATE SET finished_at = excluded.finished_at, status = excluded.status, exit_code = excluded.exit_code, log_path = excluded.log_path",
                     (record["run_id"], task["task_id"], record.get("started_at"), record.get("finished_at"), record.get("status", "running"), record.get("exit_code"), record.get("trigger", "cron"), record.get("log_path", "")),
                 )
-            latest = connection.execute("SELECT status, COALESCE(finished_at, started_at) AS run_at FROM scheduled_task_runs WHERE task_id = ? ORDER BY started_at DESC LIMIT 1", (task["task_id"],)).fetchone()
+            latest = connection.execute("SELECT status, COALESCE(NULLIF(finished_at, ''), started_at) AS run_at FROM scheduled_task_runs WHERE task_id = ? ORDER BY julianday(started_at) DESC, rowid DESC LIMIT 1", (task["task_id"],)).fetchone()
             previous = connection.execute("SELECT last_status, last_run_at FROM scheduled_tasks WHERE task_id = ?", (task["task_id"],)).fetchone()
             connection.commit()
         if latest and previous and (previous["last_status"] != latest["status"] or previous["last_run_at"] != latest["run_at"]):
