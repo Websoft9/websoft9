@@ -7,7 +7,7 @@ from fastapi import APIRouter, Cookie, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from src.schemas.errorResponse import ErrorResponse
-from src.schemas.scheduledTasks import ImagePrewarmRequest, ScheduledTaskToggleRequest, ScheduledTaskWriteRequest
+from src.schemas.scheduledTasks import ImagePrewarmRequest, ScheduledTaskToggleRequest, ScheduledTaskWriteRequest, SystemTaskScheduleRequest
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 from src.services.scheduled_tasks import ScheduledTaskService
 
@@ -95,6 +95,11 @@ def update_scheduled_task(task_id: str, payload: ScheduledTaskWriteRequest, sess
 @router.post("/scheduled-tasks/{task_id}/toggle", responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})
 def toggle_scheduled_task(task_id: str, payload: ScheduledTaskToggleRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     return _get_scheduled_task_service().toggle_task(session_token, task_id, payload.enabled)
+
+
+@router.put("/scheduled-tasks/{task_id}/schedule", responses={400: {"model": ErrorResponse}, 403: {"model": ErrorResponse}})
+def update_system_task_schedule(task_id: str, payload: SystemTaskScheduleRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    return _get_scheduled_task_service().update_system_schedule(session_token, task_id, payload.schedule)
 
 
 @router.delete("/scheduled-tasks/{task_id}", status_code=204, responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})

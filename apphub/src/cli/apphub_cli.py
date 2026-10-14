@@ -328,6 +328,45 @@ def check_update():
         raise click.ClickException(str(e))
 
 
+@cli.command(name="log-cleanup")
+@click.option("--verbose", is_flag=True, help="Include debug details for scanned directories and retained files.")
+@click.option("--json", "json_output", is_flag=True, help="Output only the JSON result for machine processing.")
+def log_cleanup(verbose, json_output):
+    """Clean expired platform logs and rotate oversized service logs."""
+    from src.services.log_cleanup import LogCleanupService
+
+    def report(event):
+        action = event["action"]
+        if json_output:
+            return
+        if action in {"scan", "retained", "rotating"} or (action == "skipped" and event["reason"] in {"directory_missing", "file_disappeared"}):
+            level = "DEBUG"
+        elif action == "failed" or (action == "summary" and event["status"] == "failed"):
+            level = "ERROR"
+        elif action == "skipped":
+            level = "WARN"
+        else:
+            level = "INFO"
+        if level == "DEBUG" and not verbose:
+            return
+        fields = {key: value for key, value in event.items() if key not in {"action", "errors"}}
+        if action == "summary":
+            fields["error_count"] = len(event["errors"])
+        values = " ".join(f"{key}={json.dumps(value, ensure_ascii=True)}" for key, value in fields.items())
+        click.echo(f"{level} event={action} {values}")
+
+    try:
+        result = LogCleanupService(on_progress=report).run()
+    except Exception as exc:
+        raise click.ClickException(f"Log cleanup failed: {type(exc).__name__}") from None
+    if json_output:
+        click.echo(json.dumps(result))
+    if result["status"] == "skipped":
+        raise SystemExit(SKIPPED_EXIT_CODE)
+    if result["status"] == "failed":
+        raise SystemExit(1)
+
+
 @cli.command(hidden=True)
 def reconcile_scheduled_tasks():
     """Restore local scheduled-task runners and cron after an upgrade."""

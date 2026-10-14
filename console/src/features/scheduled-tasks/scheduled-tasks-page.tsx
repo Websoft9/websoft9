@@ -129,6 +129,7 @@ type ScheduledTasksResponse = {
     tasks: ScheduledTask[];
     /** Platform-owned tasks, shown read-only beside the operator's own. */
     system_tasks?: ScheduledTask[];
+    can_manage_log_cleanup?: boolean;
 };
 
 /** Platform tasks are seeded by the product itself and shown read-only. */
@@ -429,6 +430,7 @@ export function ScheduledTasksPage() {
     const [logContent, setLogContent] = useState("");
     const [logLoading, setLogLoading] = useState(false);
     const [deleteTask, setDeleteTask] = useState<ScheduledTask | null>(null);
+    const [confirmLogCleanupTask, setConfirmLogCleanupTask] = useState<ScheduledTask | null>(null);
     const [cancelPrewarmTask, setCancelPrewarmTask] = useState<ScheduledTask | null>(null);
     const [resumePrewarmTask, setResumePrewarmTask] = useState<ScheduledTask | null>(null);
     const [feedback, setFeedback] = useState<{
@@ -479,6 +481,14 @@ export function ScheduledTasksPage() {
     });
 
     const tasks = [...(tasksQuery.data?.system_tasks ?? []), ...(tasksQuery.data?.tasks ?? [])];
+    const editingLogCleanup = editorTask?.task_id === "system:log-cleanup";
+    function canManageLogCleanup(task: ScheduledTask) {
+        return task.task_id === "system:log-cleanup" && Boolean(tasksQuery.data?.can_manage_log_cleanup);
+    }
+    function requestTaskRun(task: ScheduledTask) {
+        if (task.task_id === "system:log-cleanup") setConfirmLogCleanupTask(task);
+        else void updateTask(task, "run");
+    }
     const savedHostProfiles = hostProfilesQuery.data?.saved_profiles ?? [];
     const filteredTasks = tasks.filter((task) => {
         const query = searchValue.trim().toLowerCase();
@@ -862,10 +872,16 @@ export function ScheduledTasksPage() {
                     : {}),
             };
             if (editorTask) {
-                await requestJson(`/api/scheduled-tasks/${editorTask.task_id}`, {
+                await requestJson(`/api/scheduled-tasks/${editorTask.task_id}${editingLogCleanup ? "/schedule" : ""}`, {
                     method: "PUT",
-                    body: JSON.stringify(payload),
+                    body: JSON.stringify(editingLogCleanup ? { schedule: form.schedule } : payload),
                 });
+                if (editingLogCleanup && form.enabled !== editorTask.enabled) {
+                    await requestJson(`/api/scheduled-tasks/${editorTask.task_id}/toggle`, {
+                        method: "POST",
+                        body: JSON.stringify({ enabled: form.enabled }),
+                    });
+                }
             } else {
                 await requestJson("/api/scheduled-tasks", {
                     method: "POST",
@@ -1565,9 +1581,9 @@ export function ScheduledTasksPage() {
                                                     )}
                                                 </td>
                                                 <td>
-                                                    <Tooltip title={isSystemTask(task) ? t("scheduledTasks.systemReadOnlyHint") : isPrewarmTask(task) ? t("scheduledTasks.prewarm.managedHint") : ""}>
+                                                    <Tooltip title={isSystemTask(task) && !canManageLogCleanup(task) ? t("scheduledTasks.systemReadOnlyHint") : isPrewarmTask(task) ? t("scheduledTasks.prewarm.managedHint") : ""}>
                                                         <span>
-                                                            {isSystemTask(task) || isPrewarmTask(task) ? <Switch
+                                                            {(isSystemTask(task) && !canManageLogCleanup(task)) || isPrewarmTask(task) ? <Switch
                                                                 checked={task.enabled}
                                                                 disabled
                                                                 size="small"
@@ -1588,7 +1604,7 @@ export function ScheduledTasksPage() {
                                                         direction="row"
                                                         spacing={0.25}
                                                     >
-                                                        {!isSystemTask(task) && !isPrewarmTask(task) ? (
+                                                        {canManageLogCleanup(task) || (!isSystemTask(task) && !isPrewarmTask(task)) ? (
                                                             <Tooltip title={t("scheduledTasks.actions.run")}>
                                                                 <span>
                                                                     <IconButton
@@ -1596,7 +1612,7 @@ export function ScheduledTasksPage() {
                                                                             pendingTaskId === task.task_id ||
                                                                             task.last_status === "running"
                                                                         }
-                                                                        onClick={() => void updateTask(task, "run")}
+                                                                        onClick={() => requestTaskRun(task)}
                                                                         size="small"
                                                                     >
                                                                         <RunIcon />
@@ -1623,6 +1639,13 @@ export function ScheduledTasksPage() {
                                                                 <LogIcon />
                                                             </IconButton>
                                                         </Tooltip>
+                                                        {canManageLogCleanup(task) ? (
+                                                            <Tooltip title={t("scheduledTasks.actions.edit")}>
+                                                                <IconButton aria-label={t("scheduledTasks.actions.edit")} onClick={() => openEditDialog(task)} size="small">
+                                                                    <EditIcon />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        ) : null}
                                                         {isPrewarmTask(task) && !isPrewarmSummary(task) ? (
                                                             task.queue_state === "queued" || task.queue_state === "running" ? (
                                                                 <Tooltip title={t("scheduledTasks.prewarm.cancel")}><span><IconButton color="warning" disabled={pendingTaskId === task.task_id} onClick={() => setCancelPrewarmTask(task)} size="small"><CancelIcon /></IconButton></span></Tooltip>
@@ -1718,11 +1741,11 @@ export function ScheduledTasksPage() {
                                             </Typography>
                                         ) : null}
                                     </Box>
-                                    <Tooltip title={isSystemTask(task) ? t("scheduledTasks.systemReadOnlyHint") : isPrewarmTask(task) ? t("scheduledTasks.prewarm.managedHint") : ""}>
+                                    <Tooltip title={isSystemTask(task) && !canManageLogCleanup(task) ? t("scheduledTasks.systemReadOnlyHint") : isPrewarmTask(task) ? t("scheduledTasks.prewarm.managedHint") : ""}>
                                         <span>
                                             <Switch
                                                 checked={task.enabled}
-                                                disabled={isSystemTask(task) || isPrewarmTask(task) || pendingTaskId === task.task_id}
+                                                disabled={(isSystemTask(task) && !canManageLogCleanup(task)) || isPrewarmTask(task) || pendingTaskId === task.task_id}
                                                 onChange={() => void updateTask(task, "toggle")}
                                                 size="small"
                                                 slotProps={{
@@ -1785,7 +1808,7 @@ export function ScheduledTasksPage() {
                                         ) : null}
                                     </Stack>
                                     <Stack direction="row" spacing={0.25}>
-                                        {!isSystemTask(task) && !isPrewarmTask(task) ? (
+                                        {canManageLogCleanup(task) || (!isSystemTask(task) && !isPrewarmTask(task)) ? (
                                             <Tooltip title={t("scheduledTasks.actions.run")}>
                                                 <span>
                                                     <IconButton
@@ -1793,7 +1816,7 @@ export function ScheduledTasksPage() {
                                                             pendingTaskId === task.task_id ||
                                                             task.last_status === "running"
                                                         }
-                                                        onClick={() => void updateTask(task, "run")}
+                                                        onClick={() => requestTaskRun(task)}
                                                         size="small"
                                                     >
                                                         <RunIcon />
@@ -1818,6 +1841,13 @@ export function ScheduledTasksPage() {
                                                 <LogIcon />
                                             </IconButton>
                                         </Tooltip>
+                                        {canManageLogCleanup(task) ? (
+                                            <Tooltip title={t("scheduledTasks.actions.edit")}>
+                                                <IconButton aria-label={t("scheduledTasks.actions.edit")} onClick={() => openEditDialog(task)} size="small">
+                                                    <EditIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                        ) : null}
                                         {isPrewarmTask(task) && !isPrewarmSummary(task) ? (
                                             task.queue_state === "queued" || task.queue_state === "running" ? (
                                                 <Tooltip title={t("scheduledTasks.prewarm.cancel")}>
@@ -2000,7 +2030,8 @@ export function ScheduledTasksPage() {
                                         {t("scheduledTasks.fields.name")}
                                     </Typography>
                                     <TextField
-                                        autoFocus
+                                        autoFocus={!editingLogCleanup}
+                                        disabled={editingLogCleanup}
                                         fullWidth
                                         onChange={(event) =>
                                             setForm((current) => ({
@@ -2011,7 +2042,7 @@ export function ScheduledTasksPage() {
                                         placeholder={t("scheduledTasks.fields.name")}
                                         required
                                         size="small"
-                                        value={form.name}
+                                        value={editingLogCleanup && editorTask ? systemTaskName(editorTask, t) : form.name}
                                         sx={{ "& .MuiOutlinedInput-root": { borderRadius: 0 } }}
                                     />
                                 </Box>
@@ -2020,6 +2051,7 @@ export function ScheduledTasksPage() {
                                         {t("scheduledTasks.fields.target")}
                                     </Typography>
                                     <TextField
+                                        disabled={editingLogCleanup}
                                         fullWidth
                                         onChange={(event) =>
                                             setForm((current) => ({
@@ -2052,6 +2084,7 @@ export function ScheduledTasksPage() {
                                         </Typography>
                                         <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
                                             <TextField
+                                                disabled={editingLogCleanup}
                                                 onChange={(event) =>
                                                     setForm((current) => ({
                                                         ...current,
@@ -2103,6 +2136,7 @@ export function ScheduledTasksPage() {
                                     </Typography>
                                     <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
                                         <TextField
+                                            autoFocus={editingLogCleanup}
                                             select
                                             size="small"
                                             value={scheduleMode}
@@ -2291,6 +2325,7 @@ export function ScheduledTasksPage() {
                                         {t("scheduledTasks.fields.executionMode")}
                                     </Typography>
                                     <TextField
+                                        disabled={editingLogCleanup}
                                         fullWidth
                                         select
                                         size="small"
@@ -2332,8 +2367,9 @@ export function ScheduledTasksPage() {
                                                 {t("scheduledTasks.fields.command")}
                                             </Typography>
                                             <Tooltip title={t("scheduledTasks.fields.scriptUpload")}>
-                                                <IconButton component="label" size="small">
+                                                <IconButton component="label" size="small" disabled={editingLogCleanup}>
                                                     <input
+                                                        disabled={editingLogCleanup}
                                                         hidden
                                                         accept="text/x-shellscript,text/plain,.sh"
                                                         type="file"
@@ -2361,6 +2397,7 @@ export function ScheduledTasksPage() {
                                         </Stack>
                                         {form.execution_mode === "command" ? (
                                             <TextField
+                                                disabled={editingLogCleanup}
                                                 fullWidth
                                                 multiline
                                                 minRows={4}
@@ -2396,6 +2433,7 @@ export function ScheduledTasksPage() {
                                             {t("scheduledTasks.fields.scriptPath")}
                                         </Typography>
                                         <TextField
+                                            disabled={editingLogCleanup}
                                             fullWidth
                                             onChange={(event) =>
                                                 setForm((current) => ({
@@ -2419,6 +2457,7 @@ export function ScheduledTasksPage() {
                                         </Typography>
                                         <Stack direction="row" spacing={0}>
                                             <TextField
+                                                disabled={editingLogCleanup}
                                                 fullWidth
                                                 slotProps={{
                                                     htmlInput: { min: 0, max: 86400, step: 1 },
@@ -2460,6 +2499,7 @@ export function ScheduledTasksPage() {
                                                 }}
                                             />
                                             <TextField
+                                                disabled={editingLogCleanup}
                                                 select
                                                 size="small"
                                                 value={timeoutUnit}
@@ -2498,6 +2538,7 @@ export function ScheduledTasksPage() {
                                             {t("scheduledTasks.fields.retryCount")}
                                         </Typography>
                                         <TextField
+                                            disabled={editingLogCleanup}
                                             fullWidth
                                             slotProps={{ htmlInput: { min: 0, max: 10, step: 1 } }}
                                             onChange={(event) =>
@@ -2658,6 +2699,27 @@ export function ScheduledTasksPage() {
                             {selectedRun ? <Button disabled={selectedRun.run_id === "__pending__"} onClick={() => downloadRunLog(logTask, selectedRun)}>{t("scheduledTasks.actions.download")}</Button> : null}
                             {selectedRun ? <Button onClick={closeLogView}>{t("scheduledTasks.actions.back")}</Button> : <Button onClick={() => isPrewarmSummary(logTask) ? void prewarmRecordsQuery.refetch() : void openLog(logTask)}>{t("scheduledTasks.actions.refreshRuns")}</Button>}
                             <Button onClick={closeLogView}>{t("scheduledTasks.actions.close")}</Button>
+                        </DialogActions>
+                    </Box>
+                </Box>
+            ) : null}
+
+            {confirmLogCleanupTask && editorScope ? (
+                <Box className="scheduled-tasks-scoped-overlay" sx={editorScope}>
+                    <Box className="scheduled-tasks-scoped-backdrop" onClick={() => setConfirmLogCleanupTask(null)} />
+                    <Box className="scheduled-tasks-scoped-dialog scheduled-tasks-delete-dialog" role="dialog" aria-modal="true">
+                        <DialogTitle className="scheduled-tasks-scoped-title">
+                            <Typography sx={{ fontSize: 16, fontWeight: 700 }}>{t("scheduledTasks.logCleanup.confirmTitle")}</Typography>
+                            <IconButton aria-label={t("scheduledTasks.actions.close")} onClick={() => setConfirmLogCleanupTask(null)} size="small"><CloseIcon /></IconButton>
+                        </DialogTitle>
+                        <DialogContent dividers>
+                            <Typography sx={dialogBodySx}>{t("scheduledTasks.logCleanup.confirmDescription")}</Typography>
+                        </DialogContent>
+                        <DialogActions className="scheduled-tasks-scoped-actions">
+                            <Button onClick={() => setConfirmLogCleanupTask(null)} sx={dialogCancelButtonSx}>{t("scheduledTasks.actions.cancel")}</Button>
+                            <Button disabled={pendingTaskId === confirmLogCleanupTask.task_id} onClick={() => { void updateTask(confirmLogCleanupTask, "run").then(() => setConfirmLogCleanupTask(null)); }} sx={dialogWarningButtonSx} variant="contained">
+                                {t("scheduledTasks.actions.run")}
+                            </Button>
                         </DialogActions>
                     </Box>
                 </Box>

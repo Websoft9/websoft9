@@ -36,6 +36,7 @@ SKIPPED_EXIT_CODE = 75
 SYSTEM_ORIGIN = "system"
 SYSTEM_OPERATOR_ID = "system"
 PLATFORM_CLI_PATH = "/usr/local/bin/websoft9"
+LOG_CLEANUP_TASK_ID = "system:log-cleanup"
 SYSTEM_TASKS: tuple[dict[str, Any], ...] = (
     {
         "task_id": "system:appstore-sync",
@@ -51,6 +52,13 @@ SYSTEM_TASKS: tuple[dict[str, Any], ...] = (
         "name": "Platform update check",
         "schedule": "30 3 * * *",
         "command": f"{PLATFORM_CLI_PATH} check-update",
+        "timeout_seconds": 900,
+    },
+    {
+        "task_id": LOG_CLEANUP_TASK_ID,
+        "name": "Clean platform logs",
+        "schedule": "0 4 * * 0",
+        "command": f"{PLATFORM_CLI_PATH} log-cleanup",
         "timeout_seconds": 900,
     },
 )
@@ -200,6 +208,7 @@ class ScheduledTaskService:
         return {
             "tasks": tasks,
             "system_tasks": [self._public_task(task) for task in self._list_system_tasks()] + [self._prewarm_summary(prewarm_tasks)],
+            "can_manage_log_cleanup": self.auth_service._is_system_user(operator),
         }
 
     def _prewarm_summary(self, records: list[dict]) -> dict[str, Any]:
@@ -825,11 +834,30 @@ class ScheduledTaskService:
             self._sync_or_mark_failed(session_token, task_id)
         return self._public_task(self._get_task(operator["id"], task_id))
 
+    def update_system_schedule(self, session_token: Optional[str], task_id: str, schedule: str) -> dict[str, Any]:
+        operator = self.auth_service._require_authenticated_operator(session_token)
+        with self._lock:
+            task = self._get_task(operator["id"], task_id)
+            self._require_log_cleanup_manager(operator, task)
+            normalized = self._normalize_payload({**dict(task), "schedule": schedule})
+            self._write_task(
+                task_id,
+                schedule=normalized["schedule"],
+                next_run_at=self._next_run(normalized["schedule"], task["timezone"]) if task["enabled"] else None,
+                updated_at=self._now_iso(),
+            )
+            self._sync_or_mark_failed(session_token, task_id)
+        return self._public_task(self._get_task(operator["id"], task_id))
+
     def toggle_task(self, session_token: Optional[str], task_id: str, enabled: bool) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         with self._lock:
             task = self._get_task(operator["id"], task_id)
-            self._require_mutable(task)
+            if task_id == LOG_CLEANUP_TASK_ID:
+                self._require_log_cleanup_manager(operator, task)
+                self._write_task(task_id, next_run_at=self._next_run(task["schedule"], task["timezone"]) if enabled else None)
+            else:
+                self._require_mutable(task)
             self._write_task(task_id, enabled=int(enabled), updated_at=self._now_iso())
             self._sync_or_mark_failed(session_token, task_id)
         return self._public_task(self._get_task(operator["id"], task_id))
@@ -867,7 +895,10 @@ class ScheduledTaskService:
         operator = self.auth_service._require_authenticated_operator(session_token)
         with self._lock:
             task = self._get_task(operator["id"], task_id)
-            self._require_mutable(task)
+            if task_id == LOG_CLEANUP_TASK_ID:
+                self._require_log_cleanup_manager(operator, task)
+            else:
+                self._require_mutable(task)
             if task["sync_status"] != "synced":
                 self._sync_or_mark_failed(session_token, task_id)
                 task = self._get_task(operator["id"], task_id)
@@ -877,6 +908,8 @@ class ScheduledTaskService:
                 self._run_host_task(session_token, task)
             else:
                 runner = self._runner_path(task_id)
+                if task_id == LOG_CLEANUP_TASK_ID and not runner.is_file():
+                    self._write_runner(task)
                 if not runner.is_file():
                     raise CustomException(503, "Scheduled Task Runner Missing", "The task runner is unavailable")
                 subprocess.Popen([str(runner), "manual"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
@@ -1637,6 +1670,12 @@ class ScheduledTaskService:
         if task is None:
             raise CustomException(404, "Scheduled Task Not Found", "The requested task does not exist")
         return task
+
+    def _require_log_cleanup_manager(self, operator: dict, task: sqlite3.Row) -> None:
+        if task["task_id"] != LOG_CLEANUP_TASK_ID or task["origin"] != SYSTEM_ORIGIN:
+            raise CustomException(403, "Platform Task Read-only", "Only the log cleanup task supports these controls")
+        if not self.auth_service._is_system_user(operator):
+            raise CustomException(403, "Permission Denied", "Only the system administrator can manage platform log cleanup")
 
     @staticmethod
     def _require_mutable(task: sqlite3.Row) -> None:

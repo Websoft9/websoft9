@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ScheduledTaskWriteRequest(BaseModel):
@@ -20,6 +20,11 @@ class ScheduledTaskWriteRequest(BaseModel):
 
 class ScheduledTaskToggleRequest(BaseModel):
     enabled: bool
+
+
+class SystemTaskScheduleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    schedule: str = Field(min_length=1, max_length=128)
 
 
 class ImagePrewarmRequest(BaseModel):

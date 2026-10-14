@@ -25,6 +25,9 @@ from fastapi.responses import JSONResponse
 
 
 class FakeAuthService:
+    def _is_system_user(self, _operator):
+        return False
+
     def _require_authenticated_operator(self, session_token):
         if session_token != "valid-session":
             raise CustomException(401, "Authentication Required", "Login required")
@@ -1161,6 +1164,67 @@ def test_system_tasks_are_seeded_once_visible_and_read_only(tmp_path):
     assert [task["task_id"] for task in service.list_tasks("valid-session")["system_tasks"]] == [
         definition["task_id"] for definition in SYSTEM_TASKS
     ] + ["system:image-prewarm"]
+
+
+class FakeSystemAuthService(FakeAuthService):
+    def _is_system_user(self, _operator):
+        return True
+
+
+def test_log_cleanup_schedule_and_toggle_survive_restart(tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeSystemAuthService(), cron_reloader=lambda: None)
+    task_id = "system:log-cleanup"
+    task = service._get_task("operator-1", task_id)
+    assert task["schedule"] == "0 4 * * 0"
+    original_command = task["command"]
+    updated = service.update_system_schedule("valid-session", task_id, "0 2 * * 1")
+    assert updated["schedule"] == "0 2 * * 1"
+    assert updated["command"] == original_command
+    assert "0 2 * * 1 root" in (tmp_path / "cron").read_text()
+    service.toggle_task("valid-session", task_id, False)
+    assert original_command not in (tmp_path / "cron").read_text()
+    assert service._runner_path(task_id).exists()
+    restarted = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeSystemAuthService(), cron_reloader=lambda: None)
+    saved = restarted._get_task("operator-1", task_id)
+    assert saved["schedule"] == "0 2 * * 1" and not saved["enabled"]
+    assert restarted.list_cached_tasks("valid-session")["can_manage_log_cleanup"] is True
+
+
+def test_log_cleanup_controls_require_system_administrator(tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task_id = "system:log-cleanup"
+    for action in (
+        lambda: service.update_system_schedule("valid-session", task_id, "0 2 * * 1"),
+        lambda: service.toggle_task("valid-session", task_id, False),
+        lambda: service.run_task("valid-session", task_id),
+    ):
+        with pytest.raises(CustomException) as error:
+            action()
+        assert error.value.status_code == 403
+    assert service.list_cached_tasks("valid-session")["can_manage_log_cleanup"] is False
+
+
+def test_log_cleanup_manual_run_is_available_when_disabled(tmp_path, monkeypatch):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeSystemAuthService(), cron_reloader=lambda: None)
+    task_id = "system:log-cleanup"
+    service.toggle_task("valid-session", task_id, False)
+    launched = []
+    monkeypatch.setattr(subprocess, "Popen", lambda command, **kwargs: launched.append(command))
+    assert service.run_task("valid-session", task_id)["status"] == "started"
+    assert launched == [[str(service._runner_path(task_id)), "manual"]]
+
+
+def test_log_cleanup_schedule_api_rejects_command_or_other_fields(tmp_path, monkeypatch):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeSystemAuthService(), cron_reloader=lambda: None)
+    monkeypatch.setattr(scheduled_tasks_router, "_scheduled_task_service", service)
+    headers = {"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"}
+    with TestClient(create_test_app()) as client:
+        assert client.put("/scheduled-tasks/system:log-cleanup/schedule", headers=headers, json={"schedule": "0 2 * * 1", "command": "rm -rf /"}).status_code == 422
+        assert client.put("/scheduled-tasks/system:log-cleanup/schedule", headers=headers, json={"schedule": "invalid"}).status_code == 400
+        assert client.put("/scheduled-tasks/system:log-cleanup/schedule", headers=headers, json={"schedule": "0 2 * * 1"}).status_code == 200
+        assert client.put("/scheduled-tasks/system:appstore-sync/schedule", headers=headers, json={"schedule": "0 2 * * 1"}).status_code == 403
+        assert client.delete("/scheduled-tasks/system:log-cleanup", headers=headers).status_code == 403
+        assert client.put("/scheduled-tasks/system:log-cleanup", headers=headers, json={"name": "Changed", "schedule": "0 2 * * 1", "command": "date"}).status_code == 403
 
 
 def test_system_task_runner_reports_a_skip_instead_of_a_failure():
