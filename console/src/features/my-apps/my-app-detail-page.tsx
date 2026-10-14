@@ -26,6 +26,7 @@ import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { LegacyMyAppLogo } from './my-app-media'
 import { canOpenMyAppsDetailOverlay, clearMyAppsDetailOverlayIntent, consumePendingComposeReturn, hasMyAppsDetailOverlayIntent, markPendingComposeReturn, rememberMyAppsDetailRoute } from './my-app-detail-overlay-intent'
 import { VolumeFileBrowserDialog } from './volume-file-browser-dialog'
+import { AppSftpDialog } from './app-sftp-dialog'
 import { type MyAppDetail, useMyAppDetail } from './use-my-app-detail'
 import { MyAppAccessPanel } from './my-app-access-panel'
 import { useMyAppPhpInfo } from './use-my-app-php-info'
@@ -737,6 +738,7 @@ export function MyAppDetailPage() {
     const [phpMigrationSubmitting, setPhpMigrationSubmitting] = useState(false)
     const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
     const [activeVolumeFileManager, setActiveVolumeFileManager] = useState<{ volumeId: string; label: string; path: string } | null>(null)
+    const [sftpVolumeId, setSftpVolumeId] = useState<string | null>(() => searchParams.get('sftp_volume'))
     const [customFields, setCustomFields] = useState<Array<{ field_name: string; field_value: string; field_type: string }>>([])
     const [, setCustomFieldsSaving] = useState(false)
     const [customFieldsLoaded, setCustomFieldsLoaded] = useState(false)
@@ -965,6 +967,7 @@ export function MyAppDetailPage() {
     ]), [t])
 
     useEffect(() => {
+        if (!data) return
         if (!detailTabs.includes(selectedTab)) {
             if (selectedTab === 'database' && detailTabs.includes('volumes') && databaseRows.length > 0) {
                 setSelectedTab('volumes')
@@ -973,7 +976,7 @@ export function MyAppDetailPage() {
 
             setSelectedTab(detailTabs[0] ?? 'overview')
         }
-    }, [databaseRows.length, detailTabs, selectedTab])
+    }, [data, databaseRows.length, detailTabs, selectedTab])
 
     useEffect(() => {
         if (!(contentScopeContainer instanceof HTMLElement)) {
@@ -1796,6 +1799,14 @@ export function MyAppDetailPage() {
                                                                                             >
                                                                                                 {t('myAppsDetailPage.tabs.volumes.fileManager.entry')}
                                                                                             </button>
+                                                                                            <button
+                                                                                                className="myapps-inline-link"
+                                                                                                style={{ marginLeft: 12 }}
+                                                                                                disabled={!volumeId}
+                                                                                                onClick={() => setSftpVolumeId(volumeId)}
+                                                                                            >
+                                                                                                SFTP
+                                                                                            </button>
                                                                                         </td>
                                                                                     </tr>
                                                                                 )
@@ -2216,6 +2227,15 @@ export function MyAppDetailPage() {
                     ) : null}
                 </div>
             </div>
+
+            {sftpVolumeId && appId ? <AppSftpDialog key={sftpVolumeId} appId={appId} volumeId={sftpVolumeId} initialError={searchParams.get('sftp_volume') === sftpVolumeId ? (location.state as { sftpError?: string } | null)?.sftpError : undefined} darkMode={isDarkMode} scopeRect={contentScopeRect} onClose={() => {
+                setSftpVolumeId(null)
+                if (searchParams.has('sftp_volume')) {
+                    const next = new URLSearchParams(searchParams)
+                    next.delete('sftp_volume')
+                    setSearchParams(next, { replace: true })
+                }
+            }} /> : null}
 
             {/* ── Redeploy dialog ── */}
             <SurfaceDialog

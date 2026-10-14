@@ -1434,6 +1434,7 @@
     align-items: stretch;
     gap: 0;
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
     flex: 1 1 auto;
     min-width: 0;
@@ -1452,14 +1453,25 @@
     align-items: center;
     gap: 4px;
     min-width: 0;
+    max-width: 220px;
     min-height: 40px;
     padding: 0;
     border-right: 1px solid rgba(203, 213, 225, 0.9);
-    flex: 0 0 auto;
+    flex: 0 1 auto;
 }
 
 .terminal-session-tab:last-of-type {
     border-right: 1px solid rgba(203, 213, 225, 0.9);
+}
+
+.terminal-session-tab-active {
+    max-width: none;
+}
+
+.terminal-session-tab-active .terminal-session-tab-title {
+    white-space: nowrap;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
 }
 
 .terminal-session-tab:hover,
@@ -1483,6 +1495,7 @@
 
 .terminal-session-tab-main {
     display: grid;
+    min-width: 0;
     gap: 0;
     text-align: left;
 }
@@ -1490,6 +1503,9 @@
 .terminal-session-tab-title {
     font-size: 13px;
     font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .terminal-session-tab-status {
@@ -1540,6 +1556,11 @@
     min-width: 38px;
     padding: 0;
     flex: 0 0 auto;
+}
+
+.terminal-session-add:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
 }
 
 .terminal-session-toolbar-actions {

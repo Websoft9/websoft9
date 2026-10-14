@@ -786,7 +786,7 @@ export function AppShell() {
                                                     component={NavLink}
                                                     key={item.segment}
                                                     className="app-shell-nav-item"
-                                                    to={item.segment === 'myapps' ? myAppsNavigationTarget : `/${item.segment}`}
+                                                    to={item.segment === 'myapps' ? myAppsNavigationTarget : item.segment === 'terminal' ? (terminalRoute ? `${location.pathname}${location.search}` : sessionStorage.getItem('websoft9:app-files-route') || '/terminal') : `/${item.segment}`}
                                                 >
                                                     <Box className="app-shell-nav-item-icon" aria-hidden="true">
                                                         <ShellNavIcon segment={item.segment} />

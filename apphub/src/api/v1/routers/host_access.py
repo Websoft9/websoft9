@@ -4,8 +4,9 @@ import json
 from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, Body, Cookie, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, Cookie, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, ValidationError
 from uvicorn.protocols.utils import ClientDisconnected
 from websockets.exceptions import InvalidState
 
@@ -32,10 +33,79 @@ from src.schemas.hostAccess import (
     HostAccessWriteTextRequest,
 )
 from src.services.host_access import HostAccessService
+from src.services.app_sftp import AppSftpService
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 
 router = APIRouter()
 _host_access_service = HostAccessService()
+_app_sftp_service = AppSftpService(_host_access_service)
+
+
+class AppSftpSessionRequest(BaseModel):
+    app_id: str
+    volume_id: str
+    profile_id: Optional[str] = None
+
+
+def _run_app_file_operation(handler):
+    try:
+        return handler()
+    except PermissionError:
+        raise HTTPException(403, 'The SSH account does not have permission for this file operation')
+    except OSError as exc:
+        raise HTTPException(400, f'Application SFTP operation failed: {exc}')
+    except (ValueError, TypeError):
+        raise HTTPException(400, 'Invalid application SFTP payload')
+
+
+@router.post('/host-access/app-files/sessions')
+def create_app_sftp_session(payload: AppSftpSessionRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    return _app_sftp_service.create(session_token, payload.app_id, payload.volume_id, payload.profile_id)
+
+
+@router.api_route('/host-access/app-files/{file_session_id}/{operation}', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def app_sftp_file_operation(
+    file_session_id: str,
+    operation: str,
+    request: Request,
+    path: str = Query(''),
+    payload: Optional[dict] = Body(None),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    service = _app_sftp_service.access(session_token, file_session_id)
+    if request.method == 'DELETE' and operation == 'session':
+        with _app_sftp_service.lock:
+            _app_sftp_service.sessions.pop(file_session_id, None)
+        return {'operation': 'close'}
+    if request.method == 'GET' and operation == 'tree':
+        return _run_app_file_operation(lambda: service.list_directory(session_token, path or service.root))
+    if request.method == 'GET' and operation == 'content':
+        return _run_app_file_operation(lambda: service.read_text_file(session_token, path))
+    if request.method == 'GET' and operation == 'download':
+        result = _run_app_file_operation(lambda: service.download_file(session_token, path))
+        from urllib.parse import quote
+
+        return StreamingResponse(BytesIO(result['content']), media_type=result['media_type'], headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quote(result['file_name'], safe='')}"})
+    operations = {
+        ('PUT', 'content'): (HostAccessWriteTextRequest, lambda value: service.write_text_file(session_token, value.path, value.content)),
+        ('POST', 'folders'): (HostAccessCreateFolderRequest, lambda value: service.create_directory(session_token, value.parent_path, value.name)),
+        ('POST', 'items'): (HostAccessCreateFileRequest, lambda value: service.create_empty_file(session_token, value.parent_path, value.name)),
+        ('POST', 'rename'): (HostAccessRenameItemRequest, lambda value: service.rename_item(session_token, value.source_path, value.target_name)),
+        ('DELETE', 'item'): (HostAccessDeleteItemRequest, lambda value: service.delete_item(session_token, value.path)),
+        ('POST', 'copy'): (HostAccessCopyItemRequest, lambda value: service.copy_item(session_token, value.source_path, value.destination_path)),
+        ('POST', 'move'): (HostAccessCopyItemRequest, lambda value: service.move_item(session_token, value.source_path, value.destination_path)),
+        ('PUT', 'attributes'): (HostAccessUpdateAttributesRequest, lambda value: service.update_item_attributes(session_token, value.model_dump())),
+        ('POST', 'upload'): (HostAccessUploadRequest, lambda value: service.upload_file(session_token, value.parent_path, value.file_name, base64.b64decode(value.content_base64, validate=True))),
+    }
+    specification = operations.get((request.method, operation))
+    if not specification:
+        raise HTTPException(405, 'Unsupported application SFTP operation')
+    model, handler = specification
+    try:
+        parsed = model.model_validate(payload or {})
+    except ValidationError:
+        raise HTTPException(422, 'Invalid application SFTP request')
+    return _run_app_file_operation(lambda: handler(parsed))
 
 
 def _get_host_access_service() -> HostAccessService:
@@ -60,6 +130,11 @@ def get_host_access_profile(session_token: Optional[str] = Cookie(default=None, 
 )
 def save_host_access_profile(payload: HostAccessProfileUpsertRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     return _get_host_access_service().save_profile(session_token=session_token, payload=payload.model_dump())
+
+
+@router.post("/host-access/profile/local", responses={200: {"model": HostAccessProfileResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}})
+def create_local_host_access_profile(session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    return _get_host_access_service().create_local_profile(session_token, allow_recreate=True)
 
 
 @router.post(
@@ -130,7 +205,11 @@ def set_default_host_access_profile(profile_id: str, session_token: Optional[str
     responses={200: {"model": HostAccessProfileResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 def delete_host_access_profile(profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
-    return _get_host_access_service().delete_saved_profile(session_token=session_token, profile_id=profile_id)
+    service = _get_host_access_service()
+    operator = service.auth_service._require_authenticated_operator(session_token)
+    response = service.delete_saved_profile(session_token=session_token, profile_id=profile_id)
+    _app_sftp_service.invalidate_profile(operator['id'], profile_id)
+    return response
 
 
 @router.put(
@@ -352,6 +431,7 @@ async def host_access_terminal_ws(websocket: WebSocket):
             session_id=session_id,
             cols=cols,
             rows=rows,
+            profile_id=websocket.query_params.get('profile_id') or None,
         )
         profile = attached["profile"]
         snapshot = str(attached.get("buffer") or "")
@@ -379,18 +459,19 @@ async def host_access_terminal_ws(websocket: WebSocket):
                     cursor = next_cursor
                     continue
                 if closed:
-                    break
+                    try:
+                        await websocket.send_text(json.dumps({"type": "closed", "session_id": session_id}))
+                    except (RuntimeError, WebSocketDisconnect, ClientDisconnected, InvalidState, asyncio.CancelledError):
+                        pass
+                    return
                 await asyncio.sleep(0.02)
-        finally:
-            try:
-                await websocket.send_text(json.dumps({"type": "closed", "session_id": session_id}))
-            except (RuntimeError, WebSocketDisconnect, ClientDisconnected, InvalidState, asyncio.CancelledError):
-                pass
+        except asyncio.CancelledError:
+            return
 
-    output_task = asyncio.create_task(pump_output())
-    await websocket.send_text(json.dumps({"type": "ready", "session_id": session_id, "cwd": profile["working_directory"], "username": profile["username"]}))
+    await websocket.send_text(json.dumps({"type": "ready", "session_id": session_id, "cwd": profile["working_directory"], "username": profile["username"], "resumed": bool(attached.get('resumed'))}))
     if snapshot:
         await websocket.send_text(json.dumps({"type": "output", "session_id": session_id, "data": snapshot}))
+    output_task = asyncio.create_task(pump_output())
     try:
         while True:
             payload = await websocket.receive_text()

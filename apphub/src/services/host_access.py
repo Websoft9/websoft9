@@ -8,6 +8,7 @@ import sqlite3
 import stat
 import sys
 import threading
+import tempfile
 import time
 import uuid
 from contextlib import contextmanager, ExitStack
@@ -113,6 +114,125 @@ class HostAccessService:
             "username": str(verified_profile.get("username") or ""),
         }
 
+    def create_local_profile(self, session_token: Optional[str], *, allow_recreate: bool = False) -> dict[str, Any]:
+        operator = self.auth_service._require_authenticated_operator(session_token)
+        with self._lock:
+            candidates = self._list_operator_profiles(operator["id"])
+            runtime = self._runtime_profiles.get(operator["id"])
+            if runtime:
+                candidates = [runtime] + [saved for saved in candidates if saved["profile_id"] != runtime["profile_id"]]
+            failure = None
+            for saved in candidates:
+                if not self._is_local_host_value(saved.get("host")):
+                    continue
+                try:
+                    profile = self.get_connection_profile(session_token, saved["profile_id"])
+                    verified = self._verify_profile(profile)
+                except CustomException as exc:
+                    failure = exc
+                    continue
+                self._runtime_profiles[operator["id"]] = dict(verified)
+                self._set_active_profile_id(operator["id"], str(verified["profile_id"]))
+                return self._get_profile_for_operator(operator["id"])
+            if self._is_local_setup_revoked(operator["id"]) and not allow_recreate:
+                raise CustomException(400, "Local SSH Setup Revoked", "The saved local connection was deleted. Add a local SSH connection manually in Terminal before opening application files.")
+            credentials = self._read_local_ssh_credentials()
+            if credentials is None and allow_recreate:
+                self._prepare_local_ssh_credentials()
+                credentials = self._read_local_ssh_credentials()
+            if credentials is not None:
+                os.chmod(self.database_file, 0o600)
+                profile = self._normalize_profile_payload({
+                    "profile_id": f'auto-local-{uuid.uuid4().hex}',
+                    "name": credentials["username"], "host": HOST_ACCESS_HOST,
+                    "port": credentials["port"], "username": credentials["username"],
+                    "auth_method": "key", "private_key": credentials["private_key"], "remember": True,
+                })
+                self._ensure_unique_profile_username(operator["id"], profile)
+                response = self.save_profile(session_token, profile)
+                if allow_recreate:
+                    with self._db_connect() as connection:
+                        connection.execute('DELETE FROM host_local_setup_revocations WHERE operator_id = ?', (operator['id'],))
+                        connection.commit()
+                return response
+            if failure is not None:
+                raise CustomException(failure.status_code, failure.message,
+                    f"{failure.details}. Create or update the local connection in Terminal using the host account and its valid credentials; check SSH reachability and file permissions.") from failure
+            raise CustomException(400, "Local SSH Setup Unavailable",
+                "Local SSH authorization is unavailable. Confirm automatic local connection setup or create a local connection manually in Terminal. Privileged mode alone does not authorize SSH login; AWS and Azure may require a non-root account.")
+
+    def _prepare_local_ssh_credentials(self) -> None:
+        data_root = Path(os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data'))
+        if self.data_dir != data_root / 'config/host-access':
+            raise CustomException(400, 'Local SSH Setup Unavailable', 'Host SSH preparation requires the configured platform data directory')
+        username = ''
+        port = None
+        hint = self.data_dir / 'local-ssh-account.json'
+        if hint.exists() or hint.is_symlink():
+            descriptor = os.open(hint, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor) as handle:
+                attributes = os.fstat(handle.fileno())
+                if not stat.S_ISREG(attributes.st_mode) or attributes.st_nlink != 1 or attributes.st_uid != os.geteuid() or attributes.st_mode & 0o077 or attributes.st_size > 2048:
+                    raise CustomException(400, 'Local SSH Setup Unavailable', 'Unsafe SSH account preparation record')
+                account = json.load(handle)
+            username = account['username']
+            port = account.get('port')
+        container = None
+        client = None
+        try:
+            import docker
+            script = Path(__file__).with_name('host_access_prepare.py').read_text()
+            command = ['python3', '-c', script, str(data_root), username]
+            if port:
+                command = ['env', f'WEBSOFT9_HOST_ACCESS_PORT={port}', *command]
+            client = docker.from_env()
+            image = client.containers.get(os.environ['HOSTNAME']).image.id
+            container = client.containers.run(
+                image=image, command=command,
+                entrypoint=['nsenter', '--target', '1', '--mount', '--net', '--pid', '--root', '--wd', '--'],
+                pid_mode='host', network_mode='host', privileged=True, user='0',
+                detach=True, labels={'owner': 'websoft9', 'websoft9.operation': 'prepare-local-ssh'},
+            )
+            if container.wait(timeout=90).get('StatusCode') != 0:
+                raise CustomException(400, 'Local SSH Setup Unavailable', 'Host SSH authorization preparation failed; verify the existing account and SSH login policy')
+        except CustomException:
+            raise
+        except Exception as exc:
+            raise CustomException(400, 'Local SSH Setup Unavailable', 'Unable to prepare host SSH authorization using the platform Docker management channel') from exc
+        finally:
+            if container is not None:
+                container.remove(force=True)
+            if client is not None:
+                client.close()
+
+    def _read_local_ssh_credentials(self) -> Optional[dict[str, Any]]:
+        metadata_file = self.data_dir / "local-ssh.json"
+        if not metadata_file.exists() and not metadata_file.is_symlink():
+            return None
+        try:
+            directory = self.data_dir.stat()
+            if self.data_dir.is_symlink() or directory.st_uid != os.geteuid() or directory.st_mode & 0o077:
+                raise ValueError("Unsafe credential directory")
+            contents = []
+            for path in (metadata_file, self.data_dir / "local-ssh.key"):
+                descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(descriptor, "r") as handle:
+                    attributes = os.fstat(handle.fileno())
+                    if not stat.S_ISREG(attributes.st_mode) or attributes.st_nlink != 1 or attributes.st_uid != os.geteuid() or attributes.st_mode & 0o077 or attributes.st_size > 64 * 1024:
+                        raise ValueError("Unsafe credential file")
+                    contents.append(handle.read())
+            metadata = json.loads(contents[0])
+            username = metadata.get("username") if isinstance(metadata, dict) else None
+            if not isinstance(username, str) or not username.strip() or not contents[1].strip():
+                raise ValueError("Incomplete SSH authorization")
+            port = metadata.get("port", HOST_ACCESS_PORT)
+            if type(port) is not int or not 1 <= port <= 65535:
+                raise ValueError("Invalid SSH port")
+            return {"username": username.strip(), "private_key": contents[1], "port": port, "authorization_path": str(metadata.get('authorization_path') or '')}
+        except (OSError, ValueError, UnicodeError) as exc:
+            raise CustomException(400, "Local SSH Setup Unavailable",
+                "The prepared local SSH credentials are unreadable or unsafe. Re-run the host SSH preparation step or create a connection manually in Terminal.") from exc
+
     def test_saved_profile(self, session_token: Optional[str], profile_id: str) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         profile = self._load_saved_profile(operator["id"], profile_id)
@@ -179,11 +299,20 @@ class HostAccessService:
                 raise CustomException(409, "Host Access Profile In Use", "Delete or move the scheduled tasks that use this SSH host before deleting it")
             with self._db_connect() as connection:
                 row = connection.execute(
-                    "SELECT is_default FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
+                    "SELECT is_default, payload FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
                     (operator["id"], profile_id),
                 ).fetchone()
                 if row is None:
                     raise CustomException(404, "Host Access Profile Not Found", "The requested saved login does not exist")
+
+                deleted_profile = json.loads(row["payload"])
+                if profile_id.startswith('auto-local-') and self._is_local_host_value(deleted_profile.get('host')):
+                    self._revoke_local_ssh_credentials(deleted_profile)
+                if self._is_local_host_value(deleted_profile.get("host")):
+                    connection.execute(
+                        "INSERT OR REPLACE INTO host_local_setup_revocations (operator_id, revoked_at) VALUES (?, ?)",
+                        (operator["id"], datetime.now(timezone.utc).isoformat()),
+                    )
 
                 connection.execute(
                     "DELETE FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
@@ -222,7 +351,82 @@ class HostAccessService:
                 else:
                     self._clear_active_profile_id(operator["id"])
 
+            for session_id, session in list(self._terminal_sessions.items()):
+                session_profile = session.get("profile") or {}
+                if session.get("operator_id") == operator["id"] and session_profile.get("profile_id") == profile_id:
+                    self._close_terminal_session_locked(session_id)
+
         return self._get_profile_for_operator(operator["id"])
+
+    def _revoke_local_ssh_credentials(self, profile: dict[str, Any]) -> None:
+        credentials = self._read_local_ssh_credentials()
+        if credentials is None or credentials['private_key'].strip() != str(profile.get('private_key') or '').strip():
+            raise CustomException(400, 'Local SSH Key Cleanup Failed', 'The automatic connection key does not match the prepared host authorization')
+        key = self._parse_private_key(credentials['private_key'], None)
+        script = '''
+import fcntl
+import os
+import pwd
+import shlex
+import stat
+import sys
+from pathlib import Path
+account = pwd.getpwnam(sys.argv[1])
+path = Path(sys.argv[4]) if sys.argv[4] else Path(account.pw_dir) / '.ssh/authorized_keys'
+if path.parent.is_symlink() or not path.parent.is_dir():
+    raise ValueError('Unsafe SSH authorization directory')
+try:
+    descriptor = os.open(path, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK)
+except FileNotFoundError:
+    sys.exit(0)
+with os.fdopen(descriptor, 'r+b') as handle:
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    attributes = os.fstat(handle.fileno())
+    if not stat.S_ISREG(attributes.st_mode) or attributes.st_nlink != 1 or attributes.st_uid not in (0, account.pw_uid) or attributes.st_size > 8 * 1024 * 1024:
+        raise ValueError('Unsafe SSH authorization file')
+    expected = [sys.argv[2], sys.argv[3]]
+    original = handle.read()
+    retained = []
+    for line in original.splitlines(keepends=True):
+        try:
+            fields = shlex.split(line.decode(), comments=True)
+        except (UnicodeError, ValueError):
+            retained.append(line)
+            continue
+        matches = fields[:2] == expected or fields[1:3] == expected
+        if not matches:
+            retained.append(line)
+    updated = b''.join(retained)
+    if updated != original:
+        handle.seek(0)
+        handle.write(updated)
+        handle.truncate()
+        handle.flush()
+        os.fsync(handle.fileno())
+'''
+        command = shlex.join(['python3', '-c', script, credentials['username'], key.get_name(), key.get_base64(), credentials.get('authorization_path', '')])
+        client = None
+        try:
+            client = self._connect_client(profile)
+            self._run_remote_command(client, command, 'Local SSH Key Cleanup Failed', 'Unable to revoke the automatic SSH public key')
+        except CustomException as exc:
+            raise CustomException(400, 'Local SSH Key Cleanup Failed', 'Unable to revoke the automatic SSH public key; check host connectivity and authorization file permissions') from exc
+        finally:
+            if client is not None:
+                client.close()
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', dir=self.data_dir, delete=False) as pending:
+                account_hint = Path(pending.name)
+                json.dump({'username': credentials['username'], 'port': credentials['port']}, pending)
+                pending.flush()
+                os.fsync(pending.fileno())
+            os.replace(account_hint, self.data_dir / 'local-ssh-account.json')
+            (self.data_dir / 'local-ssh.key').unlink()
+            (self.data_dir / 'local-ssh.json').unlink()
+        except OSError as exc:
+            raise CustomException(400, 'Local SSH Key Cleanup Failed', 'The host key was revoked but the prepared private key could not be removed') from exc
+        with self._lock:
+            self._close_file_browser_client_locked(self._build_file_client_cache_key(profile))
 
     @staticmethod
     def _has_scheduled_tasks(operator_id: str, profile_id: str) -> bool:
@@ -616,8 +820,8 @@ class HostAccessService:
         return dict(profile)
         return None
 
-    def open_terminal_channel(self, session_token: Optional[str], cols: int, rows: int) -> tuple[paramiko.SSHClient, Any, dict[str, Any]]:
-        profile = self.get_connection_profile(session_token)
+    def open_terminal_channel(self, session_token: Optional[str], cols: int, rows: int, profile_id: Optional[str] = None) -> tuple[paramiko.SSHClient, Any, dict[str, Any]]:
+        profile = self.get_connection_profile(session_token, profile_id)
         client = self._connect_client(profile)
         transport = client.get_transport()
         if transport is None:
@@ -632,7 +836,7 @@ class HostAccessService:
             channel.invoke_shell()
         return client, channel, profile
 
-    def attach_terminal_session(self, session_token: Optional[str], session_id: str, cols: int, rows: int) -> dict[str, Any]:
+    def attach_terminal_session(self, session_token: Optional[str], session_id: str, cols: int, rows: int, profile_id: Optional[str] = None) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         normalized_session_id = str(session_id or '').strip()
         if not normalized_session_id:
@@ -646,6 +850,7 @@ class HostAccessService:
                     raise CustomException(403, 'Terminal Session Forbidden', 'The requested terminal session belongs to a different operator')
                 if self._is_terminal_session_alive_locked(existing):
                     existing['detached_at'] = None
+                    existing['attachments'] = int(existing.get('attachments', 1)) + 1
                     existing['last_activity_at'] = time.time()
                     existing['channel'].resize_pty(width=max(cols, 40), height=max(rows, 10))
                     return {
@@ -653,10 +858,11 @@ class HostAccessService:
                         'buffer': str(existing['buffer']),
                         'cursor': int(existing['cursor']),
                         'closed': bool(existing['closed']),
+                        'resumed': True,
                     }
                 self._close_terminal_session_locked(normalized_session_id)
 
-        client, channel, profile = self.open_terminal_channel(session_token=session_token, cols=cols, rows=rows)
+        client, channel, profile = self.open_terminal_channel(session_token=session_token, cols=cols, rows=rows, profile_id=profile_id)
         terminal_session = {
             'operator_id': operator['id'],
             'client': client,
@@ -667,6 +873,7 @@ class HostAccessService:
             'cursor': 0,
             'closed': False,
             'detached_at': None,
+            'attachments': 1,
             'created_at': time.time(),
             'last_activity_at': time.time(),
             'resources_closed': False,
@@ -679,6 +886,7 @@ class HostAccessService:
             'buffer': '',
             'cursor': 0,
             'closed': False,
+            'resumed': False,
         }
 
     def read_terminal_updates(self, session_id: str, after_cursor: int) -> tuple[list[str], int, bool]:
@@ -708,7 +916,8 @@ class HostAccessService:
             session = self._terminal_sessions.get(normalized_session_id)
             if session is None:
                 return
-            session['detached_at'] = time.time()
+            session['attachments'] = max(0, int(session.get('attachments', 1)) - 1)
+            session['detached_at'] = time.time() if session['attachments'] == 0 else None
             session['last_activity_at'] = time.time()
 
     def terminate_terminal_session(self, session_token: Optional[str], session_id: str) -> None:
@@ -1686,6 +1895,15 @@ class HostAccessService:
             connection.execute("DELETE FROM host_profile_state WHERE operator_id = ?", (operator_id,))
             connection.commit()
 
+    def _is_local_setup_revoked(self, operator_id: str) -> bool:
+        self._ensure_storage()
+        with self._db_connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM host_local_setup_revocations WHERE operator_id = ?",
+                (operator_id,),
+            ).fetchone()
+        return row is not None
+
     def _db_connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_file)
         connection.row_factory = sqlite3.Row
@@ -1744,6 +1962,14 @@ class HostAccessService:
                 operator_id TEXT PRIMARY KEY,
                 payload TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS host_local_setup_revocations (
+                operator_id TEXT PRIMARY KEY,
+                revoked_at TEXT NOT NULL
             )
             """
         )

@@ -27,14 +27,16 @@ import {
 import type { SnackbarCloseReason } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import type { CSSProperties, ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FitAddon } from '@xterm/addon-fit'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
 import { Terminal as XTerm } from 'xterm'
 
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
-import { SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
+import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
+import { acquireAppFileSession, closeAppFileSession, getAppFileErrorKey, getAppFileRoute, getAppFileTitle, getNextWorkspaceTabId, getWorkspaceConnectionCount, HOST_PROFILE_DELETED_EVENT, MAX_WORKSPACE_CONNECTIONS, readAppFileSessions, reconcileWorkspaceTabOrder, rememberAppFileSession, restoreTerminalSessions, synchronizeAppFileProfiles, TERMINAL_WORKSPACE_STORAGE_KEY, useAppFileSessions, type AppFileSession } from './app-file-sessions'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { useProductAuth } from '../product-auth/product-auth-provider'
@@ -71,6 +73,8 @@ type AccessFieldName = 'host' | 'username' | 'port' | 'password' | 'privateKey'
 type TerminalSession = {
     id: string
     profileId: string | null
+    profileAvailable?: boolean
+    transportDisconnected?: boolean
     title: string
     host: string
     user: string
@@ -80,6 +84,17 @@ type TerminalSession = {
     transport: string
     buffer: string
 }
+
+type WorkspaceSessionTab = { id: string; title: string; status: SessionStatus; fileContext?: AppFileSession }
+type AppFileContext = Pick<AppFileSession, 'app_id' | 'volume_id'>
+const WORKSPACE_TAB_ORDER_KEY = 'websoft9:workspace-tab-order'
+const WORKSPACE_ACTIVE_TAB_KEY = 'websoft9:workspace-active-tab'
+
+function workspaceTabKey(tab: WorkspaceSessionTab) {
+    return tab.fileContext ? `file:${JSON.stringify([tab.fileContext.app_id, tab.fileContext.volume_id])}` : tab.id
+}
+
+type ConnectionDialogRequest = { error?: string; scopeRect: { top: number; left: number; width: number; height: number } | null; onClose: () => void; onConnected: (profileId?: string) => Promise<void> }
 
 type HostAccessProfileResponse = {
     configured: boolean
@@ -216,7 +231,7 @@ type FeedbackState = {
 }
 
 type TerminalSocketMessage =
-    | { type: 'ready'; session_id?: string; cwd?: string; username?: string }
+    | { type: 'ready'; session_id?: string; cwd?: string; username?: string; resumed?: boolean }
     | { type: 'output'; session_id?: string; data?: string }
     | { type: 'closed'; session_id?: string }
     | { type: 'error'; message?: string; details?: string }
@@ -248,10 +263,7 @@ const SPREADSHEET_FILE_EXTENSIONS = new Set(['.csv', '.numbers', '.ods', '.xls',
 const MEDIA_FILE_EXTENSIONS = new Set(['.aac', '.flac', '.m4a', '.mkv', '.mov', '.mp3', '.mp4', '.ogg', '.wav', '.webm'])
 
 const LOCAL_HOST = '127.0.0.1'
-const MAX_TERMINAL_SESSIONS = 6
-const TERMINAL_WORKSPACE_STORAGE_KEY = 'websoft9:terminal-workspace-v1'
-const TERMINAL_WORKSPACE_SKIP_RESTORE_KEY = 'websoft9:terminal-workspace-skip-restore-once'
-let terminalWorkspaceMountCount = 0
+const MAX_TERMINAL_SESSIONS = MAX_WORKSPACE_CONNECTIONS
 const SHELL_PRESETS: Record<Exclude<ShellPreset, 'custom'>, string> = {
     bash: '/bin/bash',
     zsh: '/bin/zsh',
@@ -475,8 +487,8 @@ function formatBrowserTimestamp(value: string | null | undefined, locale: string
     return new Date(value).toLocaleString(locale)
 }
 
-function formatBrowserIdentity(value: string | null | undefined): string {
-    return value || '—'
+function formatBrowserIdentity(value: string | null | undefined, name?: string | null): string {
+    return name || value || '—'
 }
 
 function parsePermissionBits(mode: string | null | undefined, offset: number): HostAccessPermissionBits {
@@ -947,10 +959,11 @@ function createSession(access: AccessForm, sessions: TerminalSession[], locale: 
     }
 }
 
-function buildTerminalSocketUrl(sessionId: string): string {
+function buildTerminalSocketUrl(sessionId: string, profileId?: string | null): string {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const url = new URL(`${protocol}://${window.location.host}/host-access/terminal/ws`)
     url.searchParams.set('session_id', sessionId)
+    if (profileId) url.searchParams.set('profile_id', profileId)
     url.searchParams.set('cols', '120')
     url.searchParams.set('rows', '32')
     return url.toString()
@@ -1038,35 +1051,6 @@ function clearPersistedTerminalWorkspace() {
     window.sessionStorage.removeItem(TERMINAL_WORKSPACE_STORAGE_KEY)
 }
 
-function markSkipRestoreOnNextLoad() {
-    if (typeof window === 'undefined') {
-        return
-    }
-
-    window.sessionStorage.setItem(TERMINAL_WORKSPACE_SKIP_RESTORE_KEY, '1')
-}
-
-function consumeSkipRestoreOnNextLoad(): boolean {
-    if (typeof window === 'undefined') {
-        return false
-    }
-
-    const shouldSkip = window.sessionStorage.getItem(TERMINAL_WORKSPACE_SKIP_RESTORE_KEY) === '1'
-    if (shouldSkip) {
-        window.sessionStorage.removeItem(TERMINAL_WORKSPACE_SKIP_RESTORE_KEY)
-    }
-    return shouldSkip
-}
-
-function isReloadNavigation(): boolean {
-    if (typeof window === 'undefined' || typeof window.performance === 'undefined') {
-        return false
-    }
-
-    const [navigationEntry] = window.performance.getEntriesByType('navigation') as PerformanceNavigationTiming[]
-    return navigationEntry?.type === 'reload'
-}
-
 class HostAccessRequestError extends Error {
     readonly status: number
     readonly code?: string
@@ -1111,7 +1095,169 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 }
 
 export function TerminalPage() {
+    const [searchParams] = useSearchParams()
+    const navigate = useNavigate()
+    const fileSessions = useAppFileSessions()
+    const appId = searchParams.get('app_file_app') || ''
+    const volumeId = searchParams.get('app_file_volume') || ''
+    const wantsNewConnection = searchParams.get('new_connection') === '1'
+    const isAppFiles = Boolean(appId && volumeId) && !wantsNewConnection
+    const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(() => loadPersistedTerminalWorkspace()?.sessions || [])
+    const [requestedTerminal, setRequestedTerminal] = useState<{ id: string; create?: boolean; profile?: HostAccessProfileResponse; access?: AccessForm } | null>(null)
+    const [visitedContexts, setVisitedContexts] = useState<AppFileContext[]>([])
+    useEffect(() => {
+        if (!isAppFiles) return
+        setVisitedContexts((current) => current.some((context) => context.app_id === appId && context.volume_id === volumeId) ? current : [...current, { app_id: appId, volume_id: volumeId }])
+    }, [isAppFiles, appId, volumeId])
+    const contexts = visitedContexts.filter((context) => fileSessions.some((session) => session.app_id === context.app_id && session.volume_id === context.volume_id) || (context.app_id === appId && context.volume_id === volumeId))
+    if (isAppFiles && !contexts.some((context) => context.app_id === appId && context.volume_id === volumeId)) contexts.push({ app_id: appId, volume_id: volumeId })
+    const availableTabs: WorkspaceSessionTab[] = [
+        ...terminalSessions.map((session) => ({ id: session.id, title: session.title, status: session.status })),
+        ...fileSessions.map((session) => ({ id: session.session_id, title: getAppFileTitle(session), status: session.status === 'ended' ? 'ended' as SessionStatus : 'connected' as SessionStatus, fileContext: session })),
+    ]
+    const [tabOrder, setTabOrder] = useState<string[]>(() => {
+        try {
+            const saved: unknown = JSON.parse(sessionStorage.getItem(WORKSPACE_TAB_ORDER_KEY) || '[]')
+            return Array.isArray(saved) ? saved.filter((identifier): identifier is string => typeof identifier === 'string') : []
+        } catch { return [] }
+    })
+    const availableFileIds = JSON.stringify(fileSessions.map(session => `file:${JSON.stringify([session.app_id, session.volume_id])}`))
+    const synchronizeFileTabOrder = useEffectEvent(() => {
+        const available = [...terminalSessions.map(session => session.id), ...JSON.parse(availableFileIds)]
+        setTabOrder(previous => {
+            const next = reconcileWorkspaceTabOrder(previous, available)
+            return JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+        })
+    })
+    useEffect(() => { synchronizeFileTabOrder() }, [availableFileIds])
+    useEffect(() => { sessionStorage.setItem(WORKSPACE_TAB_ORDER_KEY, JSON.stringify(tabOrder)) }, [tabOrder])
+    const orderedIds = reconcileWorkspaceTabOrder(tabOrder, availableTabs.map(workspaceTabKey))
+    const tabs = availableTabs.sort((first, second) => orderedIds.indexOf(workspaceTabKey(first)) - orderedIds.indexOf(workspaceTabKey(second)))
+    function rememberActiveTab(identifier: string) {
+        sessionStorage.setItem(WORKSPACE_ACTIVE_TAB_KEY, identifier)
+    }
+    useEffect(() => {
+        if (isAppFiles) {
+            const identifier = `file:${JSON.stringify([appId, volumeId])}`
+            sessionStorage.setItem(WORKSPACE_ACTIVE_TAB_KEY, identifier)
+        }
+    }, [isAppFiles, appId, volumeId])
+    function updateTerminalSessions(next: TerminalSession[]) {
+        const available = [...next.map(session => session.id), ...fileSessions.map(session => `file:${JSON.stringify([session.app_id, session.volume_id])}`)]
+        setTabOrder(previous => reconcileWorkspaceTabOrder(previous, available))
+        setTerminalSessions(next)
+    }
+    function selectTab(tab: WorkspaceSessionTab) {
+        rememberActiveTab(workspaceTabKey(tab))
+        if (tab.fileContext) {
+            sessionStorage.setItem('websoft9:app-files-route', getAppFileRoute(tab.fileContext))
+            navigate(getAppFileRoute(tab.fileContext))
+        } else {
+            setRequestedTerminal({ id: tab.id })
+            sessionStorage.removeItem('websoft9:app-files-route')
+            navigate('/terminal')
+        }
+    }
+    function connectTerminal(profile: HostAccessProfileResponse, access?: AccessForm) {
+        setRequestedTerminal({ id: `connection-${Date.now()}-${Math.random().toString(16).slice(2)}`, profile, access })
+        sessionStorage.removeItem('websoft9:app-files-route')
+        navigate('/terminal')
+    }
+    function selectAfterClose(identifier: string) {
+        const nextId = getNextWorkspaceTabId(tabs.map(tab => tab.id), identifier)
+        const next = tabs.find(tab => tab.id === nextId)
+        if (next) selectTab(next)
+        else {
+            setRequestedTerminal(null)
+            sessionStorage.removeItem('websoft9:app-files-route')
+            navigate('/terminal', { replace: true })
+        }
+    }
+    return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', height: '100%', minHeight: 0 }}>
+            <Box sx={{ display: isAppFiles ? 'none' : 'flex', flexDirection: 'column', flex: '1 1 auto', height: '100%', minHeight: 0 }}>
+                <TerminalWorkspace visible={!isAppFiles} sessionTabs={tabs} onSelectTab={selectTab} onTabClosed={selectAfterClose} onSessionsChange={updateTerminalSessions} onActiveSessionChange={rememberActiveTab} requestedTerminal={requestedTerminal} wantsNewConnection={wantsNewConnection} pendingFileConnection={wantsNewConnection && appId && volumeId ? { app_id: appId, volume_id: volumeId } : undefined} />
+            </Box>
+            {contexts.map((context) => {
+                const visible = context.app_id === appId && context.volume_id === volumeId
+                return <Box key={JSON.stringify([context.app_id, context.volume_id])} sx={{ display: visible ? 'flex' : 'none', flexDirection: 'column', flex: '1 1 auto', height: '100%', minHeight: 0 }}>
+                    <TerminalWorkspace visible={visible} fileContext={context} sessionTabs={tabs} onSelectTab={selectTab} onTabClosed={selectAfterClose} onConnectTerminal={connectTerminal} />
+                </Box>
+            })}
+        </Box>
+    )
+}
+
+export function TerminalConnectionDialog(props: ConnectionDialogRequest) {
+    return <TerminalWorkspace visible sessionTabs={[]} onSelectTab={() => undefined} connectionDialog={props} />
+}
+
+export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, onConfirm, onAutomatic, busy = false, blocked = false }: { error?: string; darkMode: boolean; scopeRect?: ConnectionDialogRequest['scopeRect']; onClose: () => void; onConfirm: () => void; onAutomatic: () => void; busy?: boolean; blocked?: boolean }) {
+    const { t } = useTranslation('shell')
+    const [confirmAutomatic, setConfirmAutomatic] = useState(false)
+    const [automaticAcknowledged, setAutomaticAcknowledged] = useState(false)
+    const prefix = 'myAppsDetailPage.tabs.volumes.fileManager.'
+    const palette = getSurfacePalette(darkMode)
+    return <SurfaceDialog open onClose={busy ? undefined : onClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} contentStrategy="viewport-fixed" maxWidth="md" paperSx={{ width: 'min(680px, calc(100% - 24px))', maxWidth: 680, borderRadius: 0 }} sx={{ zIndex: 1506, '& .MuiDialog-container': { alignItems: 'flex-start', pt: { xs: 1.5, sm: 2, md: 2.5 } }, '& .MuiDialog-paper, & .MuiButton-root, & .MuiAlert-root': { borderRadius: 0 } }}>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700, px: 2.5, py: 1.5 }}>{t(`${prefix}${blocked ? 'sftpDirectoryAccessTitle' : confirmAutomatic ? 'sftpAutomaticConfirmTitle' : 'sftpNewConnection'}`)}</DialogTitle>
+        <DialogContent dividers sx={{ px: 2.5, py: 2, minHeight: 0 }}>
+            {confirmAutomatic ? <>
+                <Typography sx={{ m: 0, mb: 1.5, fontSize: 14, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}sftpAutomaticConfirmIntro`)}</Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2.25, fontSize: 13, lineHeight: 1.7, color: palette.subtleText, '& li + li': { mt: 0.75 } }}>
+                    <li>{t(`${prefix}sftpAutomaticConfirmAccount`)}</li>
+                    <li>{t(`${prefix}sftpAutomaticConfirmPermissions`)}</li>
+                    <li>{t(`${prefix}sftpAutomaticConfirmKey`)}</li>
+                </Box>
+                <Typography sx={{ mt: 1.5, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}sftpAutomaticPermissionNotice`)}</Typography>
+                <Box sx={{ mt: 1.75 }}>
+                    <FormControlLabel sx={{ m: 0, alignItems: 'flex-start', gap: 1 }} control={<Checkbox checked={automaticAcknowledged} onChange={event => setAutomaticAcknowledged(event.target.checked)} sx={{ p: 0.25, color: palette.subtleText }} />} label={<Typography sx={{ fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}sftpAutomaticAcknowledgement`)}</Typography>} />
+                </Box>
+            </> : <>
+                {error ? <Alert severity={blocked ? 'error' : 'warning'} sx={{ mb: blocked ? 0 : 1.5, overflowWrap: 'anywhere' }}>{error}</Alert> : null}
+                {!blocked ? <Typography sx={{ fontSize: 14, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}${busy ? 'sftpConnecting' : 'sftpCreateConnectionPrompt'}`)}</Typography> : null}
+                {!blocked && !busy ? <Box component="ul" sx={{ mb: 0, mt: 1.5, pl: 2.25, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>
+                    <li>{t(`${prefix}sftpConnectionMethods`)}</li>
+                    <li>{t(`${prefix}sftpConnectionScope`)}</li>
+                    <li>{t(`${prefix}sftpConnectionImpact`)}</li>
+                </Box> : null}
+            </>}
+        </DialogContent>
+        <DialogActions sx={{ px: 2, py: 1.5, gap: 0.5, flexWrap: 'wrap', flexShrink: 0 }}>
+            {confirmAutomatic ? <>
+                <Button disabled={busy} onClick={() => { setAutomaticAcknowledged(false); setConfirmAutomatic(false) }}>{t(`${prefix}sftpAutomaticBack`)}</Button>
+                <Button disabled={busy || !automaticAcknowledged} variant="contained" onClick={() => { if (!automaticAcknowledged) return; setAutomaticAcknowledged(false); setConfirmAutomatic(false); onAutomatic() }}>{t(`${prefix}sftpAutomaticConfirmAction`)}</Button>
+            </> : <>
+                <Button disabled={busy} onClick={onClose}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                {!blocked ? <><Button disabled={busy} onClick={onConfirm}>{t(`${prefix}sftpCreateConnectionAction`)}</Button><Button loading={busy} variant="contained" onClick={() => { setAutomaticAcknowledged(false); setConfirmAutomatic(true) }}>{t(`${prefix}sftpAutomaticConnectionAction`)}</Button></> : null}
+            </>}
+        </DialogActions>
+    </SurfaceDialog>
+}
+
+function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onTabClosed, onSessionsChange, onActiveSessionChange, onConnectTerminal, requestedTerminal, connectionDialog, wantsNewConnection, pendingFileConnection }: { visible: boolean; fileContext?: AppFileContext; sessionTabs: WorkspaceSessionTab[]; onSelectTab: (tab: WorkspaceSessionTab) => void; onTabClosed?: (identifier: string) => void; onSessionsChange?: (sessions: TerminalSession[]) => void; onActiveSessionChange?: (identifier: string) => void; onConnectTerminal?: (profile: HostAccessProfileResponse, access?: AccessForm) => void; requestedTerminal?: { id: string; create?: boolean; profile?: HostAccessProfileResponse; access?: AccessForm } | null; connectionDialog?: ConnectionDialogRequest; wantsNewConnection?: boolean; pendingFileConnection?: AppFileContext }) {
     const { t, i18n } = useTranslation('shell')
+    const navigate = useNavigate()
+    const appFileAppId = fileContext?.app_id ?? ''
+    const appFileVolumeId = fileContext?.volume_id ?? ''
+    const isAppFiles = Boolean(appFileAppId && appFileVolumeId)
+    const isConnectionDialog = Boolean(connectionDialog)
+    const sessionTabsRef = useRef<HTMLDivElement>(null)
+    const sessionAddRef = useRef<HTMLButtonElement>(null)
+    const handledCreateRequestRef = useRef<string | null>(null)
+    const handledNewConnectionRef = useRef(false)
+    const pendingFileConnectionRef = useRef<AppFileContext | null>(null)
+    const visibleRef = useRef(visible)
+    useEffect(() => { visibleRef.current = visible }, [visible])
+    const [terminalActivated, setTerminalActivated] = useState(visible)
+    useEffect(() => { if (visible) setTerminalActivated(true) }, [visible])
+    useEffect(() => {
+        if (!isAppFiles || !visible) return
+        const params = new URLSearchParams({ app_file_app: appFileAppId, app_file_volume: appFileVolumeId })
+        sessionStorage.setItem('websoft9:app-files-route', `/terminal?${params}`)
+    }, [isAppFiles, visible, appFileAppId, appFileVolumeId])
+    const [appFileSession, setAppFileSession] = useState<AppFileSession | null>(null)
+    const [sftpClosing, setSftpClosing] = useState(false)
+    const appFileRequestRef = useRef(0)
     const { colorMode } = useAppColorMode()
     const { status } = useProductAuth()
     const isDarkMode = colorMode === 'dark'
@@ -1124,7 +1270,7 @@ export function TerminalPage() {
             isChinese
                 ? {
                     description: '连接主机，执行终端命令和文件管理',
-                    localServerTitle: '主机',
+                    localServerTitle: '本地主机',
                     disconnect: '关闭当前会话',
                     hostSelectorTitle: '主机列表',
                     newConnectionTitle: '新建连接',
@@ -1160,7 +1306,7 @@ export function TerminalPage() {
                     viewTerminal: '终端',
                     viewFiles: '文件',
                     newSessionAria: '新建会话',
-                    sessionLimitReached: `最多同时打开 ${MAX_TERMINAL_SESSIONS} 个会话。`,
+                    sessionLimitReached: `终端和应用文件合计最多保留 ${MAX_TERMINAL_SESSIONS} 个连接。`,
                     enterFullscreen: '进入全屏',
                     exitFullscreen: '退出全屏',
                     sessionEmpty: '点击 + 打开新会话',
@@ -1214,6 +1360,8 @@ export function TerminalPage() {
                     authMethodLabel: '认证方式',
                     shellPresetLabel: 'Shell 类型',
                     promptReconnect: '会话已断开，可重新连接。',
+                    reconnectUnavailable: '该会话的主机连接已删除或失效，请从主机列表选择有效连接。',
+                    profileConnectionDeleted: '连接信息已删除，此会话已断开。请新建连接。',
                     fileEmpty: '这个目录下暂时没有可展示的内容。',
                     filePreviewTitle: '编辑器',
                     filePreviewEmpty: '双击可编辑文本文件后，可在这里编辑。',
@@ -1270,7 +1418,7 @@ export function TerminalPage() {
                     disconnectingAction: '关闭会话中…',
                     connectingAction: '连接中…',
                     deleteProfileTitle: '删除连接',
-                    deleteProfilePrompt: '确定删除这个已保存连接吗？删除后需要重新输入认证信息。',
+                    deleteProfilePrompt: '删除后，该连接的终端和应用文件会话将断开。自动本地连接还会撤销对应主机公钥并删除平台私钥；其他 SSH 公钥不会移除。',
                     cancel: '取消',
                     confirmDelete: '确认删除',
                     forceSaveTitle: '连接测试失败',
@@ -1296,7 +1444,7 @@ export function TerminalPage() {
                 }
                 : {
                     description: 'Connect to a host to run terminal commands and manage files.',
-                    localServerTitle: 'Host',
+                    localServerTitle: 'Local host',
                     disconnect: 'Close current session',
                     hostSelectorTitle: 'Host list',
                     newConnectionTitle: 'New connection',
@@ -1332,7 +1480,7 @@ export function TerminalPage() {
                     viewTerminal: 'Terminal',
                     viewFiles: 'Files',
                     newSessionAria: 'New session',
-                    sessionLimitReached: `Open at most ${MAX_TERMINAL_SESSIONS} sessions at the same time.`,
+                    sessionLimitReached: `Keep at most ${MAX_TERMINAL_SESSIONS} terminal and application file connections in total.`,
                     enterFullscreen: 'Enter fullscreen',
                     exitFullscreen: 'Exit fullscreen',
                     sessionEmpty: 'Use + to open a session',
@@ -1386,6 +1534,8 @@ export function TerminalPage() {
                     authMethodLabel: 'Authentication',
                     shellPresetLabel: 'Shell type',
                     promptReconnect: 'The session is disconnected. Reconnect to continue.',
+                    reconnectUnavailable: 'This session\'s host connection was deleted or is unavailable. Select a valid connection from the host list.',
+                    profileConnectionDeleted: 'The connection was deleted and this session has ended. Create a new connection.',
                     fileEmpty: 'No entries are available in this directory.',
                     filePreviewTitle: 'Editor',
                     filePreviewEmpty: 'Double-click an editable text file to edit it here.',
@@ -1442,7 +1592,7 @@ export function TerminalPage() {
                     disconnectingAction: 'Closing session…',
                     connectingAction: 'Connecting…',
                     deleteProfileTitle: 'Delete connection',
-                    deleteProfilePrompt: 'Delete this saved connection? You will need to enter the credentials again afterwards.',
+                    deleteProfilePrompt: 'Deleting this connection ends its terminal and application file sessions. Automatic local connections also revoke their host public key and delete the prepared private key. Other SSH public keys are preserved.',
                     cancel: 'Cancel',
                     confirmDelete: 'Delete',
                     forceSaveTitle: 'Connection test failed',
@@ -1541,6 +1691,7 @@ export function TerminalPage() {
     const fitAddonRef = useRef<FitAddon | null>(null)
     const activeSessionRef = useRef<TerminalSession | null>(null)
     const terminalWrittenRef = useRef<Record<string, number>>({})
+    const terminalEndedRef = useRef<Record<string, boolean>>({})
     const lastRenderedSessionIdRef = useRef<string | null>(null)
     const browserRequestIdRef = useRef(0)
     const fileContentRequestIdRef = useRef(0)
@@ -1550,7 +1701,62 @@ export function TerminalPage() {
     const accessPrivateKeyUploadInputRef = useRef<HTMLInputElement | null>(null)
     const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
-    const activeSession = sessions.find((item) => item.id === activeSessionId) ?? sessions[0] ?? null
+    const selectedFileStatus = sessionTabs.find((tab) => tab.fileContext?.app_id === appFileAppId && tab.fileContext.volume_id === appFileVolumeId)?.status
+    const activeSession: TerminalSession | null = isAppFiles ? {
+        id: appFileSession?.session_id || `app-files-${appFileAppId}-${appFileVolumeId}`, profileId: appFileSession?.profile_id ?? null, title: appFileVolumeId,
+        host: appFileSession?.host || savedProfiles.find((profile) => profile.profile_id === appFileSession?.profile_id)?.host || accessForm.host,
+        user: appFileSession?.username || savedProfiles.find((profile) => profile.profile_id === appFileSession?.profile_id)?.username || accessForm.username, cwd: appFileSession?.root_path || '/',
+        status: appFileSession?.status === 'ended' || selectedFileStatus === 'ended' ? 'ended' : accessReady ? 'connected' : 'idle', startedAt: '', transport: 'sftp', buffer: '',
+    } : sessions.find((item) => item.id === activeSessionId) ?? sessions[0] ?? null
+
+    const reportTerminalSessions = useEffectEvent(() => {
+        if (!isAppFiles && accessBootstrapped) onSessionsChange?.(sessions)
+    })
+    useEffect(() => { reportTerminalSessions() }, [isAppFiles, sessions, accessBootstrapped])
+
+    const activateRequestedTerminal = useEffectEvent(() => {
+        if (!visible || isAppFiles) return
+        if (!accessBootstrapped) return
+        if (requestedTerminal?.profile) {
+            if (handledCreateRequestRef.current !== requestedTerminal.id) {
+                handledCreateRequestRef.current = requestedTerminal.id
+                applyProfileResponse(requestedTerminal.profile, requestedTerminal.access, { appendSession: true })
+            }
+            return
+        }
+        if (!wantsNewConnection) handledNewConnectionRef.current = false
+        if (wantsNewConnection && !handledNewConnectionRef.current) {
+            handledNewConnectionRef.current = true
+            openAddHostDialog('new-connection')
+            pendingFileConnectionRef.current = pendingFileConnection ?? null
+            navigate('/terminal', { replace: true })
+            return
+        }
+        if (requestedTerminal?.create) {
+            if (handledCreateRequestRef.current !== requestedTerminal.id) {
+                handledCreateRequestRef.current = requestedTerminal.id
+                if (getWorkspaceConnectionCount(sessions.length) >= MAX_TERMINAL_SESSIONS) showFeedback('info', copy.sessionLimitReached)
+                else openAddHostDialog('new-connection')
+            }
+            return
+        }
+        if (!isAppFiles && requestedTerminal && sessions.some((session) => session.id === requestedTerminal.id)) setActiveSessionId(requestedTerminal.id)
+    })
+    useEffect(() => {
+        activateRequestedTerminal()
+    }, [isAppFiles, requestedTerminal, visible, accessBootstrapped, wantsNewConnection])
+    const invalidateSelectedFileConnection = useEffectEvent(() => {
+        if (isAppFiles && selectedFileStatus === 'ended') markAppFilesUnavailable(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable'))
+    })
+    useEffect(() => { invalidateSelectedFileConnection() }, [isAppFiles, selectedFileStatus, visible])
+    const selectedTabId = visible ? activeSession?.id : null
+    const reportActiveTerminal = useEffectEvent(() => {
+        if (!isAppFiles && selectedTabId && sessions.some(session => session.id === selectedTabId)) onActiveSessionChange?.(selectedTabId)
+    })
+    useEffect(() => { reportActiveTerminal() }, [isAppFiles, selectedTabId])
+    useEffect(() => {
+        if (selectedTabId) sessionTabsRef.current?.querySelector('.terminal-session-tab-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }, [selectedTabId, sessionTabs.length])
     const activeFileProfileId = activeSession?.profileId ?? null
     const filesViewEnabled = accessReady && activeSession !== null && activeSession.status !== 'ended'
     const filteredSavedProfiles = useMemo(() => {
@@ -1583,9 +1789,9 @@ export function TerminalPage() {
     const selectedBrowserEntry = useMemo(() => browserEntries.find((entry) => entry.path === selectedEntryPath) ?? null, [browserEntries, selectedEntryPath])
     const activeBrowserEntry = selectedBrowserEntry ?? browserMetadata
     const inspectorEntry = selectedBrowserEntry ?? browserMetadata
-    const canDeleteSelectedItem = Boolean(activeBrowserEntry && activeBrowserEntry.path !== '/') && editorPath === null && !isFileActionSubmitting
-    const canEditSelectedItem = Boolean(selectedBrowserEntry?.item_type === 'file' && selectedBrowserEntry?.text_editable) && !isFileActionSubmitting
-    const canShowInspectorProperties = Boolean(activeBrowserEntry) && !isFileActionSubmitting
+    const canDeleteSelectedItem = filesViewEnabled && Boolean(activeBrowserEntry && activeBrowserEntry.path !== '/' && activeBrowserEntry.path !== appFileSession?.root_path) && editorPath === null && !isFileActionSubmitting
+    const canEditSelectedItem = filesViewEnabled && Boolean(selectedBrowserEntry?.item_type === 'file' && selectedBrowserEntry?.text_editable) && !isFileActionSubmitting
+    const canShowInspectorProperties = filesViewEnabled && Boolean(activeBrowserEntry && activeBrowserEntry.path !== appFileSession?.root_path) && !isFileActionSubmitting
     const editorDirty = editorPath !== null && editorContent !== editorInitialContent
     const terminalFieldSx = useMemo(
         () => ({
@@ -1811,7 +2017,10 @@ export function TerminalPage() {
     )
 
     function buildFileApiUrl(pathname: string, searchParams?: Record<string, string | null | undefined>) {
-        const url = new URL(pathname, window.location.origin)
+        if (!filesViewEnabled) throw new Error(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable'))
+        if (isAppFiles && !appFileSession) throw new Error(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionRequired'))
+        const target = appFileSession ? pathname.replace('/host-access/files/', `/host-access/app-files/${appFileSession.session_id}/`) : pathname
+        const url = new URL(target, window.location.origin)
         if (activeFileProfileId) {
             url.searchParams.set('profile_id', activeFileProfileId)
         }
@@ -1833,32 +2042,34 @@ export function TerminalPage() {
     }, [activeSession])
 
     useEffect(() => {
-        const reloadNavigation = isReloadNavigation()
-        const skipRestore = consumeSkipRestoreOnNextLoad()
-        const shouldClearPersistedWorkspace = terminalWorkspaceMountCount === 0 && (reloadNavigation || skipRestore)
-        if (shouldClearPersistedWorkspace) {
-            clearPersistedTerminalWorkspace()
+        if (isAppFiles || isConnectionDialog) return
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (!sessions.some((session) => session.status === 'connected')) return
+            event.preventDefault()
+            event.returnValue = true
         }
-        terminalWorkspaceMountCount += 1
-    }, [])
-
-    useEffect(() => {
-        const handleBeforeUnload = () => {
-            markSkipRestoreOnNextLoad()
-        }
-
         window.addEventListener('beforeunload', handleBeforeUnload)
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload)
         }
-    }, [])
+    }, [isAppFiles, isConnectionDialog, sessions])
 
     useEffect(() => {
-        if (!accessBootstrapped) {
+        if (isAppFiles && appFileSession && filesViewEnabled) {
+            rememberAppFileSession({ ...appFileSession, path: browserPath })
+        }
+    }, [isAppFiles, appFileSession, browserPath, filesViewEnabled])
+
+    useEffect(() => {
+        if (visible && isAppFiles && appFileSession) sessionStorage.setItem('websoft9:app-files-path', JSON.stringify({ app: appFileAppId, volume: appFileVolumeId, path: browserPath }))
+    }, [isAppFiles, visible, appFileSession, appFileAppId, appFileVolumeId, browserPath])
+
+    useEffect(() => {
+        if (isConnectionDialog || isAppFiles || !accessBootstrapped) {
             return
         }
 
-        if (!accessReady || sessions.length === 0) {
+        if (sessions.length === 0) {
             clearPersistedTerminalWorkspace()
             return
         }
@@ -1872,7 +2083,7 @@ export function TerminalPage() {
             selectedEntryPath,
             profileScope: currentProfileScope ?? '',
         })
-    }, [accessBootstrapped, accessReady, sessions, activeSessionId, workspaceView, browserPath, selectedEntryPath, currentProfileScope])
+    }, [isAppFiles, isConnectionDialog, accessBootstrapped, accessReady, sessions, activeSessionId, workspaceView, browserPath, selectedEntryPath, currentProfileScope])
 
     function updateAccessForm<K extends keyof AccessForm>(key: K, value: AccessForm[K]) {
         if (key === 'authMethod') {
@@ -1902,6 +2113,7 @@ export function TerminalPage() {
     }
 
     function openAddHostDialog(mode: 'new-connection' | 'add-host' = 'add-host') {
+        pendingFileConnectionRef.current = null
         resetAccessForm()
         setAccessDialogMode(mode)
         setFeedback(null)
@@ -1929,14 +2141,6 @@ export function TerminalPage() {
         void refreshSavedProfiles()
     }
 
-    function openCreateSessionMenu(anchor: HTMLElement) {
-        setFeedback(null)
-        setProfileSearchValue('')
-        setIsHostSelectorOpen(false)
-        setCreateSessionAnchorEl(anchor)
-        void refreshSavedProfiles()
-    }
-
     function closeCreateSessionMenu() {
         setCreateSessionAnchorEl(null)
     }
@@ -1959,6 +2163,7 @@ export function TerminalPage() {
         setIsRefreshingProfiles(true)
         try {
             const profile = await requestJson<HostAccessProfileResponse>('/api/host-access/profile', { method: 'GET' })
+            if (profile.saved_profiles) synchronizeAppFileProfiles(profile.saved_profiles.map((entry) => entry.profile_id))
             setSavedProfiles(profile.saved_profiles ?? [])
             setActiveProfileId(profile.active_profile_id ?? null)
             if (profile.local_host_ip) {
@@ -2054,17 +2259,108 @@ export function TerminalPage() {
         return true
     }
 
+    function markAppFilesUnavailable(message: string) {
+        sessionStorage.removeItem('websoft9:app-files-route')
+        setIsHostSelectorOpen(false)
+        setIsAccessDialogOpen(false)
+        setCreateSessionAnchorEl(null)
+        const known = readAppFileSessions().find((session) => session.app_id === appFileAppId && session.volume_id === appFileVolumeId)
+        if (known && known.status !== 'ended') rememberAppFileSession({ ...known, status: 'ended' })
+        appFileRequestRef.current += 1
+        setAppFileSession(known ? { ...known, status: 'ended' } : null)
+        setAccessReady(false)
+        invalidateFileBrowserRequests()
+        setWorkspaceView('files')
+        setBrowserLoading(false)
+        setBrowserEntries([])
+        setBrowserMetadata(null)
+        setSelectedEntryPath(null)
+        setBrowserContextMenu(null)
+        setBrowserDialogState(null)
+        setBrowserPropertiesForm(null)
+        setBrowserClipboard(null)
+        setIsEditorLoading(false)
+        clearEditorState()
+        const localizedMessage = getAppFileErrorKey(message) === 'sftpConnectionUnavailable'
+            ? t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable')
+            : message
+        setBrowserError(`${copy.browserErrorTitle}: ${localizedMessage}`)
+    }
+
+    async function openAppFiles(profileId?: string) {
+        const requestId = ++appFileRequestRef.current
+        const previous = readAppFileSessions().find((session) => session.app_id === appFileAppId && session.volume_id === appFileVolumeId)
+        try {
+            const session = await acquireAppFileSession(appFileAppId, appFileVolumeId, profileId)
+            if (requestId !== appFileRequestRef.current) return
+            if (appFileSession?.session_id === session.session_id) return
+            let restoredPath = session.root_path
+            if (session.path === session.root_path || session.path?.startsWith(session.root_path + '/')) restoredPath = session.path
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('websoft9:app-files-path') || 'null')
+                if (!session.path && saved?.app === appFileAppId && saved?.volume === appFileVolumeId && (saved.path === session.root_path || saved.path?.startsWith(session.root_path + '/'))) restoredPath = saved.path
+            } catch { /* Ignore invalid saved navigation state. */ }
+            setAppFileSession(session)
+            setAccessForm((current) => ({ ...current, host: session.host || current.host, username: session.username || current.username, port: String(session.port || current.port) }))
+            setBrowserPath(restoredPath)
+            setBrowserHistory([restoredPath])
+            setBrowserHistoryIndex(0)
+            setPathInputValue(restoredPath)
+            setWorkspaceView('files')
+            setBrowserError(null)
+            setAccessReady(true)
+        } catch (error) {
+            if (requestId === appFileRequestRef.current) {
+                if (previous) rememberAppFileSession({ ...previous, status: 'ended' })
+                markAppFilesUnavailable(error instanceof Error ? error.message : copy.browserErrorTitle)
+            }
+        }
+    }
+
+    const activateFileContext = useEffectEvent(() => {
+        if (visible && isAppFiles && accessBootstrapped) void openAppFiles()
+    })
+    useEffect(() => { activateFileContext() }, [visible])
+
     function applyProfileResponse(response: HostAccessProfileResponse, fallbackAccess?: AccessForm, options?: { autoConnect?: boolean; appendSession?: boolean }) {
         const autoConnect = options?.autoConnect ?? true
         const appendSession = options?.appendSession ?? false
         setSavedProfiles(response.saved_profiles ?? [])
+        if (response.saved_profiles) synchronizeAppFileProfiles(response.saved_profiles.map((entry) => entry.profile_id))
         setBrowserDisplayMode(response.file_preferences?.view_mode ?? DEFAULT_HOST_ACCESS_FILE_PREFERENCES.view_mode)
         setShowHiddenFiles(response.file_preferences?.show_hidden_files ?? DEFAULT_HOST_ACCESS_FILE_PREFERENCES.show_hidden_files)
+        if (isAppFiles) {
+            if (autoConnect && onConnectTerminal) {
+                onConnectTerminal(response, fallbackAccess)
+                return
+            }
+            if (response.local_host_ip) setLocalHostIp(response.local_host_ip)
+            if (response.configured) setAccessForm(fallbackAccess ?? profileToAccessForm(response))
+            void openAppFiles(options?.autoConnect === false ? undefined : response.active_profile_id ?? undefined)
+            return
+        }
+
+        if (!autoConnect) {
+            const persisted = loadPersistedTerminalWorkspace()
+            if (persisted?.sessions.length && persisted.profileScope?.startsWith(`${status?.current_user?.id}:`)) {
+                const restored = restoreTerminalSessions(persisted.sessions, (response.saved_profiles ?? []).map(profile => profile.profile_id))
+                setSessions(restored)
+                setActiveSessionId(restored.some(session => session.id === persisted.activeSessionId) ? persisted.activeSessionId : restored[0].id)
+                setActiveProfileId(response.active_profile_id ?? null)
+                setCurrentProfileScope(persisted.profileScope)
+                setAccessReady(response.configured)
+                setWorkspaceView(persisted.workspaceView === 'files' && restored.some(session => session.status !== 'ended') ? 'files' : 'terminal')
+                setBrowserPath(normalizeDirectory(persisted.browserPath || '/'))
+                if (response.configured) setAccessForm(profileToAccessForm(response))
+                return
+            }
+        }
 
         if (response.configured && response.username) {
             const nextAccess = fallbackAccess
                 ? {
                     ...fallbackAccess,
+                    profileId: response.active_profile_id ?? fallbackAccess.profileId,
                     host: response.host || fallbackAccess.host,
                     username: response.username,
                     workingDirectory: response.working_directory || fallbackAccess.workingDirectory,
@@ -2079,7 +2375,7 @@ export function TerminalPage() {
                 const persistedWorkspace = loadPersistedTerminalWorkspace()
                 if (persistedWorkspace?.accessReady && (
                     persistedWorkspace.profileScope === nextProfileScope ||
-                    persistedWorkspace.sessions.length > 1
+                    (persistedWorkspace.profileScope?.startsWith(`${status?.current_user?.id}:`) && persistedWorkspace.sessions.every((session) => session.profileId && response.saved_profiles?.some((profile) => profile.profile_id === session.profileId)))
                 )) {
                     const restoredSessions = persistedWorkspace.sessions.map((session) => ({
                         ...session,
@@ -2138,7 +2434,7 @@ export function TerminalPage() {
             const fallbackPath = normalizeDirectory(response.working_directory || resolveDefaultDirectory(nextAccess.username, nextAccess.workingDirectory))
 
             if (appendSession && sessions.length > 0) {
-                if (sessions.length >= MAX_TERMINAL_SESSIONS) {
+                if (getWorkspaceConnectionCount(sessions.length) >= MAX_TERMINAL_SESSIONS) {
                     showFeedback('error', copy.sessionLimitReached)
                     return
                 }
@@ -2159,7 +2455,7 @@ export function TerminalPage() {
             const persistedWorkspace = loadPersistedTerminalWorkspace()
             if (persistedWorkspace?.accessReady && (
                 persistedWorkspace.profileScope === nextProfileScope ||
-                persistedWorkspace.sessions.length > 1
+                (persistedWorkspace.profileScope?.startsWith(`${status?.current_user?.id}:`) && persistedWorkspace.sessions.every((session) => session.profileId && response.saved_profiles?.some((profile) => profile.profile_id === session.profileId)))
             )) {
                 const restoredSessions = persistedWorkspace.sessions.map((session) => ({
                     ...session,
@@ -2192,6 +2488,10 @@ export function TerminalPage() {
                 clearPersistedTerminalWorkspace()
             }
 
+            if (getWorkspaceConnectionCount(0) >= MAX_TERMINAL_SESSIONS) {
+                showFeedback('info', copy.sessionLimitReached)
+                return
+            }
             const nextSession = createSession(nextAccess, [], locale)
             setSessions([nextSession])
             setActiveSessionId(nextSession.id)
@@ -2265,7 +2565,7 @@ export function TerminalPage() {
     function sendActiveResize() {
         const terminal = xtermRef.current
         const session = activeSessionRef.current
-        if (!terminal || !session) {
+        if (!visibleRef.current || !terminal || !session || !terminalHostRef.current?.clientWidth || !terminalHostRef.current?.clientHeight) {
             return
         }
         sendSessionPayload(session.id, { type: 'resize', cols: terminal.cols, rows: terminal.rows })
@@ -2276,9 +2576,11 @@ export function TerminalPage() {
             return
         }
 
-        const socket = new WebSocket(buildTerminalSocketUrl(sessionId))
+        const socket = new WebSocket(buildTerminalSocketUrl(sessionId, sessions.find(session => session.id === sessionId)?.profileId))
         let receivedReady = false
         let handledError = false
+        let serverClosed = false
+        delete sessionSocketCloseModeRef.current[sessionId]
         sessionSocketRef.current[sessionId] = socket
         updateSession(sessionId, (session) => ({ ...session, status: 'idle' }))
 
@@ -2287,6 +2589,7 @@ export function TerminalPage() {
         }
 
         socket.onmessage = (event) => {
+            if (sessionSocketRef.current[sessionId] !== socket) return
             let message: TerminalSocketMessage
             const fallbackMessage = String(event.data ?? '')
             try {
@@ -2298,9 +2601,12 @@ export function TerminalPage() {
 
             if (message.type === 'ready') {
                 receivedReady = true
+                terminalWrittenRef.current[sessionId] = 0
                 updateSession(sessionId, (session) => ({
                     ...session,
                     status: 'connected',
+                    transportDisconnected: false,
+                    buffer: message.resumed ? '' : session.buffer,
                     cwd: normalizeDirectory(message.cwd || session.cwd),
                     user: message.username || session.user,
                 }))
@@ -2317,6 +2623,7 @@ export function TerminalPage() {
                 updateSession(sessionId, (session) => ({
                     ...session,
                     status: 'ended',
+                    transportDisconnected: false,
                     buffer: `${session.buffer}\r\n${message.details || message.message || copy.terminalErrorTitle}\r\n`,
                 }))
                 closeSocket(sessionId, { mode: 'remote' })
@@ -2324,7 +2631,8 @@ export function TerminalPage() {
             }
 
             if (message.type === 'closed') {
-                updateSession(sessionId, (session) => ({ ...session, status: 'ended' }))
+                serverClosed = true
+                updateSession(sessionId, (session) => ({ ...session, status: 'ended', transportDisconnected: false }))
                 closeSocket(sessionId, { mode: 'remote' })
             }
         }
@@ -2332,6 +2640,7 @@ export function TerminalPage() {
         socket.onerror = () => { }
 
         socket.onclose = () => {
+            if (sessionSocketRef.current[sessionId] !== socket) return
             const closeMode = sessionSocketCloseModeRef.current[sessionId] ?? 'remote'
             delete sessionSocketCloseModeRef.current[sessionId]
 
@@ -2343,6 +2652,7 @@ export function TerminalPage() {
             updateSession(sessionId, (session) => ({
                 ...session,
                 status: session.status === 'connected' || !receivedReady ? 'ended' : session.status,
+                transportDisconnected: !serverClosed && !handledError && session.profileAvailable !== false,
                 buffer: !receivedReady && !handledError
                     ? `${session.buffer}\r\n${copy.terminalErrorTitle}\r\n`
                     : session.buffer,
@@ -2350,6 +2660,20 @@ export function TerminalPage() {
             delete sessionSocketRef.current[sessionId]
         }
     }
+
+    const reportFileBootstrapError = useEffectEvent((error: unknown) => markAppFilesUnavailable(error instanceof Error ? error.message : copy.browserErrorTitle))
+
+    const endDeletedProfileSessions = useEffectEvent((profileId: string) => {
+        setSavedProfiles(current => current.filter(profile => profile.profile_id !== profileId))
+        sessions.filter(session => session.profileId === profileId).forEach(session => closeSocket(session.id, { mode: 'remote' }))
+        setSessions(current => current.map(session => session.profileId === profileId ? { ...session, status: 'ended', profileAvailable: false, transportDisconnected: false } : session))
+        if (isAppFiles && appFileSession?.profile_id === profileId) markAppFilesUnavailable(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable'))
+    })
+    useEffect(() => {
+        const listener = (event: Event) => endDeletedProfileSessions((event as CustomEvent<string>).detail)
+        window.addEventListener(HOST_PROFILE_DELETED_EVENT, listener)
+        return () => window.removeEventListener(HOST_PROFILE_DELETED_EVENT, listener)
+    }, [])
 
     useEffect(() => {
         let cancelled = false
@@ -2364,10 +2688,19 @@ export function TerminalPage() {
                 if (cancelled) {
                     return
                 }
+                if (isConnectionDialog) {
+                    setSavedProfiles(profile.saved_profiles ?? [])
+                    setLocalHostIp(profile.local_host_ip || DEFAULT_ACCESS_FORM.host)
+                    const localProfile = profile.saved_profiles?.find((entry) => entry.is_local && entry.profile_id === profile.active_profile_id) ?? profile.saved_profiles?.find((entry) => entry.is_local && entry.is_default)
+                    setAccessForm(localProfile ? savedProfileToAccessForm(localProfile) : { ...DEFAULT_ACCESS_FORM, host: profile.local_host_ip || DEFAULT_ACCESS_FORM.host, isLocal: true })
+                    setAccessDialogMode('new-connection')
+                    return
+                }
                 applyProfileResponse(profile, undefined, { autoConnect: false })
             } catch (error) {
                 if (!cancelled) {
-                    showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
+                    if (isAppFiles) reportFileBootstrapError(error)
+                    else showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
                 }
             } finally {
                 if (!cancelled) {
@@ -2379,19 +2712,25 @@ export function TerminalPage() {
         void bootstrapProfile()
         return () => {
             cancelled = true
+            appFileRequestRef.current += 1
             closeAllSockets({ mode: 'detach' })
         }
-    }, [status?.enabled])
+    }, [status?.enabled, appFileAppId, appFileVolumeId, isConnectionDialog])
 
     useEffect(() => {
+        if (isAppFiles) return
         sessions.forEach((session) => {
             if (session.status !== 'ended' && !sessionSocketRef.current[session.id] && accessReady) {
                 connectSession(session.id)
             }
         })
-    }, [sessions, accessReady])
+    }, [sessions, accessReady, isAppFiles])
 
     useEffect(() => {
+        if (isAppFiles && selectedFileStatus === 'ended') {
+            markAppFilesUnavailable(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable'))
+            return
+        }
         if (!activeSession) {
             invalidateFileBrowserRequests()
             setBrowserEntries([])
@@ -2402,10 +2741,12 @@ export function TerminalPage() {
             return
         }
         invalidateFileBrowserRequests()
-        const nextPath = normalizeDirectory(activeSession.cwd)
-        setBrowserPath(nextPath)
-        setBrowserHistory([nextPath])
-        setBrowserHistoryIndex(0)
+        if (!isAppFiles) {
+            const nextPath = normalizeDirectory(activeSession.cwd)
+            setBrowserPath(nextPath)
+            setBrowserHistory([nextPath])
+            setBrowserHistoryIndex(0)
+        }
         setBrowserEntries([])
         setBrowserError(null)
         setSelectedEntryPath(null)
@@ -2421,10 +2762,10 @@ export function TerminalPage() {
         setEditorPath(null)
         setEditorContent('')
         setEditorInitialContent('')
-    }, [activeSession?.cwd, activeSession?.id])
+    }, [activeSession?.cwd, activeSession?.id, isAppFiles, selectedFileStatus])
 
     useEffect(() => {
-        if (!accessBootstrapped || !status?.enabled || !status?.authenticated) {
+        if (isConnectionDialog || !accessBootstrapped || !status?.enabled || !status?.authenticated) {
             return
         }
 
@@ -2441,13 +2782,17 @@ export function TerminalPage() {
         return () => {
             window.clearTimeout(timeoutId)
         }
-    }, [accessBootstrapped, browserDisplayMode, showHiddenFiles, status?.authenticated, status?.enabled])
+    }, [isConnectionDialog, accessBootstrapped, browserDisplayMode, showHiddenFiles, status?.authenticated, status?.enabled])
 
     useEffect(() => {
         setPathInputValue(browserPath)
     }, [browserPath])
 
     useEffect(() => {
+        if (!filesViewEnabled) {
+            setPathSuggestions([])
+            return
+        }
         const normalizedInput = pathInputValue.trim()
         if (!normalizedInput.startsWith('/')) {
             setPathSuggestions([])
@@ -2504,7 +2849,7 @@ export function TerminalPage() {
             cancelled = true
             window.clearTimeout(timeoutId)
         }
-    }, [activeFileProfileId, activeSession?.id, browserEntries, browserPath, pathInputValue])
+    }, [filesViewEnabled, activeFileProfileId, activeSession?.id, browserEntries, browserPath, pathInputValue])
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -2539,7 +2884,7 @@ export function TerminalPage() {
     }, [isTerminalOverlayFullscreen])
 
     useEffect(() => {
-        if (!accessReady || !activeSession) {
+        if (!filesViewEnabled || !activeSession) {
             return
         }
         const requestId = browserRequestIdRef.current + 1
@@ -2585,7 +2930,7 @@ export function TerminalPage() {
         return () => {
             cancelled = true
         }
-    }, [accessReady, activeSession?.id, activeFileProfileId, browserPath, browserRefreshNonce, editorPath, copy.browserErrorTitle])
+    }, [filesViewEnabled, activeSession?.id, activeFileProfileId, browserPath, browserRefreshNonce, editorPath, copy.browserErrorTitle])
 
     useEffect(() => {
         if (!activeSession) {
@@ -2597,7 +2942,7 @@ export function TerminalPage() {
     }, [activeSession?.id])
 
     useEffect(() => {
-        if (!accessReady || workspaceView === 'files' || !activeSession || !terminalHostRef.current) {
+        if (!terminalActivated || workspaceView === 'files' || !activeSession || !terminalHostRef.current) {
             xtermRef.current?.dispose()
             xtermRef.current = null
             fitAddonRef.current = null
@@ -2623,7 +2968,7 @@ export function TerminalPage() {
         const clipboardAddon = new ClipboardAddon()
         terminal.loadAddon(clipboardAddon)
         terminal.open(terminalHostRef.current)
-        fitAddon.fit()
+        if (visibleRef.current && terminalHostRef.current.clientWidth > 0 && terminalHostRef.current.clientHeight > 0) fitAddon.fit()
         terminal.onData((data) => {
             const session = activeSessionRef.current
             if (!session || session.status !== 'connected') {
@@ -2653,6 +2998,7 @@ export function TerminalPage() {
         })
 
         const observer = new ResizeObserver(() => {
+            if (!visibleRef.current || !terminalHostRef.current?.clientWidth || !terminalHostRef.current?.clientHeight) return
             fitAddon.fit()
             sendActiveResize()
         })
@@ -2668,18 +3014,26 @@ export function TerminalPage() {
             fitAddonRef.current = null
             lastRenderedSessionIdRef.current = null
         }
-    }, [accessReady, workspaceView, activeSession?.id, xtermTheme])
+    }, [terminalActivated, accessReady, workspaceView, activeSession?.id, xtermTheme])
 
     useEffect(() => {
         const terminal = xtermRef.current
-        if (!terminal) {
+        if (!terminal || !visible || !terminalHostRef.current?.clientWidth) {
             return
         }
 
         terminal.options.theme = xtermTheme
         fitAddonRef.current?.fit()
         terminal.refresh(0, Math.max(terminal.rows - 1, 0))
-    }, [xtermTheme])
+    }, [xtermTheme, visible])
+
+    useEffect(() => {
+        const terminal = xtermRef.current
+        if (!terminal) return
+        const connected = activeSession?.status === 'connected'
+        terminal.options.disableStdin = !connected
+        terminal.options.cursorBlink = connected
+    }, [activeSession?.id, activeSession?.status, terminalActivated, accessReady, workspaceView, xtermTheme])
 
     useEffect(() => {
         const terminal = xtermRef.current
@@ -2687,9 +3041,10 @@ export function TerminalPage() {
             return
         }
 
-        if (workspaceView === 'files') {
+        if (!visible || workspaceView === 'files') {
             return
         }
+        if (terminalHostRef.current?.clientWidth) fitAddonRef.current?.fit()
 
         if (!activeSession) {
             terminal.clear()
@@ -2709,6 +3064,7 @@ export function TerminalPage() {
                 terminal.write(activeSession.buffer)
             }
             terminalWrittenRef.current[activeSession.id] = activeSession.buffer.length
+            terminalEndedRef.current[activeSession.id] = false
             lastRenderedSessionIdRef.current = activeSession.id
         } else {
             // Incremental write only – do NOT clear the terminal
@@ -2719,14 +3075,21 @@ export function TerminalPage() {
             }
             lastRenderedSessionIdRef.current = activeSession.id
         }
+        if (activeSession.status === 'ended' && !terminalEndedRef.current[activeSession.id]) {
+            terminal.write('\r\u001b[2K\u001b[?25l')
+            terminalEndedRef.current[activeSession.id] = true
+        } else if (activeSession.status !== 'ended') {
+            terminal.write('\u001b[?25h')
+            terminalEndedRef.current[activeSession.id] = false
+        }
         const atBottom = terminal.rows + terminal.buffer.active.viewportY >= terminal.buffer.active.baseY
         if (atBottom) {
             terminal.scrollToBottom()
         }
-    }, [activeSession?.buffer, activeSession?.id, copy.sessionEmpty, workspaceView])
+    }, [terminalActivated, visible, activeSession?.buffer, activeSession?.id, activeSession?.status, copy.sessionEmpty, copy.promptReconnect, workspaceView])
 
     useEffect(() => {
-        if (workspaceView === 'files') {
+        if (!visible || workspaceView === 'files') {
             return
         }
         const timer = window.setTimeout(() => {
@@ -2741,7 +3104,7 @@ export function TerminalPage() {
         return () => {
             window.clearTimeout(timer)
         }
-    }, [workspaceView, isTerminalFullscreen])
+    }, [terminalActivated, visible, workspaceView, isTerminalFullscreen])
 
     useEffect(() => {
         if (workspaceView !== 'files') {
@@ -2756,10 +3119,15 @@ export function TerminalPage() {
             return
         }
         const isEdit = accessDialogMode === 'edit'
+        if (!isEdit && !connectionDialog && getWorkspaceConnectionCount(isAppFiles ? undefined : sessions.length) >= MAX_TERMINAL_SESSIONS) {
+            showFeedback('info', copy.sessionLimitReached)
+            return
+        }
         setIsSubmittingAccess(true)
         try {
             const profile = await requestJson<HostAccessProfileResponse>('/api/host-access/profile', {
                 method: 'PUT',
+                signal: AbortSignal.timeout(30000),
                 body: JSON.stringify({
                     name: accessForm.name.trim(),
                     host: accessForm.host.trim(),
@@ -2776,6 +3144,19 @@ export function TerminalPage() {
                 }),
             })
 
+            if (connectionDialog) {
+                await connectionDialog.onConnected(profile.active_profile_id ?? undefined)
+                return
+            }
+            if (pendingFileConnectionRef.current && !isEdit) {
+                const target = pendingFileConnectionRef.current
+                const session = await acquireAppFileSession(target.app_id, target.volume_id, profile.active_profile_id ?? undefined)
+                pendingFileConnectionRef.current = null
+                setSavedProfiles(profile.saved_profiles ?? [])
+                setIsAccessDialogOpen(false)
+                navigate(getAppFileRoute(session))
+                return
+            }
             const nextAccess = {
                 ...accessForm,
                 workingDirectory: profile.working_directory || accessForm.workingDirectory,
@@ -2785,13 +3166,13 @@ export function TerminalPage() {
             setIsHostSelectorOpen(false)
             setCreateSessionAnchorEl(null)
             setForceSaveDialogOpen(false)
-            applyProfileResponse(profile, nextAccess, { appendSession: accessReady && sessions.length > 0, autoConnect: !isEdit })
+            applyProfileResponse(profile, nextAccess, { appendSession: sessions.length > 0, autoConnect: !isEdit })
         } catch (error) {
-            if (!isEdit && accessForm.remember) {
-                setForceSaveError(error instanceof Error ? error.message : copy.accessErrorTitle)
+            if (!connectionDialog && !isEdit && accessForm.remember && error instanceof HostAccessRequestError) {
+                setForceSaveError(connectionErrorMessage(error))
                 setForceSaveDialogOpen(true)
             } else {
-                showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
+                showFeedback('error', `${copy.accessErrorTitle}: ${connectionErrorMessage(error)}`)
             }
         } finally {
             setIsSubmittingAccess(false)
@@ -2944,6 +3325,7 @@ export function TerminalPage() {
             setActiveSessionId(nextActive)
             return next
         })
+        onTabClosed?.(sessionId)
     }
 
     async function ensureMinimumBusyDuration(startedAt: number, minimumDurationMs = 900) {
@@ -2954,13 +3336,47 @@ export function TerminalPage() {
     }
 
     async function handleLogout() {
+        if (isAppFiles) {
+            await closeAppFiles()
+            return
+        }
         if (!activeSession) {
             return
         }
         handleCloseSession(activeSession.id)
     }
 
+    async function closeAppFiles() {
+        if (sftpClosing) return
+        setSftpClosing(true)
+        const target = appFileSession ?? readAppFileSessions().find((session) => session.app_id === appFileAppId && session.volume_id === appFileVolumeId)
+        try {
+            if (target) await closeAppFileSession(target.session_id)
+        } catch (error) {
+            if (!(error instanceof HostAccessRequestError && error.status === 403)) {
+                setSftpClosing(false)
+                showFeedback('error', error instanceof Error ? error.message : copy.accessErrorTitle)
+                return
+            }
+        }
+        invalidateFileBrowserRequests()
+        appFileRequestRef.current += 1
+        sessionStorage.removeItem('websoft9:app-files-route')
+        sessionStorage.removeItem('websoft9:app-files-path')
+        if (target && onTabClosed && visibleRef.current) onTabClosed(target.session_id)
+        else navigate('/terminal', { replace: true })
+    }
+
+    function connectionErrorMessage(error: unknown) {
+        if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) return t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionTimeout')
+        return error instanceof Error ? error.message : copy.accessErrorTitle
+    }
+
     async function handleActivateSavedProfile(profileId: string) {
+        if (getWorkspaceConnectionCount(isAppFiles ? undefined : sessions.length) >= MAX_TERMINAL_SESSIONS) {
+            showFeedback('info', copy.sessionLimitReached)
+            return
+        }
         const startedAt = Date.now()
         setActivatingProfileId(profileId)
         try {
@@ -2983,12 +3399,12 @@ export function TerminalPage() {
                 setPasswordEntryOpen(true)
                 return
             }
-            const response = await requestJson<HostAccessProfileResponse>(`/api/host-access/profiles/${encodeURIComponent(profileId)}/activate`, { method: 'POST' })
+            const response = await requestJson<HostAccessProfileResponse>(`/api/host-access/profiles/${encodeURIComponent(profileId)}/activate`, { method: 'POST', signal: AbortSignal.timeout(30000) })
             await ensureMinimumBusyDuration(startedAt)
-            applyProfileResponse(response, undefined, { appendSession: accessReady && sessions.length > 0 })
+            applyProfileResponse(response, undefined, { appendSession: sessions.length > 0 })
         } catch (error) {
             await ensureMinimumBusyDuration(startedAt)
-            showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
+            showFeedback('error', `${copy.accessErrorTitle}: ${connectionErrorMessage(error)}`)
         } finally {
             setActivatingProfileId(null)
         }
@@ -3017,15 +3433,20 @@ export function TerminalPage() {
                 body.passphrase = passwordEntryPassphrase
             }
             body.remember = passwordEntryRemember
+            if (getWorkspaceConnectionCount(isAppFiles ? undefined : sessions.length) >= MAX_TERMINAL_SESSIONS) {
+                showFeedback('info', copy.sessionLimitReached)
+                return
+            }
             const response = await requestJson<HostAccessProfileResponse>(`/api/host-access/profiles/${encodeURIComponent(profileId)}/activate`, {
                 method: 'POST',
+                signal: AbortSignal.timeout(30000),
                 body: JSON.stringify(body),
             })
             await ensureMinimumBusyDuration(startedAt)
-            applyProfileResponse(response, undefined, { appendSession: accessReady && sessions.length > 0 })
+            applyProfileResponse(response, undefined, { appendSession: sessions.length > 0 })
         } catch (error) {
             await ensureMinimumBusyDuration(startedAt)
-            showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
+            showFeedback('error', `${copy.accessErrorTitle}: ${connectionErrorMessage(error)}`)
         } finally {
             setActivatingProfileId(null)
             setPasswordEntryProfileId('')
@@ -3035,12 +3456,14 @@ export function TerminalPage() {
     async function handleDeleteSavedProfile(profileId: string) {
         try {
             const response = await requestJson<HostAccessProfileResponse>(`/api/host-access/profiles/${encodeURIComponent(profileId)}`, { method: 'DELETE' })
+            window.dispatchEvent(new CustomEvent(HOST_PROFILE_DELETED_EVENT, { detail: profileId }))
+            if (response.saved_profiles) synchronizeAppFileProfiles(response.saved_profiles.map((entry) => entry.profile_id))
             setSavedProfiles(response.saved_profiles ?? [])
             setActiveProfileId(response.active_profile_id ?? null)
-            setCurrentProfileScope(
+            setCurrentProfileScope((current) =>
                 response.configured && response.username
                     ? buildWorkspaceProfileScope(status?.current_user?.id, response.active_profile_id, response.host, response.username, response.port)
-                    : null,
+                    : current,
             )
             showFeedback('success', copy.profileDeleted)
         } catch (error) {
@@ -3048,7 +3471,9 @@ export function TerminalPage() {
                 && error.status === 409
                 && error.code === 'Host Access Profile In Use'
                 ? copy.profileInUse
-                : copy.deleteProfileFailed
+                : error instanceof HostAccessRequestError && error.code === 'Local SSH Key Cleanup Failed'
+                    ? t('myAppsDetailPage.tabs.volumes.fileManager.sftpKeyCleanupFailed')
+                    : copy.deleteProfileFailed
             showFeedback('error', message)
         }
     }
@@ -3062,24 +3487,35 @@ export function TerminalPage() {
         await handleDeleteSavedProfile(profileId)
     }
 
-    function handleCreateSession(event: ReactMouseEvent<HTMLButtonElement>) {
-        if (createSessionAnchorEl === event.currentTarget) {
-            closeCreateSessionMenu()
+    function handleCreateSession() {
+        if (sessionTabs.length >= MAX_TERMINAL_SESSIONS) {
+            showFeedback('info', copy.sessionLimitReached)
             return
         }
-        openCreateSessionMenu(event.currentTarget)
+        setProfileSearchValue('')
+        setCreateSessionAnchorEl(sessionAddRef.current)
+        void refreshSavedProfiles()
     }
 
-    function handleReconnect() {
-        if (!activeSession) {
-            return
+    async function handleReconnect() {
+        if (!activeSession) return
+        if (activeSession.profileAvailable === false) {
+            try {
+                const profile = await requestJson<HostAccessProfileResponse>('/api/host-access/profile', { method: 'GET' })
+                setSavedProfiles(profile.saved_profiles ?? [])
+                const available = profile.saved_profiles?.some(saved => saved.profile_id === activeSession.profileId)
+                    || (profile.configured && profile.active_profile_id === activeSession.profileId)
+                if (!available) {
+                    showFeedback('error', copy.reconnectUnavailable)
+                    return
+                }
+            } catch (error) {
+                showFeedback('error', connectionErrorMessage(error))
+                return
+            }
         }
-        closeSocket(activeSession.id, { terminate: true })
-        updateSession(activeSession.id, (session) => ({
-            ...session,
-            status: 'idle',
-            buffer: `${session.buffer}\r\n# reconnect requested\r\n`,
-        }))
+        closeSocket(activeSession.id, { mode: 'detach' })
+        updateSession(activeSession.id, session => ({ ...session, status: 'idle', profileAvailable: true, transportDisconnected: false }))
     }
 
     function clearEditorState() {
@@ -3121,6 +3557,11 @@ export function TerminalPage() {
 
     function navigateBrowser(nextPath: string, options?: { recordHistory?: boolean }) {
         const normalizedPath = normalizeDirectory(nextPath)
+        if (appFileSession && normalizedPath !== appFileSession.root_path && !normalizedPath.startsWith(`${appFileSession.root_path}/`)) {
+            showFeedback('error', t('myAppsDetailPage.tabs.volumes.fileManager.sftpScopeDenied'))
+            setPathInputValue(browserPath)
+            return
+        }
         setBrowserPath(normalizedPath)
         setSelectedEntryPath(null)
         clearEditorState()
@@ -3331,8 +3772,8 @@ export function TerminalPage() {
                     method: 'PUT',
                     body: JSON.stringify({
                         source_path: browserDialogState.item.path,
-                        owner: browserPropertiesForm.owner.trim(),
-                        group: browserPropertiesForm.group.trim(),
+                        owner: isAppFiles ? undefined : browserPropertiesForm.owner.trim(),
+                        group: isAppFiles ? undefined : browserPropertiesForm.group.trim(),
                         owner_permissions: browserPropertiesForm.ownerPermissions,
                         group_permissions: browserPropertiesForm.groupPermissions,
                         other_permissions: browserPropertiesForm.otherPermissions,
@@ -3963,7 +4404,7 @@ export function TerminalPage() {
                         px: 1.25,
                         py: 1,
                         border: `1px solid ${palette.border}`,
-                        borderRadius: '2px',
+                        borderRadius: 0,
                         backgroundColor: palette.cardBg,
                     }}
                 >
@@ -3981,7 +4422,7 @@ export function TerminalPage() {
                             void handleActivateSavedProfile(profile.profile_id)
                         }}
                         size="small"
-                        sx={{ flex: '0 0 auto', minWidth: 68, fontWeight: 700 }}
+                        sx={{ flex: '0 0 auto', minWidth: 68, fontWeight: 700, borderRadius: 0 }}
                         variant="outlined"
                     >
                         {copy.savedLogin}
@@ -4022,6 +4463,57 @@ export function TerminalPage() {
                 </span>
             </Tooltip>
         </Box>
+    )
+
+    function closeConnectionDialog() {
+        if (formBusy) return
+        if (connectionDialog) {
+            connectionDialog.onClose()
+            return
+        }
+        setIsAccessDialogOpen(false)
+        setForceSaveDialogOpen(false)
+        if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true)
+    }
+
+    const connectionDialogContent = <>
+        <DialogTitle sx={{ px: 2.25, py: 1.5, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>{connectionDialog || accessDialogMode === 'new-connection' ? copy.newConnectionTitle : accessDialogMode === 'edit' ? copy.editAction : copy.addHostAction}</Typography>
+                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" disabled={formBusy} onClick={closeConnectionDialog} size="small"><CloseActionIcon /></IconButton>
+            </Box>
+        </DialogTitle>
+        <DialogContent dividers sx={{ px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.5 }, backgroundColor: palette.cardBg, flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
+            {connectionDialog && (feedback || connectionDialog.error) ? <Alert severity={feedback?.severity || 'warning'} sx={{ mb: 1.5, overflowWrap: 'anywhere' }}>{feedback?.message || connectionDialog.error}</Alert> : null}
+            {accessFields}
+        </DialogContent>
+        <DialogActions sx={{ px: 2.25, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg, justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', '& .MuiButton-root': { borderRadius: 0 } }}>
+            <Button onClick={closeConnectionDialog} disabled={formBusy}>{copy.cancel}</Button>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <Button disabled={formBusy} onClick={() => void handleConnectionTest()} startIcon={isTestingConnection ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="outlined">{copy.connectionTestTitle}</Button>
+                <Button disabled={formBusy} onClick={() => void handleAccessSubmit()} startIcon={isSubmittingAccess ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="contained">{accessDialogMode === 'edit' ? copy.accessSave : copy.accessSubmit}</Button>
+            </Stack>
+        </DialogActions>
+    </>
+
+    if (connectionDialog) return <SurfaceDialog open onClose={closeConnectionDialog} darkMode={isDarkMode} scope="content" scopeRect={connectionDialog.scopeRect} contentStrategy="viewport-fixed" sx={{ zIndex: 1506 }} paperSx={{ ...surfaceCardSx, maxWidth: 960, borderRadius: 0 }}>{connectionDialogContent}</SurfaceDialog>
+
+    const sessionStrip = (
+        <div className="terminal-session-strip">
+            <div className="terminal-session-tabs" ref={sessionTabsRef}>
+                {sessionTabs.map((tab) => {
+                    const active = Boolean(visible && (isAppFiles ? tab.fileContext?.app_id === appFileAppId && tab.fileContext.volume_id === appFileVolumeId : !tab.fileContext && activeSession?.id === tab.id))
+                    return <div key={tab.id} className={`terminal-session-tab ${active ? 'terminal-session-tab-active' : ''}`} style={{ borderColor: active ? alpha(palette.terminalTabActive, 0.24) : palette.border, backgroundColor: active ? alpha(palette.terminalTabActive, 0.08) : palette.terminalTab, color: palette.text }}>
+                        <button className="terminal-session-tab-toggle" title={tab.fileContext ? `${tab.fileContext.app_id} / ${tab.fileContext.volume_id}` : tab.title} onClick={() => onSelectTab(tab)} type="button" aria-pressed={active}>
+                            <span className="terminal-session-tab-main"><span className="terminal-session-tab-title">{tab.title}</span></span>
+                            <span className="terminal-session-tab-status" style={{ backgroundColor: getStatusTone(tab.status, palette) }} />
+                        </button>
+                        {active ? <button aria-label={copy.disconnect} className="terminal-session-tab-close" disabled={sftpClosing} onClick={() => isAppFiles ? void handleLogout() : handleCloseSession(tab.id)} type="button">×</button> : null}
+                    </div>
+                })}
+                <button ref={sessionAddRef} aria-label={copy.newConnectionTitle} title={sessionTabs.length >= MAX_TERMINAL_SESSIONS ? copy.sessionLimitReached : copy.newConnectionTitle} className="terminal-session-add terminal-session-add-icon" disabled={sessionTabs.length >= MAX_TERMINAL_SESSIONS} onClick={handleCreateSession} type="button"><span className="terminal-session-add-glyph">+</span></button>
+            </div>
+        </div>
     )
 
     return (
@@ -4074,7 +4566,7 @@ export function TerminalPage() {
                     description={copy.description}
                     titleColor={palette.text}
                     descriptionColor={palette.subtleText}
-                    sx={{ mt: { xs: 0.25, md: 0.45 } }}
+                    sx={{ mt: { xs: 0.25, md: 0.45 }, minWidth: 0, '& p': { overflowWrap: 'anywhere' } }}
                     actions={
                         status?.enabled ? (
                             <Stack
@@ -4093,7 +4585,7 @@ export function TerminalPage() {
                                         ['terminal', copy.viewTerminal],
                                         ['files', copy.viewFiles],
                                     ] as Array<[WorkspaceView, string]>).map(([view, label]) => {
-                                        const disabled = view === 'files' ? !filesViewEnabled : !accessReady
+                                        const disabled = view === 'files' ? !filesViewEnabled : isAppFiles || !accessReady
                                         return (
                                             <button
                                                 key={view}
@@ -4112,7 +4604,9 @@ export function TerminalPage() {
                                         )
                                     })}
                                 </div>
-                                <Button className="terminal-workspace-host-button" disabled={isDisconnecting} onClick={openHostSelector} variant="contained">
+                                <Button className="terminal-workspace-host-button" disabled={isDisconnecting} onClick={() => {
+                                    openHostSelector()
+                                }} variant="contained">
                                     {copy.hostSelectorTitle}
                                 </Button>
                             </Stack>
@@ -4120,7 +4614,9 @@ export function TerminalPage() {
                     }
                 />
 
-                {!accessBootstrapped ? null : !accessReady ? (
+                {!accessBootstrapped ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} /></Box>
+                ) : !accessReady && !isAppFiles && sessions.length === 0 ? (
                     <Card
                         elevation={0}
                         sx={{
@@ -4135,13 +4631,7 @@ export function TerminalPage() {
                             <div className="terminal-workspace-shell" ref={terminalWorkspaceShellRef}>
                                 <div className="terminal-workspace-grid terminal-workspace-grid-terminal">
                                     <div className="terminal-shell-pane">
-                                        <div className="terminal-session-strip">
-                                            <div className="terminal-session-tabs">
-                                                <button aria-label={copy.newConnectionTitle} className="terminal-session-add terminal-session-add-icon" onClick={handleCreateSession} type="button">
-                                                    <span className="terminal-session-add-glyph">+</span>
-                                                </button>
-                                            </div>
-                                        </div>
+                                        {sessionStrip}
 
                                         <div className={`terminal-shell-surface ${isDarkMode ? '' : 'terminal-shell-surface-light'}`} style={{ background: isDarkMode ? `linear-gradient(180deg, ${alpha('#0f172a', 0.96)} 0%, ${alpha('#111827', 0.98)} 100%)` : 'linear-gradient(180deg, #f8fafc 0%, #eff4fa 100%)' }}>
                                             <div className="terminal-shell-toolbar">
@@ -4191,41 +4681,7 @@ export function TerminalPage() {
                             <div className="terminal-workspace-shell" ref={terminalWorkspaceShellRef}>
                                 <div className="terminal-workspace-grid terminal-workspace-grid-terminal">
                                     <div className="terminal-shell-pane">
-                                        <div className="terminal-session-strip">
-                                            <div className="terminal-session-tabs">
-                                                {sessions.map((session) => {
-                                                    const active = session.id === activeSession?.id
-                                                    const tone = getStatusTone(session.status, palette)
-                                                    return (
-                                                        <div
-                                                            key={session.id}
-                                                            className={`terminal-session-tab ${active ? 'terminal-session-tab-active' : ''}`}
-                                                            style={{
-                                                                borderColor: active ? (isDarkMode ? 'rgba(96, 165, 250, 0.78)' : alpha(palette.terminalTabActive, 0.24)) : palette.border,
-                                                                backgroundColor: active ? (isDarkMode ? 'rgba(37, 99, 235, 0.42)' : alpha(palette.terminalTabActive, 0.08)) : palette.terminalTab,
-                                                                color: active ? (isDarkMode ? '#eff6ff' : '#1e3a8a') : palette.text,
-                                                                boxShadow: active && isDarkMode ? 'inset 0 0 0 1px rgba(147, 197, 253, 0.34)' : 'none',
-                                                            }}
-                                                        >
-                                                            <button className="terminal-session-tab-toggle" onClick={() => setActiveSessionId(session.id)} type="button">
-                                                                <span className="terminal-session-tab-main">
-                                                                    <span className="terminal-session-tab-title">{session.title}</span>
-                                                                </span>
-                                                                <span className="terminal-session-tab-status" style={{ backgroundColor: tone }} />
-                                                            </button>
-                                                            {active ? (
-                                                                <button className="terminal-session-tab-close" onClick={() => handleCloseSession(session.id)} type="button">
-                                                                    ×
-                                                                </button>
-                                                            ) : null}
-                                                        </div>
-                                                    )
-                                                })}
-                                                <button aria-label={copy.newConnectionTitle} className="terminal-session-add terminal-session-add-icon" onClick={handleCreateSession} type="button">
-                                                    <span className="terminal-session-add-glyph">+</span>
-                                                </button>
-                                            </div>
-                                        </div>
+                                        {sessionStrip}
 
                                         {activeSession ? (
                                             <div className={`terminal-shell-surface ${isTerminalOverlayFullscreen ? 'terminal-shell-surface-overlay-fullscreen' : ''} ${isDarkMode ? '' : 'terminal-shell-surface-light'}`} ref={terminalShellRef} style={{ background: isDarkMode ? `linear-gradient(180deg, ${alpha(palette.terminalBg, 0.94)} 0%, ${alpha('#020617', 0.98)} 100%)` : 'linear-gradient(180deg, #f8fafc 0%, #eef3f9 100%)' }}>
@@ -4234,7 +4690,7 @@ export function TerminalPage() {
                                                         <span className="terminal-window-dot" style={{ backgroundColor: '#fb7185' }} />
                                                         <span className="terminal-window-dot" style={{ backgroundColor: '#fbbf24' }} />
                                                         <span className="terminal-window-dot" style={{ backgroundColor: '#34d399' }} />
-                                                        <span className="terminal-shell-title">{activeSession.user}@{activeSession.host || copy.localServerTitle}</span>
+                                                        <span className="terminal-shell-title">{activeSession.user ? `${activeSession.user}@${activeSession.host || copy.localServerTitle}` : activeSession.host || copy.localServerTitle}</span>
                                                     </div>
                                                     <div className="terminal-shell-toolbar-right">
                                                         <Button onClick={() => void handleLogout()} size="small" variant="outlined">
@@ -4249,7 +4705,7 @@ export function TerminalPage() {
                                                 <div className={`terminal-shell-body ${workspaceView === 'files' ? 'terminal-shell-body-files' : ''}`}>
                                                     {workspaceView === 'files' ? (
                                                         <div className="terminal-files-pane terminal-files-shell terminal-files-pane-embedded" style={{ ...terminalFilesThemeVars, borderLeftColor: palette.border }}>
-                                                            <div className="terminal-files-toolbar-row">
+                                                            <fieldset className="terminal-files-toolbar-row" disabled={!filesViewEnabled} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
                                                                 <div className="terminal-files-toolbar-group">
                                                                     <button className="terminal-files-toolbar-button" disabled={browserHistoryIndex <= 0} onClick={handleNavigateBack} title={copy.browseBack} type="button">
                                                                         <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-back" />
@@ -4257,7 +4713,7 @@ export function TerminalPage() {
                                                                     <button className="terminal-files-toolbar-button" disabled={browserHistoryIndex >= browserHistory.length - 1} onClick={handleNavigateForward} title={copy.browseForward} type="button">
                                                                         <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-forward" />
                                                                     </button>
-                                                                    <button className="terminal-files-toolbar-button" disabled={browserPath === '/'} onClick={handleBrowseUp} title={copy.browseUp} type="button">
+                                                                    <button className="terminal-files-toolbar-button" disabled={browserPath === (appFileSession?.root_path ?? '/')} onClick={handleBrowseUp} title={copy.browseUp} type="button">
                                                                         <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-up" />
                                                                     </button>
                                                                     <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={browserLoading} onClick={handleRefreshBrowser} title={copy.refresh} type="button">
@@ -4292,7 +4748,7 @@ export function TerminalPage() {
                                                                     </button>
                                                                     <input ref={uploadInputRef} hidden type="file" onChange={(event) => void handleUploadChange(event)} />
                                                                 </div>
-                                                            </div>
+                                                            </fieldset>
 
                                                             <div className="terminal-files-layout">
                                                                 <div className="terminal-files-browser-panel" onClick={(event) => handleBrowserBackgroundClick(event, '.terminal-files-list-row, .terminal-files-grid-card')} onContextMenu={(event) => handleBrowserBackgroundContextMenu(event, '.terminal-files-list-row, .terminal-files-grid-card')}>
@@ -4418,7 +4874,7 @@ export function TerminalPage() {
                                                                     <div className="terminal-files-inspector-header terminal-files-inspector-header-classic">
                                                                         <div className="terminal-files-inspector-header-main">
                                                                             <div className="terminal-files-inspector-header-copy">
-                                                                                <div className="terminal-files-inspector-header-title terminal-files-truncate">{inspectorEntry?.name || copy.inspectorTitle}</div>
+                                                                                <div className="terminal-files-inspector-header-title terminal-files-truncate" title={inspectorEntry?.name}>{inspectorEntry?.name || copy.inspectorTitle}</div>
                                                                                 {inspectorEntry ? <div className="terminal-files-inspector-header-meta">{`${getBrowserCategoryLabel(locale)}: ${getBrowserEntryCategoryLabel(inspectorEntry, locale)}`}</div> : null}
                                                                             </div>
                                                                             <div className="terminal-files-inspector-header-actions">
@@ -4439,12 +4895,11 @@ export function TerminalPage() {
                                                                             <div className="terminal-files-inspector-rows terminal-files-inspector-rows-classic">
                                                                                 <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{getBrowserCategoryLabel(locale)}</Typography><Typography className="terminal-files-inspector-value">{getBrowserEntryCategoryLabel(inspectorEntry, locale)}</Typography></div>
                                                                                 <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.modeLabel}</Typography><Typography className="terminal-files-inspector-value">{inspectorEntry.mode || '—'}</Typography></div>
-                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.ownerLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.owner)}</Typography></div>
-                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.groupLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.group)}</Typography></div>
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.ownerLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.owner, inspectorEntry.owner_name)}</Typography></div>
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.groupLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.group, inspectorEntry.group_name)}</Typography></div>
                                                                                 <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.sizeLabel}</Typography><Typography className="terminal-files-inspector-value">{inspectorEntry.item_type === 'file' ? formatFileSize(inspectorEntry.size) : '—'}</Typography></div>
                                                                                 <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.modifiedLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserTimestamp(inspectorEntry.modified_at, locale)}</Typography></div>
                                                                                 <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.createdLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserTimestamp(inspectorEntry.created_at, locale)}</Typography></div>
-                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.pathPlaceholder}</Typography><Typography className="terminal-files-inspector-value terminal-files-break-value">{inspectorEntry.path}</Typography></div>
                                                                             </div>
                                                                         ) : (
                                                                             <div className="terminal-files-empty">
@@ -4457,8 +4912,8 @@ export function TerminalPage() {
                                                         </div>
                                                     ) : (
                                                         <>
-                                                            <div className="terminal-shell-transcript" style={{ position: 'relative' }}>
-                                                                <div className="terminal-xterm-host" ref={terminalHostRef} />
+                                                            <div className="terminal-shell-transcript" style={{ position: 'relative', gridTemplateColumns: 'minmax(0, 1fr)', gridTemplateRows: 'minmax(0, 1fr)' }}>
+                                                                <div className="terminal-xterm-host" ref={terminalHostRef} style={{ minHeight: 0 }} />
                                                                 {activeSession.status === 'idle' ? (
                                                                     <Box sx={{
                                                                         position: 'absolute', inset: 0,
@@ -4474,10 +4929,8 @@ export function TerminalPage() {
                                                             </div>
                                                             {activeSession.status === 'ended' ? (
                                                                 <div className="terminal-inline-reconnect-row">
-                                                                    <span className="terminal-line terminal-line-meta">{copy.promptReconnect}</span>
-                                                                    <Button onClick={handleReconnect} size="small" variant="outlined">
-                                                                        {copy.reconnect}
-                                                                    </Button>
+                                                                    <Typography sx={{ fontSize: 13, color: palette.accent }}>{copy.promptReconnect}</Typography>
+                                                                    <Button onClick={() => void handleReconnect()} size="small" variant="outlined" sx={{ borderRadius: 0 }}>{copy.reconnect}</Button>
                                                                 </div>
                                                             ) : null}
                                                         </>
@@ -4562,6 +5015,7 @@ export function TerminalPage() {
                                                                 autoFocus
                                                                 fullWidth
                                                                 label={copy.ownerLabel}
+                                                                disabled={isAppFiles}
                                                                 onChange={(event) => setBrowserPropertiesForm((current) => (current ? { ...current, owner: event.target.value } : current))}
                                                                 sx={browserDialogFieldSx}
                                                                 value={browserPropertiesForm.owner}
@@ -4569,6 +5023,7 @@ export function TerminalPage() {
                                                             <TextField
                                                                 fullWidth
                                                                 label={copy.groupLabel}
+                                                                disabled={isAppFiles}
                                                                 onChange={(event) => setBrowserPropertiesForm((current) => (current ? { ...current, group: event.target.value } : current))}
                                                                 sx={browserDialogFieldSx}
                                                                 value={browserPropertiesForm.group}
@@ -4736,11 +5191,12 @@ export function TerminalPage() {
                             sx: {
                                 mt: 1,
                                 width: 'min(420px, calc(100vw - 32px))',
-                                borderRadius: '2px',
+                                borderRadius: 0,
                                 border: `1px solid ${palette.border}`,
                                 backgroundColor: palette.cardBg,
                                 boxShadow: palette.shadow,
                                 overflow: 'hidden',
+                                '& .MuiButton-root, & .MuiOutlinedInput-root, & .MuiChip-root': { borderRadius: 0 },
                             },
                         },
                     }}
@@ -4748,7 +5204,7 @@ export function TerminalPage() {
                 >
                     <Box sx={{ p: 1.25, display: 'grid', gap: 1 }}>
                         <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 0.75 }}>
-                            <Button onClick={() => openAddHostDialog('new-connection')} sx={{ minHeight: 56, py: 0.75, borderRadius: '2px', borderColor: palette.border, color: palette.text, fontWeight: 700, flexDirection: 'column', gap: 0.35 }} variant="outlined">
+                            <Button onClick={() => openAddHostDialog('new-connection')} sx={{ minHeight: 56, py: 0.75, borderRadius: 0, borderColor: palette.border, color: palette.text, fontWeight: 700, flexDirection: 'column', gap: 0.35 }} variant="outlined">
                                 <Typography component="span" sx={{ fontSize: 22, lineHeight: 1, fontWeight: 300 }}>+</Typography>
                                 <Typography component="span" sx={{ fontSize: 15, fontWeight: 700 }}>{copy.quickConnectNewHost}</Typography>
                             </Button>
@@ -4835,41 +5291,9 @@ export function TerminalPage() {
                     </Box>
                 </TerminalScopedOverlay>
 
-                <TerminalScopedOverlay
-                    open={isAccessDialogOpen}
-                    onClose={() => {
-                        if (!formBusy) {
-                            setIsAccessDialogOpen(false)
-                            setForceSaveDialogOpen(false)
-                            if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true)
-                        }
-                    }}
-                >
+                <TerminalScopedOverlay open={isAccessDialogOpen} onClose={closeConnectionDialog}>
                     <Card elevation={0} sx={{ ...surfaceCardSx, width: 'min(960px, calc(100vw - 32px))', maxHeight: 'min(calc(100dvh - 96px), 680px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', mx: 'auto', my: 'auto' }}>
-                        <DialogTitle sx={{ px: 2.25, py: 1.5, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>
-                                    {accessDialogMode === 'edit' ? copy.editAction : accessDialogMode === 'new-connection' ? copy.newConnectionTitle : copy.addHostAction}
-                                </Typography>
-                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" disabled={formBusy} onClick={() => { setIsAccessDialogOpen(false); setForceSaveDialogOpen(false); if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true) }} size="small">
-                                    <CloseActionIcon />
-                                </IconButton>
-                            </Box>
-                        </DialogTitle>
-                        <DialogContent dividers sx={{ px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.5 }, backgroundColor: palette.cardBg, flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
-                            {accessFields}
-                        </DialogContent>
-                        <DialogActions sx={{ px: 2.25, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg, justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-                            <Button onClick={() => { setIsAccessDialogOpen(false); setForceSaveDialogOpen(false); if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true) }} disabled={formBusy}>{copy.cancel}</Button>
-                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                <Button disabled={formBusy} onClick={() => void handleConnectionTest()} startIcon={isTestingConnection ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="outlined">
-                                    {copy.connectionTestTitle}
-                                </Button>
-                                <Button disabled={formBusy} onClick={() => void handleAccessSubmit()} startIcon={isSubmittingAccess ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="contained">
-                                    {accessDialogMode === 'edit' ? copy.accessSave : copy.accessSubmit}
-                                </Button>
-                            </Stack>
-                        </DialogActions>
+                        {connectionDialogContent}
                     </Card>
                 </TerminalScopedOverlay>
 
