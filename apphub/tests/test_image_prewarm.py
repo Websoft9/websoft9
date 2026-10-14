@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import docker
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -12,7 +13,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.services.image_prewarm import ImagePrewarmService
 
 
-def test_prewarm_uses_requested_version_and_skips_present_image(monkeypatch, tmp_path):
+@pytest.mark.parametrize("refresh", [False, True])
+def test_prewarm_uses_requested_version_and_skips_present_image(monkeypatch, tmp_path, refresh):
     app_directory = tmp_path / "library" / "wordpress"
     app_directory.mkdir(parents=True)
     (app_directory / ".env").write_text("W9_VERSION=old\n", encoding="utf-8")
@@ -37,9 +39,9 @@ def test_prewarm_uses_requested_version_and_skips_present_image(monkeypatch, tmp
     pulled = []
     monkeypatch.setattr("src.services.image_prewarm.pull_with_fallback", lambda _client, image, **_kwargs: pulled.append(image))
 
-    result = ImagePrewarmService(library_path=str(tmp_path / "library"), docker_client=Client()).prewarm("wordpress", "6.3")
+    result = ImagePrewarmService(library_path=str(tmp_path / "library"), docker_client=Client()).prewarm("wordpress", "6.3", refresh=refresh)
 
     assert result["images"] == ["wordpress:6.3", "mariadb:11"]
-    assert result["already_present"] == ["wordpress:6.3"]
-    assert result["pulled"] == ["mariadb:11"]
-    assert pulled == ["mariadb:11"]
+    assert result["already_present"] == ([] if refresh else ["wordpress:6.3"])
+    assert result["pulled"] == (["wordpress:6.3", "mariadb:11"] if refresh else ["mariadb:11"])
+    assert pulled == result["pulled"]

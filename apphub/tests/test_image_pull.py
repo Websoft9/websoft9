@@ -147,6 +147,42 @@ def test_direct_pull_wins_and_needs_no_alias():
     assert client.api.tags == [("sha256:local", "websoft9dev/websoft9", "2.4.1")]
 
 
+@pytest.mark.parametrize("error_event", [
+    {"error": "no space left on device"},
+    {"errorDetail": {"message": "no space left on device"}},
+    {"error": "pull failed", "errorDetail": {"message": "no space left on device"}},
+])
+def test_stream_pull_preserves_daemon_error_without_inspecting_local_image(monkeypatch, error_event):
+    reference = "ubuntu/squid:latest"
+    client = FakeClient({})
+    client.images.local[reference] = FakeImage("sha256:old")
+    progress = []
+    closed = []
+
+    def pull_stream(*args, **kwargs):
+        try:
+            yield {"status": "pulling", "id": reference}
+            yield error_event
+        finally:
+            closed.append(True)
+
+    def unexpected_get(*args, **kwargs):
+        pytest.fail("A failed stream must not inspect the local image")
+
+    monkeypatch.setattr(client.api, "pull", pull_stream)
+    monkeypatch.setattr(client.images, "get", unexpected_get)
+
+    with pytest.raises(ImagePullError, match="no space left on device") as error:
+        pull_with_fallback(
+            client, reference, accelerators=[], use_ecr_public=False,
+            on_progress=progress.append,
+        )
+
+    assert "No such image" not in str(error.value)
+    assert progress == [{"status": "pulling", "id": reference}]
+    assert closed == [True]
+
+
 def test_pull_falls_back_to_amazon_ecr_public_for_a_pinned_release_via_its_alias():
     digest = "sha256:" + "b" * 64
     alias_reference = f"{ECR_PUBLIC_IMAGE_REPO}:2.4"

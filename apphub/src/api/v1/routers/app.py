@@ -40,7 +40,11 @@ router = APIRouter()
 @router.post("/apps/images/prewarm", status_code=202, responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}})
 def enqueue_app_image_prewarm(payload: ImagePrewarmRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     service = ScheduledTaskService()
-    task = service.enqueue_prewarm(session_token, payload.app_name, payload.version)
+    existing = service.get_prewarm_task(session_token, payload.app_name, payload.version)
+    if existing and existing["queue_state"] in {"success", "failed", "cancelled"}:
+        task = service.retry_prewarm(session_token, existing["task_id"], refresh=payload.refresh)
+    else:
+        task = service.enqueue_prewarm(session_token, payload.app_name, payload.version, refresh=payload.refresh)
     service.dispatch_prewarm()
     operator = service.auth_service._require_authenticated_operator(session_token)
     return service._public_task(service._get_task(str(operator["id"]), task["task_id"]))

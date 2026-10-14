@@ -224,7 +224,8 @@ def _format_prewarm_event(event, state) -> str:
 @images.command(name="prewarm")
 @click.option("--app", "app_name", required=True, help="Application key from the local App Store library")
 @click.option("--version", required=True, help="Supported community application version")
-def images_prewarm(app_name, version):
+@click.option("--refresh", is_flag=True, help="Check the registry and pull images even when present locally")
+def images_prewarm(app_name, version, refresh):
     """Pull all images required by one application version."""
     try:
         from src.services.image_prewarm import ImagePrewarmService
@@ -236,7 +237,7 @@ def images_prewarm(app_name, version):
             if line:
                 click.echo(line)
 
-        click.echo(json.dumps(ImagePrewarmService().prewarm(app_name, version, on_progress=report), ensure_ascii=False))
+        click.echo(json.dumps(ImagePrewarmService().prewarm(app_name, version, on_progress=report, refresh=refresh), ensure_ascii=False))
     except CustomException as exc:
         raise click.ClickException(exc.details) from exc
     except Exception as exc:

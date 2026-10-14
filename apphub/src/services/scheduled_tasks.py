@@ -342,7 +342,7 @@ class ScheduledTaskService:
             self._sync_or_mark_failed(session_token, task["task_id"])
         return self._public_task(self._get_task(operator["id"], task["task_id"]))
 
-    def enqueue_prewarm(self, session_token: Optional[str], app_name: str, version: str) -> dict[str, Any]:
+    def enqueue_prewarm(self, session_token: Optional[str], app_name: str, version: str, *, refresh: bool = False) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         app_name = str(app_name or "").strip()
         version = str(version or "").strip()
@@ -371,6 +371,8 @@ class ScheduledTaskService:
                     task_id = str(uuid.uuid4())
                     task_name = f"Prewarm images {app_name} {version}"[:54] + f" {task_id[:8]}"
                     command = f"{PLATFORM_CLI_PATH} images prewarm --app {shlex.quote(app_name)} --version {shlex.quote(version)}"
+                    if refresh:
+                        command += " --refresh"
                     connection.execute(
                         """
                         INSERT INTO scheduled_tasks (
@@ -628,7 +630,7 @@ class ScheduledTaskService:
                 time.sleep(0.1)
         return not self._prewarm_session_pids(leader)
 
-    def retry_prewarm(self, session_token: Optional[str], task_id: str) -> dict[str, Any]:
+    def retry_prewarm(self, session_token: Optional[str], task_id: str, *, refresh: Optional[bool] = None) -> dict[str, Any]:
         """Re-queue a failed or cancelled prewarm so its pull can be attempted again.
 
         Retrying reuses the same task record rather than creating a new one, so the run history keeps
@@ -657,9 +659,14 @@ class ScheduledTaskService:
                 if active_count >= 5:
                     raise CustomException(409, "Prewarm Queue Full", "The image prewarm queue is full")
                 now = self._now_iso()
+                command = task["command"]
+                if refresh is not None:
+                    command = f"{PLATFORM_CLI_PATH} images prewarm --app {shlex.quote(task['subject_app'])} --version {shlex.quote(task['subject_version'])}"
+                    if refresh:
+                        command += " --refresh"
                 connection.execute(
-                    "UPDATE scheduled_tasks SET rowid = (SELECT MAX(rowid) + 1 FROM scheduled_tasks), queue_state = 'queued', claimed_at = NULL, claimed_by = NULL, runner_pgid = NULL, created_at = ?, updated_at = ? WHERE task_id = ?",
-                    (now, now, task_id),
+                    "UPDATE scheduled_tasks SET rowid = (SELECT MAX(rowid) + 1 FROM scheduled_tasks), queue_state = 'queued', claimed_at = NULL, claimed_by = NULL, runner_pgid = NULL, created_at = ?, updated_at = ?, command = ? WHERE task_id = ?",
+                    (now, now, command, task_id),
                 )
                 self._state_path(task_id).unlink(missing_ok=True)
                 connection.commit()

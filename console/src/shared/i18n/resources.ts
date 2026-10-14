@@ -863,7 +863,7 @@ const rawShellResources = {
                     removeCustomDomain: 'Remove custom domain',
                     customDomainListLabel: 'Custom domain list',
                     submitting: 'Installing...',
-                    prewarm: { action: 'Prewarm images', submitting: 'Prewarming...', queued: 'Image prewarm queued', running: 'Prewarming images', ready: 'Images ready', failed: 'Prewarm failed', cancelled: 'Prewarm cancelled', enqueueFailed: 'Unable to queue image prewarm.', installConfirmTitle: 'Images are still being pre-pulled. Continue installing?', installConfirmMessage: 'The install runs alongside the prewarm:\n· Layers already downloaded are reused, so nothing is stored twice\n· If layers are still arriving, the install waits for them and takes longer', installConfirmProceed: 'Continue install', viewTask: 'View' },
+                    prewarm: { action: 'Prewarm images', update: 'Update images', retry: 'Retry prewarm', submitting: 'Prewarming...', queued: 'Image prewarm queued', running: 'Prewarming images', ready: 'Images ready', failed: 'Prewarm failed', cancelled: 'Image prewarm cancelled', enqueueFailed: 'Unable to queue image prewarm.', installConfirmTitle: 'Images are still being pre-pulled. Continue installing?', installConfirmMessage: 'The install runs alongside the prewarm:\n· Layers already downloaded are reused, so nothing is stored twice\n· If layers are still arriving, the install waits for them and takes longer', installConfirmProceed: 'Continue install', viewTask: 'View' },
                     feedback: {
                         success: 'The application has started installing. You can continue tracking it in My Apps.',
                         error: 'Installation failed. Please retry after checking the current configuration.',
@@ -3535,7 +3535,7 @@ const rawShellResources = {
                     removeCustomDomain: '删除自定义域名',
                     customDomainListLabel: '自定义域名列表',
                     submitting: '安装中...',
-                    prewarm: { action: '预拉镜像', submitting: '正在预拉...', queued: '镜像预拉排队中', running: '正在预拉镜像', ready: '镜像已就绪', failed: '预拉失败', cancelled: '已取消', enqueueFailed: '无法加入镜像预拉队列。', queueFull: '镜像预拉队列已满，请等当前预拉任务完成后再试。', invalidRequest: '缺少应用名称或版本，无法预拉镜像。', installConfirmTitle: '镜像仍在预拉取中，是否继续安装？', installConfirmMessage: '安装会与预拉同时进行：\n· 已下载的镜像层会被复用，不会重复占用磁盘\n· 若仍有层未下载完，安装需要等待其完成，耗时会变长', installConfirmProceed: '继续安装', viewTask: '查看' },
+                    prewarm: { action: '预拉镜像', update: '更新镜像', retry: '重新预拉', submitting: '正在预拉...', queued: '镜像预拉排队中', running: '正在预拉镜像', ready: '镜像已就绪', failed: '预拉失败', cancelled: '镜像预拉已取消', enqueueFailed: '无法加入镜像预拉队列。', queueFull: '镜像预拉队列已满，请等当前预拉任务完成后再试。', invalidRequest: '缺少应用名称或版本，无法预拉镜像。', installConfirmTitle: '镜像仍在预拉取中，是否继续安装？', installConfirmMessage: '安装会与预拉同时进行：\n· 已下载的镜像层会被复用，不会重复占用磁盘\n· 若仍有层未下载完，安装需要等待其完成，耗时会变长', installConfirmProceed: '继续安装', viewTask: '查看' },
                     feedback: {
                         success: '应用已经开始安装, 你可以到我的应用中继续跟踪。',
                         error: '安装失败, 请检查当前配置后重试。',

@@ -1198,15 +1198,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     // An in-flight pull outranks the local image check. Images can already be present while a task is
     // still running, and showing "Images ready" then contradicted the task list, which reported the
     // very same pull as still in progress.
-    // A cancelled prewarm fetches nothing, so there is no state worth a badge: the version simply is
-    // not ready and the prewarm button below says what to do about it. A failure is worth reporting
-    // because it means an attempt was already made and stopped short.
     const prewarmChipState: PrewarmStatusState | null = isPrewarmActive
         ? prewarmQueueState
-        : isPrewarmReady
-            ? 'success'
-            : prewarmQueueState === 'failed'
-                ? 'failed'
+        : prewarmQueueState === 'cancelled' || prewarmQueueState === 'failed'
+            ? prewarmQueueState
+            : isPrewarmReady
+                ? 'success'
                 : null
     const prewarmChipLabel = prewarmChipState
         ? t(`appStorePage.install.prewarm.${PREWARM_LABEL_KEYS[prewarmChipState]}`)
@@ -1231,7 +1228,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const prewarmStatusNode = prewarmChipState && prewarmChipLabel ? (
         <PrewarmStatusChip height={22} label={prewarmChipLabel} state={prewarmChipState} />
     ) : null
-    const prewarmLinkNode = isPrewarmActive ? (
+    const prewarmLinkNode = isPrewarmActive || prewarmQueueState === 'failed' ? (
         <Link
             component={RouterLink}
             onClick={(event) => event.stopPropagation()}
@@ -2059,12 +2056,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     }
 
     async function handleImagePrewarm() {
-        if (!selectedApp || !selectedApp.key || !selectedVersion || isSubmittingPrewarm || installPreparationPending || imageCheckFailed) return
+        if (!selectedApp || !selectedApp.key || !selectedVersion || isSubmittingPrewarm || isPrewarmActive || installPreparationPending || imageCheckFailed) return
         setIsSubmittingPrewarm(true)
         try {
             const task = await requestJson<ImagePrewarmTask>('/api/apps/images/prewarm', {
                 method: 'POST',
-                body: JSON.stringify({ app_name: selectedApp.key, version: selectedVersion }),
+                body: JSON.stringify({ app_name: selectedApp.key, version: selectedVersion, refresh: isPrewarmReady }),
             })
             setPrewarmQueueState(task.queue_state)
         } catch (error) {
@@ -2075,8 +2072,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     }
 
     function requestImagePrewarm() {
-        if (!prewarmStatus || isSubmittingPrewarm || installPreparationPending || imageCheckFailed) return
-        if (prewarmQueueState === 'cancelled') {
+        if (!prewarmStatus || isSubmittingPrewarm || isPrewarmActive || installPreparationPending || imageCheckFailed) return
+        if (prewarmQueueState === 'cancelled' && !isPrewarmReady) {
             setPrewarmResumeOpen(true)
         } else {
             void handleImagePrewarm()
@@ -4313,9 +4310,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     </Button>
                                 ) : (
                                     <>
-                                        {!installPreparationPending && !imageCheckFailed && !isPrewarmReady && !isPrewarmActive ? (
+                                        {!installPreparationPending && !imageCheckFailed ? (
                                             <Button
-                                                disabled={isSubmittingPrewarm || !prewarmStatus}
+                                                disabled={isSubmittingPrewarm || isPrewarmActive || !prewarmStatus}
                                                 onClick={requestImagePrewarm}
                                                 variant="contained"
                                                 color="inherit"
@@ -4329,7 +4326,11 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     '&:hover': { backgroundColor: palette.actionHover, boxShadow: 'none' },
                                                 }}
                                             >
-                                                {isSubmittingPrewarm ? t('appStorePage.install.prewarm.submitting') : t('appStorePage.install.prewarm.action')}
+                                                {isSubmittingPrewarm
+                                                    ? t('appStorePage.install.prewarm.submitting')
+                                                    : isPrewarmActive
+                                                        ? t(`appStorePage.install.prewarm.${PREWARM_LABEL_KEYS[prewarmQueueState!]}`)
+                                                        : t(`appStorePage.install.prewarm.${prewarmQueueState === 'cancelled' || prewarmQueueState === 'failed' ? 'retry' : isPrewarmReady ? 'update' : 'action'}`)}
                                             </Button>
                                         ) : null}
                                         <Button

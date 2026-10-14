@@ -30,18 +30,19 @@ class ImagePrewarmService:
         )
         self.docker_client = docker_client
 
-    def prewarm(self, app_name: str, version: str, on_progress=None) -> dict[str, Any]:
+    def prewarm(self, app_name: str, version: str, on_progress=None, *, refresh: bool = False) -> dict[str, Any]:
         images = self._images_for(app_name, version)
         client = self.docker_client or docker.DockerClient(base_url="unix://var/run/docker.sock")
         pulled: list[str] = []
         present: list[str] = []
         for image in images:
             try:
-                client.images.get(image)
-                present.append(image)
-                if on_progress is not None:
-                    on_progress({"event": "image-ready", "image": image})
-                continue
+                if not refresh:
+                    client.images.get(image)
+                    present.append(image)
+                    if on_progress is not None:
+                        on_progress({"event": "image-ready", "image": image})
+                    continue
             except docker.errors.ImageNotFound:
                 pass
             if on_progress is not None:

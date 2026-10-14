@@ -33,7 +33,7 @@ def sync_scheduled_tasks(session_token: Optional[str] = Cookie(default=None, ali
 @router.post("/scheduled-tasks/prewarm", status_code=202, responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}})
 def enqueue_image_prewarm(payload: ImagePrewarmRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     service = _get_scheduled_task_service()
-    task = service.enqueue_prewarm(session_token, payload.app_name, payload.version)
+    task = service.enqueue_prewarm(session_token, payload.app_name, payload.version, refresh=payload.refresh)
     service.dispatch_prewarm()
     return service._public_task(service._get_task(service.auth_service._require_authenticated_operator(session_token)["id"], task["task_id"]))
 

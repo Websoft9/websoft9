@@ -525,12 +525,12 @@ def _pull(
         for line in stream:
             if is_cancelled is not None and is_cancelled():
                 raise InstallCancelled()
+            error = line.get("errorDetail", {}).get("message") or line.get("error")
+            if error:
+                raise ImagePullError(error)
             on_progress(line)
         return client.images.get(attempt.reference)
     except InstallCancelled:
-        close = getattr(stream, "close", None)
-        if callable(close):
-            close()
         raise
     except Exception as exc:
         failure = PullFailure(
@@ -543,6 +543,10 @@ def _pull(
             f"Image pull failed ({attempt.label}) for {attempt.reference}: {failure.reason}"
         )
         return None
+    finally:
+        close = getattr(stream, "close", None)
+        if callable(close):
+            close()
 
 
 def _pulled(client, reference: str, image, source: str) -> PulledImage:

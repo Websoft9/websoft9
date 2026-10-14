@@ -293,6 +293,25 @@ def test_enqueue_prewarm_api_authenticates_and_returns_accepted(monkeypatch, tmp
     assert response.json()["queue_state"] == "running"
 
 
+@pytest.mark.parametrize("state,refresh", [("cancelled", False), ("failed", False), ("success", True), ("queued", False)])
+def test_app_prewarm_reuses_existing_task_from_install_page(monkeypatch, tmp_path, state, refresh):
+    from src.api.v1.routers import app as app_router
+    from src.schemas.scheduledTasks import ImagePrewarmRequest
+
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    previous = service.enqueue_prewarm("valid-session", "gitea", "1.27")
+    service._write_task(previous["task_id"], queue_state=state)
+    monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
+    monkeypatch.setattr(app_router, "ScheduledTaskService", lambda: service)
+
+    result = app_router.enqueue_app_image_prewarm(ImagePrewarmRequest(app_name="gitea", version="1.27", refresh=refresh), "valid-session")
+
+    assert result["task_id"] == previous["task_id"]
+    assert result["queue_state"] == "queued"
+    assert ("--refresh" in result["command"]) is refresh
+    assert service.list_prewarm_records("valid-session")["total"] == 1
+
+
 def test_dispatch_prewarm_claims_and_starts_oldest_task(monkeypatch, tmp_path):
     service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
     monkeypatch.setenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", str(tmp_path / "instance-id"))
@@ -401,13 +420,15 @@ def test_prewarm_records_api_auth_pagination_and_operator_isolation(monkeypatch,
         assert client.delete(f"/scheduled-tasks/prewarm/{foreign['task_id']}/records/__pending__", headers=headers).status_code == 404
 
 
-def test_prewarm_retry_reuses_record_and_blocks_duplicate_attempts(monkeypatch, tmp_path):
+@pytest.mark.parametrize("refresh", [False, True])
+def test_prewarm_retry_reuses_record_and_blocks_duplicate_attempts(monkeypatch, tmp_path, refresh):
     service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
     old = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     service._write_task(old["task_id"], queue_state="success")
     monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
-    retry = service.retry_prewarm("valid-session", old["task_id"])
+    retry = service.retry_prewarm("valid-session", old["task_id"], refresh=refresh)
     assert retry["task_id"] == old["task_id"]
+    assert ("--refresh" in retry["command"]) is refresh
     assert service._get_task("operator-1", old["task_id"])["queue_state"] == "queued"
     assert service.get_prewarm_task("valid-session", "gitea", "1.27")["task_id"] == retry["task_id"]
     with pytest.raises(CustomException):
