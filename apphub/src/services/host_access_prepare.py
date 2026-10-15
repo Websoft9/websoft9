@@ -9,6 +9,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+SFTP_SERVER_CANDIDATES = (
+    "/usr/lib/openssh/sftp-server",
+    "/usr/libexec/openssh/sftp-server",
+    "/usr/lib/ssh/sftp-server",
+    "/usr/lib/sftp-server",
+)
+SUDOERS_DIR = Path("/etc/sudoers.d")
+
 
 def secure_directory(path, owner):
     for parent in (path, *path.parents):
@@ -62,6 +70,69 @@ def choose_account(requested, metadata):
     return account
 
 
+def sftp_server_paths(policy):
+    candidates = []
+    for line in str(policy.get("subsystem") or "").splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == "sftp" and parts[1].startswith("/"):
+            candidates.append(parts[1])
+    candidates.extend(SFTP_SERVER_CANDIDATES)
+    paths = []
+    for item in candidates:
+        candidate = Path(item)
+        if not (candidate.is_file() and os.access(candidate, os.X_OK)):
+            continue
+        for value in (str(candidate), str(candidate.resolve())):
+            if value not in paths:
+                paths.append(value)
+    return paths
+
+
+def prepare_sftp_sudoers(account, policy):
+    if account.pw_uid == 0 or SUDOERS_DIR.is_symlink() or not SUDOERS_DIR.is_dir():
+        return lambda: None
+    servers = sftp_server_paths(policy)
+    if not servers:
+        return lambda: None
+    target = SUDOERS_DIR / "websoft9-local-sftp"
+    if target.is_symlink():
+        raise ValueError("Unsafe sudoers authorization file")
+    previous = target.read_bytes() if target.exists() else None
+    rule = f"{account.pw_name} ALL=(root) NOPASSWD: {', '.join(servers)}\n".encode()
+    with tempfile.NamedTemporaryFile(mode="wb", dir=SUDOERS_DIR, delete=False) as pending:
+        temporary = Path(pending.name)
+        try:
+            os.fchown(pending.fileno(), 0, 0)
+            os.fchmod(pending.fileno(), 0o440)
+            pending.write(rule)
+            pending.flush()
+            os.fsync(pending.fileno())
+            visudo = shutil.which("visudo") or "/usr/sbin/visudo"
+            if Path(visudo).is_file() and os.access(visudo, os.X_OK):
+                subprocess.run([visudo, "-cf", str(temporary)], check=True, capture_output=True, timeout=10)
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def rollback():
+        if previous is None:
+            target.unlink(missing_ok=True)
+        else:
+            with tempfile.NamedTemporaryFile(mode="wb", dir=SUDOERS_DIR, delete=False) as pending:
+                restore = Path(pending.name)
+                try:
+                    os.fchown(pending.fileno(), 0, 0)
+                    os.fchmod(pending.fileno(), 0o440)
+                    pending.write(previous)
+                    pending.flush()
+                    os.fsync(pending.fileno())
+                    os.replace(restore, target)
+                finally:
+                    restore.unlink(missing_ok=True)
+
+    return rollback
+
+
 def prepare(data_root, requested):
     if os.geteuid() != 0:
         raise ValueError("Host SSH preparation must run as root on the host")
@@ -111,7 +182,9 @@ def prepare(data_root, requested):
                 handle.write((b"" if not original or original.endswith(b"\n") else b"\n") + public_line)
                 handle.flush()
                 os.fsync(handle.fileno())
+            rollback_sudoers = lambda: None
             try:
+                rollback_sudoers = prepare_sftp_sudoers(account, policy)
                 subprocess.run(["ssh", "-F", "/dev/null", "-i", str(private_key), "-p", str(port), "-l", account.pw_name, "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR", "127.0.0.1", "true"], check=True, capture_output=True, timeout=15)
                 with tempfile.NamedTemporaryFile(mode="w", dir=directory, delete=False) as pending:
                     temporary_metadata = Path(pending.name)
@@ -123,6 +196,7 @@ def prepare(data_root, requested):
                     finally:
                         temporary_metadata.unlink(missing_ok=True)
             except Exception:
+                rollback_sudoers()
                 if added:
                     handle.seek(0)
                     current = handle.read()

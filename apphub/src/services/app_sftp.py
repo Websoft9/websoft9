@@ -82,6 +82,16 @@ class ScopedSftp:
         return self.sftp.chmod(self.checked(path, mutate=True), mode)
 
 
+@contextmanager
+def open_host_sftp(host_service, profile):
+    if '_open_sftp' in getattr(host_service, '__dict__', {}) or not isinstance(host_service, HostAccessService):
+        with host_service._open_sftp(profile) as sftp:
+            yield sftp
+    else:
+        with host_service._open_sftp(profile, elevated=True) as sftp:
+            yield sftp
+
+
 class ScopedHostAccess(HostAccessService):
     def __init__(self, host_service, profile, root):
         super().__init__(data_dir=str(host_service.data_dir), auth_service=host_service.auth_service)
@@ -96,7 +106,7 @@ class ScopedHostAccess(HostAccessService):
 
     @contextmanager
     def _open_sftp(self, profile):
-        with self.host_service._open_sftp(profile) as sftp:
+        with open_host_sftp(self.host_service, profile) as sftp:
             yield ScopedSftp(sftp, self.root)
 
     def _load_identity_labels(self, sftp, owner_ids, group_ids):
@@ -190,12 +200,12 @@ class AppSftpService:
         if not self.host_service._is_local_host_value(profile.get('host')):
             raise CustomException(403, 'SFTP Host Mismatch', 'Choose a connection to the application host')
         try:
-            with self.host_service._open_sftp(profile) as sftp:
-                guarded = ScopedSftp(sftp, root)
-                guarded.stat(root)
-                guarded.listdir_attr(root)
-        except OSError as exc:
-            raise CustomException(403, 'SFTP Directory Unavailable', f'The connection cannot access the application directory: {exc}') from exc
+            self._verify_volume_access(profile, root)
+        except CustomException as exc:
+            if isinstance(exc.__cause__, PermissionError) and self._prepare_elevated_sftp(profile):
+                self._verify_volume_access(profile, root)
+            else:
+                raise
         now = time.time()
         identifier = uuid.uuid4().hex
         profile_id = profile.get('profile_id') or profile_id
@@ -203,6 +213,32 @@ class AppSftpService:
             self.sessions = {key: value for key, value in self.sessions.items() if value['expires_at'] > now}
             self.sessions[identifier] = {'operator_id': operator['id'], 'profile_id': profile_id, 'root': root, 'app_id': app_id, 'volume_id': volume_id, 'expires_at': now + 1800, 'connection': (profile.get('host'), profile.get('port'), profile.get('username'))}
         return {'session_id': identifier, 'root_path': root, 'app_id': app_id, 'volume_id': volume_id, 'profile_id': profile_id, 'expires_at': now + 1800, 'host': profile.get('host'), 'username': profile.get('username'), 'port': profile.get('port')}
+
+    def _verify_volume_access(self, profile, root):
+        try:
+            with open_host_sftp(self.host_service, profile) as sftp:
+                try:
+                    guarded = ScopedSftp(sftp, root)
+                    guarded.stat(root)
+                    guarded.listdir_attr(root)
+                except OSError as exc:
+                    raise CustomException(403, 'SFTP Directory Unavailable', f'The connection cannot access the application directory: {exc}') from exc
+        except OSError as exc:
+            raise CustomException(403, 'SFTP Directory Unavailable', f'The connection cannot access the application directory: {exc}') from exc
+
+    def _prepare_elevated_sftp(self, profile):
+        if not isinstance(self.host_service, HostAccessService):
+            return False
+        username = str(profile.get('username') or '').strip()
+        if username in ('', 'root'):
+            return False
+        try:
+            self.host_service._prepare_local_ssh_credentials(username)
+            with self.host_service._lock:
+                self.host_service._close_file_browser_client_locked(self.host_service._build_file_client_cache_key(profile))
+            return True
+        except Exception:
+            return False
 
     def access(self, session_token, identifier):
         operator = self.host_service.auth_service._require_authenticated_operator(session_token)

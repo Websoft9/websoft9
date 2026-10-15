@@ -1771,7 +1771,7 @@ export function MyAppDetailPage() {
                                                         <div className="myapps-php-card-body">
                                                             <div className="myapps-php-runtime-card myapps-volume-runtime-card">
                                                                 <div className="myapps-table-wrap">
-                                                                    <table className="myapps-detail-table" role="table">
+                                                                    <table className="myapps-detail-table myapps-volume-files-table" role="table">
                                                                         <thead>
                                                                             <tr>
                                                                                 <th>{t('myAppsDetailPage.tabs.volumes.columns.name')}</th>
@@ -1792,21 +1792,22 @@ export function MyAppDetailPage() {
                                                                                         <td>{getVolumePath(v)}</td>
                                                                                         <td>{getVolumeCreatedAt(v, locale)}</td>
                                                                                         <td className="myapps-cell-center">
-                                                                                            <button
-                                                                                                className="myapps-inline-link"
-                                                                                                disabled={!volumeId}
-                                                                                                onClick={() => setActiveVolumeFileManager({ volumeId, label: volumeLabel, path: getVolumePath(v) })}
-                                                                                            >
-                                                                                                {t('myAppsDetailPage.tabs.volumes.fileManager.entry')}
-                                                                                            </button>
-                                                                                            <button
-                                                                                                className="myapps-inline-link"
-                                                                                                style={{ marginLeft: 12 }}
-                                                                                                disabled={!volumeId}
-                                                                                                onClick={() => setSftpVolumeId(volumeId)}
-                                                                                            >
-                                                                                                SFTP
-                                                                                            </button>
+                                                                                            <div className="myapps-table-actions-inline">
+                                                                                                <button
+                                                                                                    className="myapps-inline-link"
+                                                                                                    disabled={!volumeId}
+                                                                                                    onClick={() => setActiveVolumeFileManager({ volumeId, label: volumeLabel, path: getVolumePath(v) })}
+                                                                                                >
+                                                                                                    {t('myAppsDetailPage.tabs.volumes.fileManager.entry')}
+                                                                                                </button>
+                                                                                                <button
+                                                                                                    className="myapps-inline-link"
+                                                                                                    disabled={!volumeId}
+                                                                                                    onClick={() => setSftpVolumeId(volumeId)}
+                                                                                                >
+                                                                                                    SFTP
+                                                                                                </button>
+                                                                                            </div>
                                                                                         </td>
                                                                                     </tr>
                                                                                 )

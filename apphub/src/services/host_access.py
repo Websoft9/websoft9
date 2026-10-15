@@ -161,11 +161,11 @@ class HostAccessService:
             raise CustomException(400, "Local SSH Setup Unavailable",
                 "Local SSH authorization is unavailable. Confirm automatic local connection setup or create a local connection manually in Terminal. Privileged mode alone does not authorize SSH login; AWS and Azure may require a non-root account.")
 
-    def _prepare_local_ssh_credentials(self) -> None:
+    def _prepare_local_ssh_credentials(self, requested_username: str = '') -> None:
         data_root = Path(os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data'))
         if self.data_dir != data_root / 'config/host-access':
             raise CustomException(400, 'Local SSH Setup Unavailable', 'Host SSH preparation requires the configured platform data directory')
-        username = ''
+        username = requested_username
         port = None
         hint = self.data_dir / 'local-ssh-account.json'
         if hint.exists() or hint.is_symlink():
@@ -175,7 +175,7 @@ class HostAccessService:
                 if not stat.S_ISREG(attributes.st_mode) or attributes.st_nlink != 1 or attributes.st_uid != os.geteuid() or attributes.st_mode & 0o077 or attributes.st_size > 2048:
                     raise CustomException(400, 'Local SSH Setup Unavailable', 'Unsafe SSH account preparation record')
                 account = json.load(handle)
-            username = account['username']
+            username = username or account['username']
             port = account.get('port')
         container = None
         client = None
@@ -408,6 +408,17 @@ with os.fdopen(descriptor, 'r+b') as handle:
         client = None
         try:
             client = self._connect_client(profile)
+            if str(credentials.get('username') or '').strip() not in ('', 'root'):
+                try:
+                    sftp = self._create_sftp_client(client, elevated=True)
+                    try:
+                        sftp.remove('/etc/sudoers.d/websoft9-local-sftp')
+                    except OSError:
+                        pass
+                    finally:
+                        sftp.close()
+                except Exception:
+                    pass
             self._run_remote_command(client, command, 'Local SSH Key Cleanup Failed', 'Unable to revoke the automatic SSH public key')
         except CustomException as exc:
             raise CustomException(400, 'Local SSH Key Cleanup Failed', 'Unable to revoke the automatic SSH public key; check host connectivity and authorization file permissions') from exc
@@ -1090,29 +1101,56 @@ with os.fdopen(descriptor, 'r+b') as handle:
                         cached_entry["last_used_at"] = time.time()
 
     @contextmanager
-    def _open_sftp(self, profile: dict[str, Any]) -> Iterator[paramiko.SFTPClient]:
+    def _open_sftp(self, profile: dict[str, Any], *, elevated: bool = False) -> Iterator[paramiko.SFTPClient]:
         """SFTP context manager with one automatic retry on transient transport failure."""
         with ExitStack() as stack:
             try:
-                sftp = stack.enter_context(self._open_sftp_impl(profile))
+                sftp = stack.enter_context(self._open_sftp_impl(profile, elevated=elevated))
             except CustomException as exc:
                 if exc.status_code == 500:
                     # Transport died between is_active() check and open_sftp() (TOCTOU).
                     # Cache was evicted by _open_file_client's exception handler.
                     # Retry once with a fresh connection.
-                    sftp = stack.enter_context(self._open_sftp_impl(profile))
+                    sftp = stack.enter_context(self._open_sftp_impl(profile, elevated=elevated))
                 else:
                     raise
             yield sftp
 
+    def _create_sftp_client(self, client: paramiko.SSHClient, *, elevated: bool = False) -> paramiko.SFTPClient:
+        if elevated:
+            transport = client.get_transport() if hasattr(client, "get_transport") else None
+            if transport is not None and hasattr(transport, "open_session"):
+                channel = None
+                try:
+                    channel = transport.open_session()
+                    if channel is not None:
+                        channel.exec_command(
+                            "sh -c 'for p in "
+                            "/usr/lib/openssh/sftp-server "
+                            "/usr/libexec/openssh/sftp-server "
+                            "/usr/lib/ssh/sftp-server "
+                            "/usr/lib/sftp-server; "
+                            'do [ -x "$p" ] && exec sudo -n "$p"; done; exit 127\''
+                        )
+                        return paramiko.SFTPClient(channel)
+                except Exception:
+                    if channel is not None:
+                        try:
+                            channel.close()
+                        except Exception:
+                            pass
+        return client.open_sftp()
+
     @contextmanager
-    def _open_sftp_impl(self, profile: dict[str, Any]) -> Iterator[paramiko.SFTPClient]:
+    def _open_sftp_impl(self, profile: dict[str, Any], *, elevated: bool = False) -> Iterator[paramiko.SFTPClient]:
         cache_key = self._build_file_client_cache_key(profile)
         client: Optional[paramiko.SSHClient] = None
         sftp: Optional[paramiko.SFTPClient] = None
         cache_entry: Optional[dict[str, Any]] = None
         entry_lock: Optional[threading.RLock] = None
         should_close_on_exit = False
+        use_elevated = bool(elevated and str(profile.get("username") or "").strip() not in ("", "root"))
+        sftp_key = "elevated_sftp" if use_elevated else "sftp"
         try:
             with self._open_file_client(profile) as active_client:
                 client = active_client
@@ -1130,7 +1168,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
 
                 try:
                     if cache_entry is not None:
-                        cached_sftp = cache_entry.get("sftp")
+                        cached_sftp = cache_entry.get(sftp_key)
                         if cached_sftp is not None and self._is_sftp_client_active(cached_sftp):
                             sftp = cached_sftp
                         else:
@@ -1139,22 +1177,22 @@ with os.fdopen(descriptor, 'r+b') as handle:
                                     cached_sftp.close()
                                 except Exception:
                                     pass
-                            sftp = client.open_sftp()
-                            cache_entry["sftp"] = sftp
+                            sftp = self._create_sftp_client(client, elevated=use_elevated)
+                            cache_entry[sftp_key] = sftp
                     else:
-                        sftp = client.open_sftp()
+                        sftp = self._create_sftp_client(client, elevated=use_elevated)
                         should_close_on_exit = True
 
                     yield sftp
                 except Exception:
                     if cache_entry is not None and sftp is not None:
                         with self._lock:
-                            if cache_entry.get("sftp") is sftp:
+                            if cache_entry.get(sftp_key) is sftp:
                                 try:
                                     sftp.close()
                                 except Exception:
                                     pass
-                                cache_entry["sftp"] = None
+                                cache_entry[sftp_key] = None
                     raise
                 finally:
                     if cache_entry is not None:
@@ -1200,13 +1238,14 @@ with os.fdopen(descriptor, 'r+b') as handle:
 
     def _close_file_browser_client_locked(self, cache_key: str) -> None:
         cache_entry = self._file_browser_clients.pop(cache_key, None)
-        sftp = cache_entry.get("sftp") if cache_entry else None
+        for key in ("sftp", "elevated_sftp"):
+            sftp = cache_entry.get(key) if cache_entry else None
+            if sftp is not None:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
         client = cache_entry.get("client") if cache_entry else None
-        if sftp is not None:
-            try:
-                sftp.close()
-            except Exception:
-                pass
         if client is None:
             return
         try:

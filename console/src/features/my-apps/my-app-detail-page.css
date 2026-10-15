@@ -1428,6 +1428,26 @@
     padding: 10px 14px;
 }
 
+.myapps-volume-files-table th:nth-child(1),
+.myapps-volume-files-table td:nth-child(1),
+.myapps-volume-files-table th:nth-child(3),
+.myapps-volume-files-table td:nth-child(3) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.myapps-volume-files-table th:nth-child(2),
+.myapps-volume-files-table td:nth-child(2),
+.myapps-volume-files-table th:last-child,
+.myapps-volume-files-table td:last-child {
+    white-space: nowrap;
+    width: 1%;
+}
+
+.myapps-volume-files-table .myapps-table-actions-inline {
+    gap: 12px;
+}
+
 .myapps-cell-center {
     text-align: center !important;
 }
@@ -1436,7 +1456,9 @@
 .myapps-table-actions-text {
     display: flex;
     align-items: center;
+    flex-wrap: nowrap;
     gap: 8px;
+    white-space: nowrap;
 }
 
 .myapps-table-actions-inline {
@@ -1450,6 +1472,8 @@
     color: var(--myapps-detail-accent);
     cursor: pointer;
     font-size: 14px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .myapps-inline-link-danger {
@@ -4864,8 +4888,15 @@
     border-bottom: none;
 }
 
+.myapps-login-credentials .myapps-access-entry-content {
+    display: block;
+}
+
 .myapps-login-credentials .myapps-creds-rows {
-    margin: 8px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 6px 0 0;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -4873,7 +4904,8 @@
 
 .myapps-login-credentials .myapps-creds-row {
     grid-template-columns: 100px minmax(0, 1fr);
-    padding: 8px 0;
+    padding: 0;
+    border-bottom: 0;
 }
 
 @media (max-width: 600px) {

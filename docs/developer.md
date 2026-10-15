@@ -200,10 +200,11 @@ automatic action now performs that re-preparation through Docker.
 AWS and Azure images may use a non-root account, such as `ubuntu`, `ec2-user`,
 or a user selected during provisioning. These accounts follow the same ordinary
 connection workflow; no root account is assumed and no cloud login policy is
-changed. The host must already allow SSH login and provide SFTP for the account,
-and the account must have the required application volume permissions. Having
-`sudo` privileges does not automatically elevate an SFTP session. Cloud-specific
-success is not guaranteed without testing the deployed host and its credentials.
+changed. For non-root accounts, host preparation configures passwordless `sudo`
+solely for the host's `sftp-server` binary, and application SFTP opens an
+elevated `sftp-server` channel strictly confined to the target Docker volume
+while keeping ordinary terminal and host file sessions under the non-root
+account's permissions.
 
 Ordinary terminal and application file sessions share a session tab strip while
 retaining independent state and permissions. Switching tabs keeps terminal

@@ -1037,3 +1037,121 @@ def test_delete_saved_profile_rejects_a_profile_used_by_scheduled_tasks(monkeypa
         service.delete_saved_profile("valid-session", "profile-1")
 
     assert error.value.status_code == 409
+
+
+def test_host_ssh_preparation_configures_and_rolls_back_sftp_sudoers_for_non_root(host_ssh_preparer, tmp_path, monkeypatch):
+    preparation, home = host_ssh_preparer
+    os.chown(home, 1000, 1000)
+    sudoers_dir = tmp_path / "sudoers.d"
+    sudoers_dir.mkdir(mode=0o750)
+    sftp_binary = tmp_path / "sftp-server"
+    sftp_binary.write_text("#!/bin/sh\nexit 0\n")
+    sftp_binary.chmod(0o755)
+    account = SimpleNamespace(pw_name="ubuntu", pw_uid=1000, pw_gid=1000, pw_dir=str(home), pw_shell="/bin/bash")
+    monkeypatch.setattr(preparation["pwd"], "getpwnam", lambda username: account)
+    monkeypatch.setitem(preparation, "SUDOERS_DIR", sudoers_dir)
+    monkeypatch.setitem(preparation, "SFTP_SERVER_CANDIDATES", (str(sftp_binary),))
+    monkeypatch.setitem(
+        preparation,
+        "ssh_policy",
+        lambda username: {"authorizedkeysfile": ".ssh/authorized_keys", "port": "22", "subsystem": f"sftp {sftp_binary}"},
+    )
+    original_run = subprocess.run
+    ssh_should_fail = False
+
+    def run(command, **kwargs):
+        if command[0] == "ssh":
+            if ssh_should_fail:
+                raise subprocess.CalledProcessError(255, command, stderr=b"Permission denied")
+            return SimpleNamespace(returncode=0)
+        return original_run(command, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    sudoers_file = sudoers_dir / "websoft9-local-sftp"
+    ssh_should_fail = True
+    with pytest.raises(subprocess.CalledProcessError):
+        preparation["prepare"](str(tmp_path / "data"), "ubuntu")
+    assert not sudoers_file.exists()
+
+    ssh_should_fail = False
+    preparation["prepare"](str(tmp_path / "data"), "ubuntu")
+    assert sudoers_file.is_file()
+    assert stat.S_IMODE(sudoers_file.stat().st_mode) == 0o440
+    assert f"ubuntu ALL=(root) NOPASSWD: {sftp_binary}" in sudoers_file.read_text()
+
+
+def test_app_sftp_elevates_non_root_sftp_and_auto_prepares_on_permission_error(tmp_path, monkeypatch):
+    import paramiko
+
+    root = tmp_path / "volume"
+    root.mkdir()
+    host = HostAccessService(data_dir=str(tmp_path / "host-access"), auth_service=FakeAuthService())
+    profile = {"profile_id": "auto-local-1", "host": "127.0.0.1", "port": 22, "username": "ubuntu", "auth_method": "key", "private_key": "KEY"}
+    monkeypatch.setattr(host, "get_connection_profile", lambda token, profile_id=None: profile)
+
+    exec_commands = []
+    sudo_ready = False
+
+    class DeniedSftp(LocalTestSftp):
+        def lstat(self, path):
+            if not sudo_ready:
+                raise PermissionError(13, "Permission denied", path)
+            return super().lstat(path)
+
+        def close(self):
+            pass
+
+        def get_channel(self):
+            return SimpleNamespace(closed=False)
+
+    class ElevatedSftp(LocalTestSftp):
+        def close(self):
+            pass
+
+        def get_channel(self):
+            return SimpleNamespace(closed=False)
+
+    class FakeChannel:
+        closed = False
+
+        def exec_command(self, cmd):
+            exec_commands.append(cmd)
+            if not sudo_ready:
+                raise RuntimeError("sudo password required")
+
+        def close(self):
+            self.closed = True
+
+    fake_client = SimpleNamespace(
+        get_transport=lambda: SimpleNamespace(is_active=lambda: True, open_session=lambda: FakeChannel()),
+        open_sftp=lambda: DeniedSftp(root),
+        close=lambda: None,
+    )
+
+    @contextmanager
+    def fake_open_file_client(_profile):
+        yield fake_client
+
+    monkeypatch.setattr(host, "_open_file_client", fake_open_file_client)
+    monkeypatch.setattr(paramiko, "SFTPClient", lambda channel: ElevatedSftp(root))
+    prepared_users = []
+
+    def fake_prepare(username=""):
+        nonlocal sudo_ready
+        prepared_users.append(username)
+        sudo_ready = True
+
+    monkeypatch.setattr(host, "_prepare_local_ssh_credentials", fake_prepare)
+    volume = {"Driver": "local", "Options": {}, "Mountpoint": str(root), "Labels": {"com.docker.compose.project": "example"}}
+    docker_client = SimpleNamespace(volumes=SimpleNamespace(get=lambda identifier: SimpleNamespace(attrs=volume)))
+    service = AppSftpService(host, docker_client_factory=lambda: docker_client)
+
+    session = service.create("valid-session", "example", "data", "auto-local-1")
+    assert session["username"] == "ubuntu"
+    assert prepared_users == ["ubuntu"]
+    assert len(exec_commands) == 2
+    assert "exec sudo -n" in exec_commands[0]
+
+    scoped = service.access("valid-session", session["session_id"])
+    scoped.create_empty_file("valid-session", str(root), "hello.txt")
+    assert (root / "hello.txt").is_file()
