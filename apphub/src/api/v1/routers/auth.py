@@ -8,6 +8,9 @@ from src.schemas.productAuth import (
     ProductAuthCreateUserRequest,
     ProductAuthFavoriteRequest,
     ProductAuthFavoritesResponse,
+    ProductAuthForgotPasswordResetRequest,
+    ProductAuthForgotPasswordSendCodeRequest,
+    ProductAuthForgotPasswordSendCodeResponse,
     ProductAuthInitializeRequest,
     ProductAuthLoginRequest,
     ProductAuthOperator,
@@ -332,6 +335,62 @@ def delete_product_auth_user(
     return ProductAuthService().delete_operator(
         session_token=session_token,
         target_operator_id=operator_id,
+        client_host=request.client.host if request.client else None,
+        user_agent=user_agent,
+    )
+
+
+@router.post("/auth/forgot-password/validate-email", summary="Validate the email bound to a password-reset eligible account")
+def validate_forgot_password_email(payload: ProductAuthForgotPasswordSendCodeRequest):
+    return ProductAuthService().validate_password_reset_email(payload.identifier)
+
+
+@router.post(
+    "/auth/forgot-password/send-code",
+    summary="Send password reset verification code",
+    description="Send a 6-digit verification code to the email bound to the matching operator account",
+    responses={
+        200: {"model": ProductAuthForgotPasswordSendCodeResponse},
+        400: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+        502: {"model": ErrorResponse},
+    },
+)
+def send_forgot_password_code(
+    payload: ProductAuthForgotPasswordSendCodeRequest,
+    request: Request,
+    user_agent: Optional[str] = Header(default=None),
+):
+    return ProductAuthService().send_password_reset_code(
+        identifier=payload.identifier,
+        client_host=request.client.host if request.client else None,
+        user_agent=user_agent,
+    )
+
+
+@router.post(
+    "/auth/forgot-password/reset",
+    summary="Reset password with verification code",
+    description="Verify the 6-digit email code and reset the operator password, invalidating active sessions",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    },
+)
+def reset_forgot_password_with_code(
+    payload: ProductAuthForgotPasswordResetRequest,
+    request: Request,
+    user_agent: Optional[str] = Header(default=None),
+):
+    return ProductAuthService().confirm_password_reset_with_code(
+        identifier=payload.identifier,
+        code=payload.code,
+        password=payload.password,
         client_host=request.client.host if request.client else None,
         user_agent=user_agent,
     )

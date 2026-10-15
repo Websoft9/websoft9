@@ -77,6 +77,7 @@ class ProductAuthStatusResponse(BaseModel):
     enabled: bool
     initialization_required: bool
     authenticated: bool
+    smtp_enabled: bool = False
     cloud_marketplace_setup: bool = False
     cloud_marketplace_setup_pending: bool = False
     protected_modules: list[str]
@@ -196,13 +197,58 @@ class ProductAuthInitializeRequest(BaseModel):
 
 
 class ProductAuthLoginRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=64)
+    username: str = Field(min_length=3, max_length=128)
     password: str = Field(min_length=1, max_length=256)
 
     @field_validator("username", mode="before")
     @classmethod
     def normalize_username(cls, value: str) -> str:
         return _normalize_username(value)
+
+
+class ProductAuthForgotPasswordSendCodeRequest(BaseModel):
+    identifier: str = Field(min_length=3, max_length=128)
+
+    @field_validator("identifier", mode="before")
+    @classmethod
+    def normalize_identifier(cls, value: str) -> str:
+        email = _normalize_email(value)
+        if not email:
+            raise ValueError("Email must be a valid email address")
+        return email.lower()
+
+
+class ProductAuthForgotPasswordSendCodeResponse(BaseModel):
+    sent: bool = True
+    masked_email: Optional[str] = None
+    expires_in_seconds: int = 600
+
+
+class ProductAuthForgotPasswordResetRequest(BaseModel):
+    identifier: str = Field(min_length=3, max_length=128)
+    code: str = Field(min_length=6, max_length=6)
+    password: str = Field(min_length=8, max_length=256)
+
+    @field_validator("identifier", mode="before")
+    @classmethod
+    def normalize_identifier(cls, value: str) -> str:
+        email = _normalize_email(value)
+        if not email:
+            raise ValueError("Email must be a valid email address")
+        return email.lower()
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        normalized = str(value or "").strip()
+        if not re.fullmatch(r"\d{6}", normalized):
+            raise ValueError("Verification code must be a 6-digit number")
+        return normalized
+
+    @field_validator("password", mode="before")
+    @classmethod
+    def normalize_password(cls, value: str) -> str:
+        return _normalize_password(value)
 
 
 class ProductAuthFavoritesResponse(BaseModel):

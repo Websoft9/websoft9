@@ -475,8 +475,39 @@
     overflow: hidden;
 }
 
+.settings-form-table>.settings-ssl-card:first-child {
+    margin-top: 14px;
+}
+
 .settings-ssl-card+.settings-ssl-card {
     margin-top: 14px;
+}
+
+.settings-form-row--two-col {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.settings-form-row--three-col {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(110px, 140px) minmax(150px, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 720px) {
+
+    .settings-form-row--two-col,
+    .settings-form-row--three-col {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.settings-form-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
 }
 
 .settings-ssl-card-header {
@@ -1252,6 +1283,11 @@
 .settings-brand-upload-row .MuiTextField-root {
     flex: 1 1 auto;
     min-width: 0;
+}
+
+.settings-brand-upload-row .settings-action-button {
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .settings-brand-favicon-header {

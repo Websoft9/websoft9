@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
@@ -788,3 +789,195 @@ def test_migrated_favorites_are_applied_after_bootstrap_operator_creation(monkey
 
     assert created is True
     assert service._load_favorites(operator["id"]) == ["gitea", "wordpress"]
+
+
+def test_product_auth_rejects_duplicate_non_empty_operator_email(monkeypatch, tmp_path):
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path / "product-auth"))
+    monkeypatch.setenv("WEBSOFT9_SMTP_DATA_DIR", str(tmp_path / "smtp"))
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        init_res = client.post(
+            "/auth/initialize",
+            json={
+                "username": "admin",
+                "password": "StrongPass123!",
+                "display_name": "Platform Admin",
+                "email": "admin@example.com",
+            },
+        )
+        assert init_res.status_code == 200
+
+        dup_create = client.post(
+            "/auth/users",
+            json={
+                "username": "alice",
+                "password": "StrongPass123!",
+                "display_name": "Alice",
+                "email": "ADMIN@example.com",
+            },
+        )
+        assert dup_create.status_code == 409
+        assert dup_create.json()["details"] == "Email is already in use"
+
+        no_email_1 = client.post(
+            "/auth/users",
+            json={"username": "alice", "password": "StrongPass123!", "display_name": "Alice"},
+        )
+        assert no_email_1.status_code == 200
+        alice_id = no_email_1.json()["id"]
+
+        no_email_2 = client.post(
+            "/auth/users",
+            json={"username": "bob", "password": "StrongPass123!", "display_name": "Bob"},
+        )
+        assert no_email_2.status_code == 200
+
+        dup_update = client.put(
+            f"/auth/users/{alice_id}",
+            json={"display_name": "Alice", "email": "admin@example.com", "locale": "en"},
+        )
+        assert dup_update.status_code == 409
+        assert dup_update.json()["details"] == "Email is already in use"
+
+
+@pytest.mark.parametrize("locale", ["en", "zh-CN"])
+def test_forgot_password_email_code_flow_and_no_bound_email(monkeypatch, tmp_path, locale):
+    from src.services.smtp_service import SmtpService
+
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path / "product-auth"))
+    monkeypatch.setenv("WEBSOFT9_SMTP_DATA_DIR", str(tmp_path / "smtp"))
+
+    delivered: list[dict] = []
+
+    def fake_send_email(self, *, to_email: str, subject: str, body_text: str, settings=None):
+        delivered.append({"to_email": to_email, "subject": subject, "body_text": body_text})
+
+    monkeypatch.setattr(SmtpService, "send_email", fake_send_email)
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        init_res = client.post(
+            "/auth/initialize",
+            json={
+                "username": "admin",
+                "password": "StrongPass123!",
+                "display_name": "Platform Admin",
+                "email": "admin@example.com",
+                "locale": locale,
+            },
+        )
+        assert init_res.status_code == 200
+        assert init_res.json()["smtp_enabled"] is False
+
+        no_email_user = client.post(
+            "/auth/users",
+            json={"username": "noemail", "password": "StrongPass123!", "display_name": "No Email User"},
+        )
+        assert no_email_user.status_code == 200
+
+        not_configured_res = client.post("/auth/forgot-password/send-code", json={"identifier": "admin@example.com"})
+        assert not_configured_res.status_code == 400
+        assert not_configured_res.json()["details"] == "SMTP is not configured"
+
+        SmtpService().save_settings(
+            enabled=True,
+            host="smtp.example.com",
+            port=587,
+            encryption="starttls",
+            username="mailer@example.com",
+            password="smtp-secret-password",
+            from_email="mailer@example.com",
+            from_name="Websoft9",
+        )
+        assert SmtpService().get_masked_settings()["password_set"] is True
+        assert "password" not in SmtpService().get_masked_settings()
+
+        status_res = client.get("/auth/status")
+        assert status_res.status_code == 200
+        assert status_res.json()["smtp_enabled"] is True
+
+        unknown_res = client.post("/auth/forgot-password/send-code", json={"identifier": "nonexistent@example.com"})
+        assert unknown_res.status_code == 404
+        assert unknown_res.json()["details"] == "Account or bound email not found"
+
+        no_bound_res = client.post("/auth/forgot-password/send-code", json={"identifier": "noemail"})
+        assert no_bound_res.status_code == 400
+
+        for identifier in ("admin", "invalid@", ""):
+            invalid_res = client.post("/auth/forgot-password/validate-email", json={"identifier": identifier})
+            assert invalid_res.status_code == 400
+            assert client.post("/auth/forgot-password/send-code", json={"identifier": identifier}).status_code == 400
+        assert client.post("/auth/forgot-password/validate-email", json={"identifier": "nonexistent@example.com"}).status_code == 404
+        valid_res = client.post("/auth/forgot-password/validate-email", json={"identifier": " Admin@Example.com "})
+        assert valid_res.status_code == 200
+        assert valid_res.json() == {"valid": True}
+        assert delivered == []
+
+        disabled_user = client.post(
+            "/auth/users",
+            json={"username": "disabled", "password": "StrongPass123!", "display_name": "Disabled User", "email": "disabled@example.com", "disabled": True},
+        )
+        assert disabled_user.status_code == 200
+        for endpoint in ("validate-email", "send-code"):
+            disabled_res = client.post(f"/auth/forgot-password/{endpoint}", json={"identifier": "disabled@example.com"})
+            assert disabled_res.status_code == 403
+        assert delivered == []
+
+        send_res = client.post("/auth/forgot-password/send-code", json={"identifier": "admin@example.com"})
+        assert send_res.status_code == 200
+        assert send_res.json()["masked_email"] == "a***n@example.com"
+        assert len(delivered) == 1
+        if locale == "zh-CN":
+            assert "密码重置验证码" in delivered[0]["subject"]
+            assert "10 分钟内有效，请勿向任何人透露" in delivered[0]["body_text"]
+            assert "您的账户密码不会因此更改" in delivered[0]["body_text"]
+        else:
+            assert "Password Reset Verification Code" in delivered[0]["subject"]
+            assert "Do not share it with anyone" in delivered[0]["body_text"]
+            assert "password will remain unchanged" in delivered[0]["body_text"]
+
+        import re
+
+        match = re.search(r"(\d{6})", delivered[0]["body_text"])
+        assert match is not None
+        code = match.group(1)
+
+        rate_limit_res = client.post("/auth/forgot-password/send-code", json={"identifier": "admin@example.com"})
+        assert rate_limit_res.status_code == 429
+
+        username_reset_res = client.post(
+            "/auth/forgot-password/reset",
+            json={"identifier": "admin", "code": code, "password": "ResetPass789!"},
+        )
+        assert username_reset_res.status_code == 400
+
+        wrong_code_res = client.post(
+            "/auth/forgot-password/reset",
+            json={"identifier": "admin@example.com", "code": "000000" if code != "000000" else "999999", "password": "ResetPass789!"},
+        )
+        assert wrong_code_res.status_code == 400
+
+        reset_res = client.post(
+            "/auth/forgot-password/reset",
+            json={"identifier": "admin@example.com", "code": code, "password": "ResetPass789!"},
+        )
+        assert reset_res.status_code == 200
+        assert reset_res.json()["reset"] is True
+
+        session_after = client.get("/auth/session")
+        assert session_after.json()["authenticated"] is False
+
+        reuse_code_res = client.post(
+            "/auth/forgot-password/reset",
+            json={"identifier": "admin@example.com", "code": code, "password": "AnotherPass789!"},
+        )
+        assert reuse_code_res.status_code == 400
+
+        new_login = client.post("/auth/login", json={"username": "admin@example.com", "password": "ResetPass789!"})
+        assert new_login.status_code == 200
+        assert new_login.json()["authenticated"] is True

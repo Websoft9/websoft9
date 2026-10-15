@@ -9,6 +9,7 @@ type ProductAuthUser = {
     id: string
     username: string
     display_name: string
+    email?: string | null
     locale: string
     disabled: boolean
     deleted: boolean
@@ -20,6 +21,7 @@ type ProductAuthStatus = {
     enabled: boolean
     initialization_required: boolean
     authenticated: boolean
+    smtp_enabled?: boolean
     cloud_marketplace_setup?: boolean
     cloud_marketplace_setup_pending?: boolean
     protected_modules: string[]

@@ -7,6 +7,7 @@ import {
     IconButton,
     List,
     ListItemButton,
+    MenuItem,
     Stack,
     Step,
     StepLabel,
@@ -99,7 +100,29 @@ type SettingsError = Error & {
     statusCode?: number
 }
 
-type SettingsModuleId = 'app-domain' | 'app-mirror' | 'app-ports' | 'platform-brand' | 'platform-domain' | 'platform-system'
+type SmtpConfigResponse = {
+    enabled: boolean
+    host: string
+    port: number
+    encryption: 'starttls' | 'ssl' | 'none'
+    username: string
+    password_set: boolean
+    from_email: string
+    from_name: string
+}
+
+type SmtpConfigPayload = {
+    enabled: boolean
+    host: string
+    port: number
+    encryption: 'starttls' | 'ssl' | 'none'
+    username: string
+    password: string | null
+    from_email: string
+    from_name: string
+}
+
+type SettingsModuleId = 'app-domain' | 'app-mirror' | 'app-ports' | 'platform-brand' | 'platform-domain' | 'platform-smtp' | 'platform-system'
 
 type SettingsModuleGroup = 'applications' | 'platform'
 
@@ -238,6 +261,60 @@ const PORT_RANGE_START_DRAFT_SUFFIX = ':start'
 const PORT_RANGE_END_DRAFT_SUFFIX = ':end'
 const PORTS_SECTION_HASH = '#application-ports'
 const MIRRORS_SECTION_HASH = '#app-mirror'
+const SMTP_ENABLED_DRAFT_KEY = 'smtp.enabled'
+const SMTP_HOST_DRAFT_KEY = 'smtp.host'
+const SMTP_PORT_DRAFT_KEY = 'smtp.port'
+const SMTP_ENCRYPTION_DRAFT_KEY = 'smtp.encryption'
+const SMTP_USERNAME_DRAFT_KEY = 'smtp.username'
+const SMTP_PASSWORD_DRAFT_KEY = 'smtp.password'
+const SMTP_FROM_EMAIL_DRAFT_KEY = 'smtp.from_email'
+const SMTP_FROM_NAME_DRAFT_KEY = 'smtp.from_name'
+
+async function fetchSmtpSettings(): Promise<SmtpConfigResponse> {
+    const response = await fetch('/api/settings/smtp/config', {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { details?: string; message?: string }
+        throw new Error(payload.details || payload.message || `Failed to load SMTP settings: ${response.status}`)
+    }
+    return (await response.json()) as SmtpConfigResponse
+}
+
+async function saveSmtpSettings(payload: SmtpConfigPayload): Promise<SmtpConfigResponse> {
+    const response = await fetch('/api/settings/smtp/config', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => ({}))) as { details?: string; message?: string }
+        throw new Error(errorPayload.details || errorPayload.message || `Failed to save SMTP settings: ${response.status}`)
+    }
+    return (await response.json()) as SmtpConfigResponse
+}
+
+async function sendTestSmtpEmail(payload: SmtpConfigPayload & { to_email: string; locale: string }): Promise<{ sent: boolean; to_email: string }> {
+    const response = await fetch('/api/settings/smtp/test', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => ({}))) as { details?: string; message?: string }
+        throw new Error(errorPayload.details || errorPayload.message || `Failed to send test email: ${response.status}`)
+    }
+    return (await response.json()) as { sent: boolean; to_email: string }
+}
 
 function parsePortRangeValue(value: string | undefined) {
     const match = /^\s*(\d{1,5})\s*-\s*(\d{1,5})\s*$/.exec(value ?? '')
@@ -279,6 +356,12 @@ const SETTINGS_MODULES: SettingsModule[] = [
         descriptionKey: 'settingsPage.modules.platformDomain.description',
     },
     {
+        id: 'platform-smtp',
+        group: 'platform',
+        titleKey: 'settingsPage.modules.platformSmtp.title',
+        descriptionKey: 'settingsPage.modules.platformSmtp.description',
+    },
+    {
         id: 'platform-system',
         group: 'platform',
         titleKey: 'settingsPage.modules.platformSystem.title',
@@ -289,7 +372,7 @@ const SETTINGS_MODULES: SettingsModule[] = [
 export function SettingsPage() {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
-    const { status: authStatus } = useProductAuth()
+    const { status: authStatus, refresh: refreshAuthStatus } = useProductAuth()
     const isConnectionUnavailable = useConnectionUnavailable()
     const location = useLocation()
     const isDarkMode = colorMode === 'dark'
@@ -375,6 +458,15 @@ export function SettingsPage() {
     const [upgradeLogLoading, setUpgradeLogLoading] = useState(false)
     const [upgradeLogFailed, setUpgradeLogFailed] = useState(false)
     const [upgradeLogCopied, setUpgradeLogCopied] = useState(false)
+    const [smtpTestEmail, setSmtpTestEmail] = useState('')
+    const [sendingSmtpTest, setSendingSmtpTest] = useState(false)
+
+    const { data: smtpConfig, refetch: refetchSmtpConfig } = useQuery<SmtpConfigResponse, Error>({
+        queryKey: ['settings-smtp-config'],
+        queryFn: fetchSmtpSettings,
+        staleTime: 10_000,
+        enabled: Boolean(!authStatus?.enabled || authStatus?.authenticated),
+    })
 
     useEffect(() => {
         const terminalStates = new Set(['completed', 'degraded', 'rolled_back', 'rollback_failed', 'apply_interrupted'])
@@ -711,6 +803,19 @@ export function SettingsPage() {
             ]
         }
 
+        if (moduleId === 'platform-smtp') {
+            return [
+                SMTP_ENABLED_DRAFT_KEY,
+                SMTP_HOST_DRAFT_KEY,
+                SMTP_PORT_DRAFT_KEY,
+                SMTP_ENCRYPTION_DRAFT_KEY,
+                SMTP_USERNAME_DRAFT_KEY,
+                SMTP_PASSWORD_DRAFT_KEY,
+                SMTP_FROM_EMAIL_DRAFT_KEY,
+                SMTP_FROM_NAME_DRAFT_KEY,
+            ]
+        }
+
         if (moduleId === 'app-ports' && portRangeItem) {
             const draftKey = getDraftKey(portRangeItem)
             return [`${draftKey}${PORT_RANGE_START_DRAFT_SUFFIX}`, `${draftKey}${PORT_RANGE_END_DRAFT_SUFFIX}`]
@@ -954,6 +1059,91 @@ export function SettingsPage() {
         }, 2000)
     }
 
+    function buildSmtpDraftPayload(): SmtpConfigPayload {
+        const currentEnabled = (drafts[SMTP_ENABLED_DRAFT_KEY] ?? (smtpConfig?.enabled ? 'true' : 'false')) === 'true'
+        const currentHost = (drafts[SMTP_HOST_DRAFT_KEY] ?? smtpConfig?.host ?? '').trim()
+        const rawPort = (drafts[SMTP_PORT_DRAFT_KEY] ?? String(smtpConfig?.port ?? 587)).trim()
+        const currentEncryption = (drafts[SMTP_ENCRYPTION_DRAFT_KEY] ?? smtpConfig?.encryption ?? 'starttls') as 'starttls' | 'ssl' | 'none'
+        const currentUsername = (drafts[SMTP_USERNAME_DRAFT_KEY] ?? smtpConfig?.username ?? '').trim()
+        const hasPasswordDraft = hasDraftValue(SMTP_PASSWORD_DRAFT_KEY)
+        const currentPassword = hasPasswordDraft
+            ? (drafts[SMTP_PASSWORD_DRAFT_KEY].trim() ? drafts[SMTP_PASSWORD_DRAFT_KEY] : (smtpConfig?.password_set ? null : ''))
+            : null
+        const currentFromEmail = (drafts[SMTP_FROM_EMAIL_DRAFT_KEY] ?? smtpConfig?.from_email ?? '').trim()
+        const currentFromName = (drafts[SMTP_FROM_NAME_DRAFT_KEY] ?? smtpConfig?.from_name ?? 'Websoft9').trim() || 'Websoft9'
+
+        if (!/^\d{1,5}$/.test(rawPort)) {
+            throw new Error(t('settingsPage.validation.portInvalid'))
+        }
+        const parsedPort = Number(rawPort)
+        if (parsedPort < 1 || parsedPort > 65535) {
+            throw new Error(t('settingsPage.validation.portInvalid'))
+        }
+
+        if (!currentHost) {
+            throw new Error(t('settingsPage.smtp.hostRequired'))
+        }
+        if (currentHost.includes('://') || currentHost.includes('/') || /\s/.test(currentHost)) {
+            throw new Error(t('settingsPage.smtp.hostInvalid'))
+        }
+        if (!currentFromEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(currentFromEmail)) {
+            throw new Error(t('settingsPage.smtp.fromEmailRequired'))
+        }
+        const effectiveHasPassword = Boolean(
+            (currentPassword !== null && currentPassword.length > 0) ||
+            (currentPassword === null && smtpConfig?.password_set),
+        )
+        if (currentUsername && !effectiveHasPassword) {
+            throw new Error(t('settingsPage.smtp.passwordRequired'))
+        }
+
+        return {
+            enabled: currentEnabled,
+            host: currentHost,
+            port: parsedPort,
+            encryption: currentEncryption,
+            username: currentUsername,
+            password: currentPassword,
+            from_email: currentFromEmail,
+            from_name: currentFromName,
+        }
+    }
+
+    async function handleSavePlatformSmtpModule() {
+        const payload = buildSmtpDraftPayload()
+        await saveSmtpSettings(payload)
+        clearDraftKeys(getModuleDraftKeys('platform-smtp'))
+        await refetchSmtpConfig()
+        await refreshAuthStatus().catch(() => undefined)
+        setFeedback({ severity: 'success', message: t('settingsPage.smtp.saveSuccess') })
+    }
+
+    async function handleSendSmtpTestEmail() {
+        setFeedback(null)
+        const recipient = (smtpTestEmail.trim() || authStatus?.current_user?.email || '').trim()
+        if (!recipient || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) {
+            setFeedback({ severity: 'error', message: t('settingsPage.smtp.testEmailRequired') })
+            setToastOpen(true)
+            return
+        }
+        setSendingSmtpTest(true)
+        try {
+            const payload = buildSmtpDraftPayload()
+            const locale = i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en'
+            const result = await sendTestSmtpEmail({ ...payload, to_email: recipient, locale })
+            setFeedback({ severity: 'success', message: t('settingsPage.smtp.testSuccess', { email: result.to_email }) })
+            setToastOpen(true)
+        } catch (testError) {
+            setFeedback({
+                severity: 'error',
+                message: testError instanceof Error ? testError.message : t('settingsPage.feedback.saveError'),
+            })
+            setToastOpen(true)
+        } finally {
+            setSendingSmtpTest(false)
+        }
+    }
+
     async function handleSaveActiveModule() {
         setSavingModule(activeModule)
         setFeedback(null)
@@ -961,6 +1151,8 @@ export function SettingsPage() {
         try {
             if (activeModule === 'platform-domain') {
                 await handleSavePlatformDomainModule()
+            } else if (activeModule === 'platform-smtp') {
+                await handleSavePlatformSmtpModule()
             } else if (activeModule !== 'platform-system') {
                 await saveSimpleModule(activeModule)
                 setFeedback({ severity: 'success', message: t('settingsPage.feedback.saveSuccess', { key: t(activeModuleConfig.titleKey) }) })
@@ -1599,6 +1791,250 @@ export function SettingsPage() {
                         */}
                     </>
                 ) : null}
+            </>
+        )
+    }
+
+    function renderPlatformSmtpRows() {
+        const enabledValue = (drafts[SMTP_ENABLED_DRAFT_KEY] ?? (smtpConfig?.enabled ? 'true' : 'false')) === 'true'
+        const hostValue = drafts[SMTP_HOST_DRAFT_KEY] ?? smtpConfig?.host ?? ''
+        const portValue = drafts[SMTP_PORT_DRAFT_KEY] ?? String(smtpConfig?.port ?? 587)
+        const encryptionValue = drafts[SMTP_ENCRYPTION_DRAFT_KEY] ?? smtpConfig?.encryption ?? 'starttls'
+        const usernameValue = drafts[SMTP_USERNAME_DRAFT_KEY] ?? smtpConfig?.username ?? ''
+        const passwordValue = drafts[SMTP_PASSWORD_DRAFT_KEY] ?? ''
+        const fromEmailValue = drafts[SMTP_FROM_EMAIL_DRAFT_KEY] ?? smtpConfig?.from_email ?? ''
+        const fromNameValue = drafts[SMTP_FROM_NAME_DRAFT_KEY] ?? smtpConfig?.from_name ?? 'Websoft9'
+        const effectiveTestEmail = smtpTestEmail || authStatus?.current_user?.email || ''
+
+        const trimmedHost = hostValue.trim()
+        const hostTouched = hasDraftValue(SMTP_HOST_DRAFT_KEY)
+        const hostFormatInvalid = Boolean(trimmedHost && (trimmedHost.includes('://') || trimmedHost.includes('/') || /\s/.test(trimmedHost)))
+        const hostMissing = (hostTouched || enabledValue) && !trimmedHost
+        const hostErrorMessage = hostMissing
+            ? t('settingsPage.smtp.hostRequired')
+            : hostFormatInvalid
+                ? t('settingsPage.smtp.hostInvalid')
+                : undefined
+
+        const trimmedPort = portValue.trim()
+        const portNum = Number(trimmedPort)
+        const portInvalid = !/^\d{1,5}$/.test(trimmedPort) || portNum < 1 || portNum > 65535
+
+        const trimmedFromEmail = fromEmailValue.trim()
+        const fromEmailTouched = hasDraftValue(SMTP_FROM_EMAIL_DRAFT_KEY)
+        const fromEmailFormatInvalid = Boolean(trimmedFromEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmedFromEmail))
+        const fromEmailMissing = (fromEmailTouched || enabledValue) && !trimmedFromEmail
+        const fromEmailErrorMessage = fromEmailMissing || fromEmailFormatInvalid
+            ? t('settingsPage.smtp.fromEmailRequired')
+            : undefined
+
+        const hasPasswordDraft = hasDraftValue(SMTP_PASSWORD_DRAFT_KEY)
+        const effectiveHasPassword = Boolean(
+            (hasPasswordDraft && passwordValue.trim().length > 0) ||
+            (!hasPasswordDraft && smtpConfig?.password_set),
+        )
+        const passwordMissingForUsername = Boolean(usernameValue.trim() && !effectiveHasPassword)
+        const trimmedTestEmail = effectiveTestEmail.trim()
+        const testEmailInvalid = Boolean(trimmedTestEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmedTestEmail))
+
+        return (
+            <>
+                <div className="settings-ssl-card">
+                    <div className="settings-ssl-card-header">
+                        <div className="settings-ssl-card-headline">
+                            <span className="settings-ssl-card-title">{t('settingsPage.smtp.enableTitle')}</span>
+                            <span className="settings-ssl-card-subtitle">{t('settingsPage.smtp.enableHelper')}</span>
+                        </div>
+                        <Switch
+                            checked={enabledValue}
+                            disabled={savingModule === activeModule}
+                            onChange={(_, next) => setDraftValue(SMTP_ENABLED_DRAFT_KEY, next ? 'true' : 'false')}
+                        />
+                    </div>
+                </div>
+
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <div className="settings-form-row--three-col">
+                        <div className="settings-form-col">
+                            <Typography className="settings-form-label">{t('settingsPage.smtp.hostLabel')}</Typography>
+                            <div className="settings-form-control settings-form-control--field">
+                                <div className="settings-inline-content">
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        error={Boolean(hostErrorMessage)}
+                                        helperText={hostErrorMessage}
+                                        value={hostValue}
+                                        onChange={(event) => setDraftValue(SMTP_HOST_DRAFT_KEY, event.target.value)}
+                                        placeholder={t('settingsPage.smtp.hostPlaceholder')}
+                                        sx={settingsFieldSx}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-form-col">
+                            <Typography className="settings-form-label">{t('settingsPage.smtp.portLabel')}</Typography>
+                            <div className="settings-form-control settings-form-control--field">
+                                <div className="settings-inline-content">
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        error={portInvalid}
+                                        helperText={portInvalid ? t('settingsPage.validation.portInvalid') : undefined}
+                                        value={portValue}
+                                        onChange={(event) => setDraftValue(SMTP_PORT_DRAFT_KEY, event.target.value)}
+                                        placeholder={t('settingsPage.smtp.portPlaceholder')}
+                                        sx={settingsFieldSx}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-form-col">
+                            <Typography className="settings-form-label">{t('settingsPage.smtp.encryptionLabel')}</Typography>
+                            <div className="settings-form-control settings-form-control--field">
+                                <div className="settings-inline-content">
+                                    <TextField
+                                        select
+                                        fullWidth
+                                        size="small"
+                                        value={encryptionValue}
+                                        onChange={(event) => {
+                                            const nextEncryption = event.target.value
+                                            setDraftValue(SMTP_ENCRYPTION_DRAFT_KEY, nextEncryption)
+                                            if (!hasDraftValue(SMTP_PORT_DRAFT_KEY)) {
+                                                if (nextEncryption === 'ssl') setDraftValue(SMTP_PORT_DRAFT_KEY, '465')
+                                                else if (nextEncryption === 'starttls') setDraftValue(SMTP_PORT_DRAFT_KEY, '587')
+                                                else if (nextEncryption === 'none') setDraftValue(SMTP_PORT_DRAFT_KEY, '25')
+                                            }
+                                        }}
+                                        sx={settingsFieldSx}
+                                    >
+                                        <MenuItem value="starttls">{t('settingsPage.smtp.encryptionStarttls')}</MenuItem>
+                                        <MenuItem value="ssl">{t('settingsPage.smtp.encryptionSsl')}</MenuItem>
+                                        <MenuItem value="none">{t('settingsPage.smtp.encryptionNone')}</MenuItem>
+                                    </TextField>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <div className="settings-form-row--two-col">
+                        <div className="settings-form-col">
+                            <Typography className="settings-form-label">{t('settingsPage.smtp.usernameLabel')}</Typography>
+                            <div className="settings-form-control settings-form-control--field">
+                                <div className="settings-inline-content">
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        autoComplete="off"
+                                        value={usernameValue}
+                                        onChange={(event) => setDraftValue(SMTP_USERNAME_DRAFT_KEY, event.target.value)}
+                                        placeholder={t('settingsPage.smtp.usernamePlaceholder')}
+                                        sx={settingsFieldSx}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-form-col">
+                            <Typography className="settings-form-label">{t('settingsPage.smtp.passwordLabel')}</Typography>
+                            <div className="settings-form-control settings-form-control--field">
+                                <div className="settings-inline-content">
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        error={passwordMissingForUsername}
+                                        helperText={passwordMissingForUsername ? t('settingsPage.smtp.passwordRequired') : undefined}
+                                        value={passwordValue}
+                                        onChange={(event) => setDraftValue(SMTP_PASSWORD_DRAFT_KEY, event.target.value)}
+                                        placeholder={
+                                            smtpConfig?.password_set
+                                                ? t('settingsPage.smtp.passwordStoredPlaceholder')
+                                                : t('settingsPage.smtp.passwordPlaceholder')
+                                        }
+                                        sx={settingsFieldSx}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <div className="settings-form-row--two-col">
+                        <div className="settings-form-col">
+                            <Typography className="settings-form-label">{t('settingsPage.smtp.fromEmailLabel')}</Typography>
+                            <div className="settings-form-control settings-form-control--field">
+                                <div className="settings-inline-content">
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        type="email"
+                                        error={Boolean(fromEmailErrorMessage)}
+                                        helperText={fromEmailErrorMessage}
+                                        value={fromEmailValue}
+                                        onChange={(event) => setDraftValue(SMTP_FROM_EMAIL_DRAFT_KEY, event.target.value)}
+                                        placeholder={t('settingsPage.smtp.fromEmailPlaceholder')}
+                                        sx={settingsFieldSx}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-form-col">
+                            <Typography className="settings-form-label">{t('settingsPage.smtp.fromNameLabel')}</Typography>
+                            <div className="settings-form-control settings-form-control--field">
+                                <div className="settings-inline-content">
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        value={fromNameValue}
+                                        onChange={(event) => setDraftValue(SMTP_FROM_NAME_DRAFT_KEY, event.target.value)}
+                                        placeholder={t('settingsPage.smtp.fromNamePlaceholder')}
+                                        sx={settingsFieldSx}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <Typography className="settings-form-label">{t('settingsPage.smtp.testEmailLabel')}</Typography>
+                    <div className="settings-form-control settings-form-control--field">
+                        <div className="settings-inline-content">
+                            <div className="settings-brand-upload-row">
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    type="email"
+                                    error={testEmailInvalid}
+                                    helperText={testEmailInvalid ? t('settingsPage.smtp.testEmailRequired') : undefined}
+                                    value={effectiveTestEmail}
+                                    onChange={(event) => setSmtpTestEmail(event.target.value)}
+                                    placeholder={t('settingsPage.smtp.testEmailPlaceholder')}
+                                    sx={settingsFieldSx}
+                                />
+                                <Button
+                                    className="settings-action-button"
+                                    size="small"
+                                    variant="outlined"
+                                    disabled={sendingSmtpTest || savingModule === activeModule}
+                                    onClick={() => void handleSendSmtpTestEmail()}
+                                    sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                                >
+                                    {sendingSmtpTest ? t('settingsPage.smtp.sendingTest') : t('settingsPage.smtp.sendTest')}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </>
         )
     }
@@ -2375,6 +2811,10 @@ export function SettingsPage() {
 
         if (activeModule === 'platform-domain') {
             return renderPlatformDomainRows()
+        }
+
+        if (activeModule === 'platform-smtp') {
+            return renderPlatformSmtpRows()
         }
 
         return renderUpgradeRow()

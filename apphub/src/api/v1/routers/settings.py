@@ -4,7 +4,7 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Cookie, Path, Query, Request, Response
-from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest, DockerMirrorEntriesRequest, DockerMirrorEntryPayload
+from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest, DockerMirrorEntriesRequest, DockerMirrorEntryPayload, SmtpSettingsPayload, SmtpTestEmailRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.productRuntimeState import ProductEditionStateResponse
 from src.schemas.settingsSummary import SettingsSummaryResponse
@@ -13,6 +13,7 @@ from src.core.logger import logger
 from src.services.mirror_registry import Accelerator, MirrorRegistry, read_region
 from src.services.docker_mirror_store import validate_mirror_url
 from src.services.settings_manager import SettingsManager
+from src.services.smtp_service import SmtpService
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
 from src.core.exception import CustomException
 from src.services.product_runtime_state import read_product_runtime_state, read_release_version, read_release_channel
@@ -479,3 +480,72 @@ def refresh_docker_mirror_defaults():
         "mirrors": registry.default_entries(),
         "source": registry.source(),
     }
+
+
+def _require_system_admin_for_smtp(session_token: Optional[str]) -> None:
+    auth_service = ProductAuthService()
+    if not auth_service.is_enabled():
+        return
+    actor = auth_service._require_authenticated_operator(session_token)
+    auth_service._assert_can_manage_users(actor)
+
+
+@router.get(
+    "/settings/smtp/config",
+    summary="Get masked SMTP settings",
+    description="Return platform SMTP configuration with password masked as password_set",
+    responses={200: {"model": dict}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+def get_smtp_settings(
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    _require_system_admin_for_smtp(session_token)
+    return SmtpService().get_masked_settings()
+
+
+@router.put(
+    "/settings/smtp/config",
+    summary="Update SMTP settings",
+    description="Save platform SMTP settings for password recovery and notifications",
+    responses={200: {"model": dict}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+def put_smtp_settings(
+    payload: SmtpSettingsPayload,
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    _require_system_admin_for_smtp(session_token)
+    return SmtpService().save_settings(
+        enabled=payload.enabled,
+        host=payload.host,
+        port=payload.port,
+        encryption=payload.encryption,
+        username=payload.username,
+        password=payload.password,
+        from_email=payload.from_email,
+        from_name=payload.from_name,
+    )
+
+
+@router.post(
+    "/settings/smtp/test",
+    summary="Send a test email using the provided SMTP settings",
+    description="Verify SMTP connectivity and credentials by sending a test email",
+    responses={200: {"model": dict}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 502: {"model": ErrorResponse}},
+)
+def test_smtp_settings(
+    payload: SmtpTestEmailRequest,
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    _require_system_admin_for_smtp(session_token)
+    return SmtpService().send_test_email(
+        to_email=payload.to_email,
+        enabled=payload.enabled,
+        host=payload.host,
+        port=payload.port,
+        encryption=payload.encryption,
+        username=payload.username,
+        password=payload.password,
+        from_email=payload.from_email,
+        from_name=payload.from_name,
+        locale=payload.locale,
+    )

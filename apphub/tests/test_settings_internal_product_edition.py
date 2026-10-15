@@ -526,3 +526,111 @@ class _GatewaySettingsManager:
 
     def _restart_platform_gateway(self):
         self.restart_calls += 1
+
+
+def test_smtp_settings_crud_password_preservation_and_test_delivery(monkeypatch, tmp_path):
+    from src.services.smtp_service import SmtpService
+
+    monkeypatch.setenv("WEBSOFT9_SMTP_DATA_DIR", str(tmp_path / "smtp"))
+
+    class SystemAdminAuthService:
+        def is_enabled(self):
+            return True
+
+        def _require_authenticated_operator(self, _session_token):
+            return {"id": "op-1", "username": "admin"}
+
+        def _assert_can_manage_users(self, _actor):
+            return None
+
+    monkeypatch.setattr(settings_router, "ProductAuthService", SystemAdminAuthService)
+
+    delivered_messages = []
+
+    def fake_deliver_message(self, settings, message):
+        delivered_messages.append({"settings": settings, "to": message["To"], "subject": message["Subject"], "body": message.get_content()})
+
+    monkeypatch.setattr(SmtpService, "_deliver_message", fake_deliver_message)
+
+    app = create_test_app()
+    client = TestClient(app)
+
+    initial_get = client.get("/settings/smtp/config")
+    assert initial_get.status_code == 200
+    assert initial_get.json()["enabled"] is False
+    assert initial_get.json()["password_set"] is False
+
+    save_res = client.put(
+        "/settings/smtp/config",
+        json={
+            "enabled": True,
+            "host": "smtp.example.com",
+            "port": 587,
+            "encryption": "starttls",
+            "username": "mailer@example.com",
+            "password": "initial-secret-password",
+            "from_email": "mailer@example.com",
+            "from_name": "Websoft9",
+        },
+    )
+    assert save_res.status_code == 200
+    assert save_res.json()["password_set"] is True
+    assert "password" not in save_res.json()
+
+    update_without_password = client.put(
+        "/settings/smtp/config",
+        json={
+            "enabled": True,
+            "host": "smtp.example.com",
+            "port": 465,
+            "encryption": "ssl",
+            "username": "mailer@example.com",
+            "password": None,
+            "from_email": "mailer@example.com",
+            "from_name": "Websoft9 Alerts",
+        },
+    )
+    assert update_without_password.status_code == 200
+    assert update_without_password.json()["port"] == 465
+    assert update_without_password.json()["password_set"] is True
+    assert SmtpService().get_settings().password == "initial-secret-password"
+
+    test_res = client.post(
+        "/settings/smtp/test",
+        json={
+            "enabled": True,
+            "host": "smtp.example.com",
+            "port": 465,
+            "encryption": "ssl",
+            "username": "mailer@example.com",
+            "password": None,
+            "from_email": "mailer@example.com",
+            "from_name": "Websoft9 Alerts",
+            "to_email": "receiver@example.com",
+        },
+    )
+    assert test_res.status_code == 200
+    assert test_res.json() == {"sent": True, "to_email": "receiver@example.com"}
+    assert len(delivered_messages) == 1
+    assert delivered_messages[0]["settings"].password == "initial-secret-password"
+    assert delivered_messages[0]["to"] == "receiver@example.com"
+    assert "system notifications and security verification emails" in delivered_messages[0]["body"]
+
+    test_zh_res = client.post(
+        "/settings/smtp/test",
+        json={
+            "enabled": True,
+            "host": "smtp.example.com",
+            "port": 465,
+            "encryption": "ssl",
+            "username": "mailer@example.com",
+            "password": None,
+            "from_email": "mailer@example.com",
+            "from_name": "Websoft9 Alerts",
+            "to_email": "receiver@example.com",
+            "locale": "zh-CN",
+        },
+    )
+    assert test_zh_res.status_code == 200
+    assert len(delivered_messages) == 2
+    assert "系统通知与安全验证邮件" in delivered_messages[1]["body"]

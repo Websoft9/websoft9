@@ -60,6 +60,23 @@ class DockerMirrorEntriesRequest(BaseModel):
 
     entries: list[DockerMirrorEntryPayload] = Field(default_factory=list, title="Ordered accelerators")
 
+
+class SmtpSettingsPayload(BaseModel):
+    enabled: bool = Field(False, title="Whether SMTP service is enabled")
+    host: str = Field('', title="SMTP server hostname")
+    port: int = Field(587, title="SMTP server port", ge=1, le=65535)
+    encryption: str = Field('starttls', title="Encryption mode: starttls, ssl, or none")
+    username: str = Field('', title="SMTP authentication username")
+    password: Optional[str] = Field(None, title="SMTP password; null keeps the stored password")
+    from_email: str = Field('', title="Sender email address")
+    from_name: str = Field('Websoft9', title="Sender display name")
+
+
+class SmtpTestEmailRequest(SmtpSettingsPayload):
+    to_email: str = Field(..., title="Recipient email address for test delivery")
+    locale: str = Field('en', title="Preferred language for the test email")
+
+
 class AppSettings(BaseModel):
     api_key: ApiKeySetting
     domain: Domain

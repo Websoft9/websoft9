@@ -10,7 +10,7 @@ import {
     TextField,
     Typography,
 } from '@mui/material'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -68,6 +68,30 @@ function mapAuthErrorMessage(message: string | null, t: (key: string) => string)
         return t('auth.errors.passwordComplexity')
     }
 
+    if (normalized === 'account has no bound email') {
+        return t('auth.errors.noBoundEmail')
+    }
+
+    if (normalized === 'account or bound email not found') {
+        return t('auth.errors.accountNotFound')
+    }
+
+    if (normalized === 'operator password reset is not allowed for this account') {
+        return t('auth.errors.resetNotAllowed')
+    }
+
+    if (normalized === 'smtp is not configured') {
+        return t('auth.errors.smtpNotConfigured')
+    }
+
+    if (normalized === 'invalid or expired verification code') {
+        return t('auth.errors.invalidResetCode')
+    }
+
+    if (normalized === 'please wait before requesting another verification code') {
+        return t('auth.errors.rateLimited')
+    }
+
     return message
 }
 
@@ -92,6 +116,22 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     const [email, setEmail] = useState('')
     const [emailTouched, setEmailTouched] = useState(false)
     const [localError, setLocalError] = useState<string | null>(null)
+    const [localSuccess, setLocalSuccess] = useState<string | null>(null)
+    const [forgotMode, setForgotMode] = useState(false)
+    const [forgotIdentifier, setForgotIdentifier] = useState('')
+    const [forgotEmailTouched, setForgotEmailTouched] = useState(false)
+    const [forgotEmailStatus, setForgotEmailStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle')
+    const [forgotEmailError, setForgotEmailError] = useState<string | null>(null)
+    const forgotEmailRequest = useRef(0)
+    const [forgotCodeSent, setForgotCodeSent] = useState(false)
+    const [forgotCountdown, setForgotCountdown] = useState(0)
+    const [forgotSendingCode, setForgotSendingCode] = useState(false)
+    const [forgotCode, setForgotCode] = useState('')
+    const [forgotNewPassword, setForgotNewPassword] = useState('')
+    const [showForgotNewPassword, setShowForgotNewPassword] = useState(false)
+    const [forgotConfirmPassword, setForgotConfirmPassword] = useState('')
+    const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false)
+    const [forgotSubmitting, setForgotSubmitting] = useState(false)
     const [selectedLocale, setSelectedLocale] = useState<'en' | 'zh-CN'>(() => (i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en'))
     const [platformBrand, setPlatformBrand] = useState<PlatformBrandState>({
         title: t('brand.title'),
@@ -112,17 +152,26 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
         () => confirmPassword.length > 0 && password === confirmPassword,
         [confirmPassword, password],
     )
+    const forgotPasswordValid = useMemo(
+        () => forgotNewPassword.length >= 8 && /[A-Z]/.test(forgotNewPassword) && /[a-z]/.test(forgotNewPassword) && /\d/.test(forgotNewPassword) && /[^A-Za-z0-9]/.test(forgotNewPassword),
+        [forgotNewPassword],
+    )
+    const forgotPasswordsMatch = useMemo(
+        () => forgotConfirmPassword.length > 0 && forgotNewPassword === forgotConfirmPassword,
+        [forgotConfirmPassword, forgotNewPassword],
+    )
+    const forgotEmailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(forgotIdentifier.trim())
     const authFieldSx = useMemo(
         () => ({
             '& .MuiOutlinedInput-root': {
-                borderRadius: '4px',
+                borderRadius: 0,
                 backgroundColor: '#fbfdff',
             },
             '& input:-webkit-autofill': {
                 WebkitBoxShadow: '0 0 0 100px #fbfdff inset',
                 WebkitTextFillColor: '#0f172a',
                 caretColor: '#0f172a',
-                borderRadius: '4px',
+                borderRadius: 0,
                 transition: 'background-color 9999s ease-out 0s',
             },
             '& input:-webkit-autofill:hover': {
@@ -138,6 +187,8 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     )
 
     useEffect(() => {
+        setLocalSuccess(null)
+        setForgotMode(false)
         setUsername('')
         setPassword('')
         setShowPassword(false)
@@ -151,6 +202,18 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     useEffect(() => {
         setSelectedLocale(i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en')
     }, [i18n.resolvedLanguage])
+
+    useEffect(() => {
+        if (forgotCountdown <= 0) {
+            return
+        }
+        const timerId = window.setInterval(() => {
+            setForgotCountdown((current) => (current > 1 ? current - 1 : 0))
+        }, 1000)
+        return () => {
+            window.clearInterval(timerId)
+        }
+    }, [forgotCountdown])
 
     useEffect(() => {
         let disposed = false
@@ -337,6 +400,129 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
         }
     }
 
+    const validateForgotEmail = async (identifier = forgotIdentifier) => {
+        if (identifier === forgotIdentifier && forgotEmailStatus === 'valid') return true
+        const requestId = ++forgotEmailRequest.current
+        setForgotEmailTouched(true)
+        setForgotEmailError(null)
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(identifier.trim())) {
+            setForgotEmailStatus('invalid')
+            return false
+        }
+        setForgotEmailStatus('checking')
+        try {
+            const response = await fetch('/api/auth/forgot-password/validate-email', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identifier: identifier.trim() }),
+            })
+            if (!response.ok) {
+                const payload = (await response.json().catch(() => ({}))) as { details?: string; message?: string }
+                throw new Error(payload.details || payload.message || t('auth.genericError'))
+            }
+            if (requestId !== forgotEmailRequest.current) return false
+            setForgotEmailStatus('valid')
+            return true
+        } catch (error) {
+            if (requestId !== forgotEmailRequest.current) return false
+            setForgotEmailStatus('invalid')
+            setForgotEmailError(error instanceof Error ? error.message : t('auth.genericError'))
+            return false
+        }
+    }
+
+    const handleSendForgotCode = async () => {
+        setLocalError(null)
+        setLocalSuccess(null)
+        const trimmedIdentifier = forgotIdentifier.trim()
+        if (!forgotEmailValid || forgotEmailStatus !== 'valid') {
+            await validateForgotEmail()
+            return
+        }
+        setForgotSendingCode(true)
+        try {
+            const response = await fetch('/api/auth/forgot-password/send-code', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ identifier: trimmedIdentifier }),
+            })
+            if (!response.ok) {
+                const payload = (await response.json().catch(() => ({}))) as { details?: string; message?: string }
+                throw new Error(payload.details || payload.message || t('auth.genericError'))
+            }
+            const data = (await response.json()) as { masked_email?: string | null }
+            setForgotCodeSent(true)
+            setForgotCountdown(60)
+            setLocalSuccess(
+                data.masked_email
+                    ? t('auth.forgot.codeSentHint', { email: data.masked_email })
+                    : t('auth.forgot.codeSentGenericHint'),
+            )
+        } catch (error) {
+            setLocalError(error instanceof Error ? error.message : t('auth.genericError'))
+        } finally {
+            setForgotSendingCode(false)
+        }
+    }
+
+    const handleResetForgotPassword = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        setLocalError(null)
+        setLocalSuccess(null)
+
+        if (!forgotEmailValid || forgotEmailStatus !== 'valid') {
+            await validateForgotEmail()
+            return
+        }
+        if (!forgotPasswordValid) {
+            setLocalError(t('auth.errors.passwordComplexity'))
+            return
+        }
+        if (!forgotPasswordsMatch) {
+            setLocalError(t('auth.errors.passwordMismatch'))
+            return
+        }
+
+        setForgotSubmitting(true)
+        try {
+            const response = await fetch('/api/auth/forgot-password/reset', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    identifier: forgotIdentifier.trim(),
+                    code: forgotCode.trim(),
+                    password: forgotNewPassword,
+                }),
+            })
+            if (!response.ok) {
+                const payload = (await response.json().catch(() => ({}))) as { details?: string; message?: string }
+                throw new Error(payload.details || payload.message || t('auth.genericError'))
+            }
+            setUsername(forgotIdentifier.trim())
+            setPassword('')
+            setForgotMode(false)
+            setForgotCodeSent(false)
+            setForgotCountdown(0)
+            setForgotCode('')
+            setForgotNewPassword('')
+            setForgotConfirmPassword('')
+            setLocalSuccess(t('auth.forgot.resetSuccess'))
+        } catch (error) {
+            setLocalError(error instanceof Error ? error.message : t('auth.genericError'))
+        } finally {
+            setForgotSubmitting(false)
+        }
+    }
+
     const authPageBackground = useMemo(() => {
         if (platformBrand.loginBackground) {
             return `url(${platformBrand.loginBackground}) center/cover no-repeat`
@@ -361,7 +547,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                     width: '100%',
                     maxWidth: 480,
                     p: { xs: 3, md: 4 },
-                    borderRadius: '4px',
+                    borderRadius: 0,
                     border: '1px solid rgba(148, 163, 184, 0.18)',
                     background: 'rgba(255,255,255,0.97)',
                     backdropFilter: 'blur(12px)',
@@ -379,7 +565,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                                 sx={{
                                     width: 44,
                                     height: 44,
-                                    borderRadius: '6px',
+                                    borderRadius: 0,
                                     objectFit: 'contain',
                                     backgroundColor: '#ffffff',
                                     border: '1px solid rgba(148, 163, 184, 0.22)',
@@ -394,138 +580,370 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                                     <Typography color="text.secondary" sx={{ fontSize: 13 }}>
                                         {t('auth.setup.subtitle')}
                                     </Typography>
+                                ) : forgotMode && status?.smtp_enabled !== false ? (
+                                    <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                                        {t('auth.forgot.subtitle')}
+                                    </Typography>
                                 ) : null}
                             </Stack>
                         </Stack>
                     </Stack>
 
-                    {(localError || errorMessage) && <Alert severity="error">{mapAuthErrorMessage(localError ?? errorMessage, t)}</Alert>}
+                    {(localError || errorMessage) && (
+                        <Alert severity="error" sx={{ borderRadius: 0 }}>
+                            {mapAuthErrorMessage(localError ?? errorMessage, t)}
+                        </Alert>
+                    )}
+                    {localSuccess && (
+                        <Alert severity="success" sx={{ borderRadius: 0 }}>
+                            {localSuccess}
+                        </Alert>
+                    )}
 
-                    <Stack component="form" spacing={1} onSubmit={handleSubmit}>
-                        {mode === 'setup' ? (
+                    {mode === 'login' && forgotMode ? (
+                        <Stack component="form" spacing={1} onSubmit={handleResetForgotPassword}>
+                            {status?.smtp_enabled === false ? (
+                                <Alert severity="info" sx={{ mb: 1, borderRadius: 0 }}>
+                                    {t('auth.forgot.cliFallbackHint')}
+                                </Alert>
+                            ) : (
+                                <>
+                                    <TextField
+                                        autoComplete="email"
+                                        disabled={forgotSubmitting || forgotSendingCode}
+                                        error={forgotEmailTouched && (!forgotEmailValid || forgotEmailStatus === 'invalid')}
+                                        label={t('auth.fields.email')}
+                                        onBlur={() => void validateForgotEmail()}
+                                        onChange={(event) => {
+                                            ++forgotEmailRequest.current
+                                            setForgotIdentifier(event.target.value)
+                                            setForgotEmailStatus('idle')
+                                            setForgotEmailError(null)
+                                            setForgotCodeSent(false)
+                                            setForgotCode('')
+                                            setLocalError(null)
+                                            setLocalSuccess(null)
+                                        }}
+                                        required
+                                        size="medium"
+                                        sx={authFieldSx}
+                                        type="email"
+                                        value={forgotIdentifier}
+                                        helperText={
+                                            forgotEmailTouched && !forgotEmailValid
+                                                ? t('auth.errors.invalidEmail')
+                                                : forgotEmailError
+                                                    ? mapAuthErrorMessage(forgotEmailError, t)
+                                                    : forgotEmailStatus === 'checking'
+                                                        ? t('auth.forgot.checkingEmail')
+                                                        : ' '
+                                        }
+                                    />
+                                    <TextField
+                                        label={t('auth.fields.verificationCode')}
+                                        onChange={(event) => setForgotCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        required
+                                        size="medium"
+                                        sx={authFieldSx}
+                                        value={forgotCode}
+                                        helperText=" "
+                                        slotProps={{
+                                            input: {
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        <Button
+                                                            disabled={
+                                                                forgotSubmitting ||
+                                                                forgotSendingCode ||
+                                                                forgotCountdown > 0 ||
+                                                                !forgotEmailValid ||
+                                                                forgotEmailStatus !== 'valid'
+                                                            }
+                                                            onClick={() => void handleSendForgotCode()}
+                                                            size="small"
+                                                            sx={{ borderRadius: 0, textTransform: 'none', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            {forgotSendingCode
+                                                                ? t('auth.forgot.sendingCode')
+                                                                : forgotCountdown > 0
+                                                                    ? t('auth.forgot.resendCountdown', { seconds: forgotCountdown })
+                                                                    : forgotCodeSent
+                                                                        ? t('auth.forgot.resendCode')
+                                                                        : t('auth.forgot.sendCode')}
+                                                        </Button>
+                                                    </InputAdornment>
+                                                ),
+                                            },
+                                        }}
+                                    />
+                                    <TextField
+                                        autoComplete="new-password"
+                                        error={forgotNewPassword.length > 0 && !forgotPasswordValid}
+                                        helperText={
+                                            forgotNewPassword.length > 0 && !forgotPasswordValid
+                                                ? t('auth.errors.passwordComplexity')
+                                                : ' '
+                                        }
+                                        label={t('auth.fields.newPassword')}
+                                        onChange={(event) => setForgotNewPassword(event.target.value)}
+                                        required
+                                        size="medium"
+                                        sx={authFieldSx}
+                                        type={showForgotNewPassword ? 'text' : 'password'}
+                                        value={forgotNewPassword}
+                                        slotProps={{
+                                            input: {
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        <IconButton
+                                                            aria-label={showForgotNewPassword ? t('auth.actions.hidePassword') : t('auth.actions.showPassword')}
+                                                            edge="end"
+                                                            onClick={() => setShowForgotNewPassword((current) => !current)}
+                                                        >
+                                                            {showForgotNewPassword ? <IconEyeOff /> : <IconEye />}
+                                                        </IconButton>
+                                                    </InputAdornment>
+                                                ),
+                                            },
+                                        }}
+                                    />
+                                    <TextField
+                                        autoComplete="new-password"
+                                        error={forgotConfirmPassword.length > 0 && !forgotPasswordsMatch}
+                                        helperText={
+                                            forgotConfirmPassword.length > 0 && !forgotPasswordsMatch
+                                                ? t('auth.errors.passwordMismatch')
+                                                : ' '
+                                        }
+                                        label={t('auth.fields.confirmPassword')}
+                                        onChange={(event) => setForgotConfirmPassword(event.target.value)}
+                                        required
+                                        size="medium"
+                                        sx={authFieldSx}
+                                        type={showForgotConfirmPassword ? 'text' : 'password'}
+                                        value={forgotConfirmPassword}
+                                        slotProps={{
+                                            input: {
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        <IconButton
+                                                            aria-label={showForgotConfirmPassword ? t('auth.actions.hidePassword') : t('auth.actions.showPassword')}
+                                                            edge="end"
+                                                            onClick={() => setShowForgotConfirmPassword((current) => !current)}
+                                                        >
+                                                            {showForgotConfirmPassword ? <IconEyeOff /> : <IconEye />}
+                                                        </IconButton>
+                                                    </InputAdornment>
+                                                ),
+                                            },
+                                        }}
+                                    />
+                                    <Button
+                                        disabled={
+                                            forgotSubmitting ||
+                                            !forgotEmailValid ||
+                                            forgotEmailStatus !== 'valid' ||
+                                            forgotCode.trim().length !== 6 ||
+                                            !forgotPasswordValid ||
+                                            !forgotPasswordsMatch
+                                        }
+                                        size="large"
+                                        type="submit"
+                                        variant="contained"
+                                        sx={{ minHeight: 54, borderRadius: 0, fontWeight: 600, boxShadow: '0 12px 28px rgba(37,99,235,0.22)' }}
+                                    >
+                                        {forgotSubmitting ? t('auth.forgot.resetSubmitting') : t('auth.forgot.resetSubmit')}
+                                    </Button>
+                                </>
+                            )}
+                            <Box sx={{ display: 'flex', justifyContent: 'center', pt: 0.5 }}>
+                                <Button
+                                    onClick={() => {
+                                        ++forgotEmailRequest.current
+                                        setForgotMode(false)
+                                        setForgotCodeSent(false)
+                                        setForgotCountdown(0)
+                                        setForgotCode('')
+                                        setForgotNewPassword('')
+                                        setForgotConfirmPassword('')
+                                        setLocalError(null)
+                                        setLocalSuccess(null)
+                                    }}
+                                    size="small"
+                                    sx={{ borderRadius: 0, textTransform: 'none' }}
+                                >
+                                    {t('auth.forgot.backToLogin')}
+                                </Button>
+                            </Box>
+                        </Stack>
+                    ) : (
+                        <Stack component="form" spacing={1} onSubmit={handleSubmit}>
+                            {mode === 'setup' ? (
+                                <TextField
+                                    label={t('auth.fields.language')}
+                                    onChange={(event) => {
+                                        const nextLocale = event.target.value === 'zh-CN' ? 'zh-CN' : 'en'
+                                        setSelectedLocale(nextLocale)
+                                        void i18n.changeLanguage(nextLocale)
+                                    }}
+                                    select
+                                    size="medium"
+                                    sx={authFieldSx}
+                                    value={selectedLocale}
+                                    helperText=" "
+                                >
+                                    <MenuItem value="en">{t('locales.en')}</MenuItem>
+                                    <MenuItem value="zh-CN">{t('locales.zh-CN')}</MenuItem>
+                                </TextField>
+                            ) : null}
+                            {mode === 'setup' ? (
+                                <TextField
+                                    autoComplete="email"
+                                    label={t('auth.fields.email')}
+                                    onBlur={() => setEmailTouched(true)}
+                                    onChange={(event) => {
+                                        setEmail(event.target.value)
+                                        if (!emailTouched) {
+                                            setEmailTouched(true)
+                                        }
+                                    }}
+                                    error={emailTouched && !setupEmailValid}
+                                    helperText={emailTouched && !setupEmailValid ? t('auth.errors.invalidEmail') : ' '}
+                                    required
+                                    size="medium"
+                                    sx={authFieldSx}
+                                    type="email"
+                                    value={email}
+                                />
+                            ) : null}
                             <TextField
-                                label={t('auth.fields.language')}
-                                onChange={(event) => {
-                                    const nextLocale = event.target.value === 'zh-CN' ? 'zh-CN' : 'en'
-                                    setSelectedLocale(nextLocale)
-                                    void i18n.changeLanguage(nextLocale)
-                                }}
-                                select
+                                autoComplete="username"
+                                label={mode === 'setup' ? t('auth.fields.setupUsername') : t('auth.fields.username')}
+                                onChange={(event) => setUsername(event.target.value)}
+                                required
                                 size="medium"
                                 sx={authFieldSx}
-                                value={selectedLocale}
+                                value={username}
                                 helperText=" "
-                            >
-                                <MenuItem value="en">{t('locales.en')}</MenuItem>
-                                <MenuItem value="zh-CN">{t('locales.zh-CN')}</MenuItem>
-                            </TextField>
-                        ) : null}
-                        {mode === 'setup' ? (
-                            <TextField
-                                autoComplete="email"
-                                label={t('auth.fields.email')}
-                                onBlur={() => setEmailTouched(true)}
-                                onChange={(event) => {
-                                    setEmail(event.target.value)
-                                    if (!emailTouched) {
-                                        setEmailTouched(true)
-                                    }
-                                }}
-                                error={emailTouched && !setupEmailValid}
-                                helperText={emailTouched && !setupEmailValid ? t('auth.errors.invalidEmail') : ' '}
-                                required
-                                size="medium"
-                                sx={authFieldSx}
-                                type="email"
-                                value={email}
                             />
-                        ) : null}
-                        <TextField
-                            autoComplete="username"
-                            label={mode === 'setup' ? t('auth.fields.setupUsername') : t('auth.fields.username')}
-                            onChange={(event) => setUsername(event.target.value)}
-                            required
-                            size="medium"
-                            sx={authFieldSx}
-                            value={username}
-                            helperText=" "
-                        />
-                        <TextField
-                            autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
-                            label={t('auth.fields.password')}
-                            onChange={(event) => setPassword(event.target.value)}
-                            error={mode === 'setup' && password.length > 0 && !setupPasswordValid}
-                            helperText={
-                                mode === 'setup' && password.length > 0 && !setupPasswordValid
-                                    ? t('auth.errors.passwordComplexity')
-                                    : ' '
-                            }
-                            required
-                            size="medium"
-                            type={showPassword ? 'text' : 'password'}
-                            sx={authFieldSx}
-                            value={password}
-                            slotProps={{
-                                input: {
-                                    endAdornment: (
-                                        <InputAdornment position="end">
-                                            <IconButton
-                                                aria-label={showPassword ? t('auth.actions.hidePassword') : t('auth.actions.showPassword')}
-                                                edge="end"
-                                                onClick={() => setShowPassword((currentValue) => !currentValue)}
-                                            >
-                                                {showPassword ? <IconEyeOff /> : <IconEye />}
-                                            </IconButton>
-                                        </InputAdornment>
-                                    ),
-                                },
-                            }}
-                        />
-                        {mode === 'setup' ? (
                             <TextField
-                                autoComplete="new-password"
-                                error={confirmPassword.length > 0 && !setupPasswordsMatch}
-                                helperText={confirmPassword.length > 0 && !setupPasswordsMatch ? t('auth.errors.passwordMismatch') : ' '}
-                                label={t('auth.fields.confirmPassword')}
-                                onChange={(event) => setConfirmPassword(event.target.value)}
+                                autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
+                                label={t('auth.fields.password')}
+                                onChange={(event) => setPassword(event.target.value)}
+                                error={mode === 'setup' && password.length > 0 && !setupPasswordValid}
+                                helperText={
+                                    mode === 'setup'
+                                        ? password.length > 0 && !setupPasswordValid
+                                            ? t('auth.errors.passwordComplexity')
+                                            : ' '
+                                        : undefined
+                                }
                                 required
                                 size="medium"
-                                type={showConfirmPassword ? 'text' : 'password'}
+                                type={showPassword ? 'text' : 'password'}
                                 sx={authFieldSx}
-                                value={confirmPassword}
+                                value={password}
                                 slotProps={{
                                     input: {
                                         endAdornment: (
                                             <InputAdornment position="end">
                                                 <IconButton
-                                                    aria-label={showConfirmPassword ? t('auth.actions.hidePassword') : t('auth.actions.showPassword')}
+                                                    aria-label={showPassword ? t('auth.actions.hidePassword') : t('auth.actions.showPassword')}
                                                     edge="end"
-                                                    onClick={() => setShowConfirmPassword((currentValue) => !currentValue)}
+                                                    onClick={() => setShowPassword((currentValue) => !currentValue)}
                                                 >
-                                                    {showConfirmPassword ? <IconEyeOff /> : <IconEye />}
+                                                    {showPassword ? <IconEyeOff /> : <IconEye />}
                                                 </IconButton>
                                             </InputAdornment>
                                         ),
                                     },
                                 }}
                             />
-                        ) : null}
-                        <Button
-                            disabled={isSubmitting || (mode === 'setup' && (!setupPasswordValid || !setupEmailValid || !setupPasswordsMatch))}
-                            size="large"
-                            type="submit"
-                            variant="contained"
-                            sx={{ minHeight: 54, borderRadius: '4px', fontWeight: 600, boxShadow: '0 12px 28px rgba(37,99,235,0.22)' }}
-                        >
-                            {mode === 'setup'
-                                ? isSubmitting
-                                    ? t('auth.setup.submitting')
-                                    : t('auth.setup.submit')
-                                : isSubmitting
-                                    ? t('auth.login.submitting')
-                                    : t('auth.login.submit')}
-                        </Button>
-                    </Stack>
+                            {mode === 'setup' ? (
+                                <TextField
+                                    autoComplete="new-password"
+                                    error={confirmPassword.length > 0 && !setupPasswordsMatch}
+                                    helperText={confirmPassword.length > 0 && !setupPasswordsMatch ? t('auth.errors.passwordMismatch') : ' '}
+                                    label={t('auth.fields.confirmPassword')}
+                                    onChange={(event) => setConfirmPassword(event.target.value)}
+                                    required
+                                    size="medium"
+                                    type={showConfirmPassword ? 'text' : 'password'}
+                                    sx={authFieldSx}
+                                    value={confirmPassword}
+                                    slotProps={{
+                                        input: {
+                                            endAdornment: (
+                                                <InputAdornment position="end">
+                                                    <IconButton
+                                                        aria-label={showConfirmPassword ? t('auth.actions.hidePassword') : t('auth.actions.showPassword')}
+                                                        edge="end"
+                                                        onClick={() => setShowConfirmPassword((currentValue) => !currentValue)}
+                                                    >
+                                                        {showConfirmPassword ? <IconEyeOff /> : <IconEye />}
+                                                    </IconButton>
+                                                </InputAdornment>
+                                            ),
+                                        },
+                                    }}
+                                />
+                            ) : (
+                                <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 0.25, pb: 0.75 }}>
+                                    <Typography
+                                        component="button"
+                                        onClick={() => {
+                                            const initialEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(username.trim()) ? username.trim() : ''
+                                            ++forgotEmailRequest.current
+                                            setForgotIdentifier(initialEmail)
+                                            setForgotEmailTouched(false)
+                                            setForgotEmailStatus('idle')
+                                            setForgotEmailError(null)
+                                            if (initialEmail) void validateForgotEmail(initialEmail)
+                                            setForgotMode(true)
+                                            setForgotCodeSent(false)
+                                            setForgotCountdown(0)
+                                            setForgotCode('')
+                                            setForgotNewPassword('')
+                                            setForgotConfirmPassword('')
+                                            setLocalError(null)
+                                            setLocalSuccess(null)
+                                        }}
+                                        sx={{
+                                            border: 0,
+                                            p: 0,
+                                            background: 'transparent',
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            color: '#64748b',
+                                            cursor: 'pointer',
+                                            transition: 'color 150ms ease',
+                                            '&:hover': {
+                                                color: '#2563eb',
+                                            },
+                                        }}
+                                        type="button"
+                                    >
+                                        {t('auth.login.forgotPassword')}
+                                    </Typography>
+                                </Box>
+                            )}
+                            <Button
+                                disabled={isSubmitting || (mode === 'setup' && (!setupPasswordValid || !setupEmailValid || !setupPasswordsMatch))}
+                                size="large"
+                                type="submit"
+                                variant="contained"
+                                sx={{ minHeight: 54, borderRadius: 0, fontWeight: 600, boxShadow: '0 12px 28px rgba(37,99,235,0.22)' }}
+                            >
+                                {mode === 'setup'
+                                    ? isSubmitting
+                                        ? t('auth.setup.submitting')
+                                        : t('auth.setup.submit')
+                                    : isSubmitting
+                                        ? t('auth.login.submitting')
+                                        : t('auth.login.submit')}
+                            </Button>
+                        </Stack>
+                    )}
                 </Stack>
             </Paper>
         </Box>

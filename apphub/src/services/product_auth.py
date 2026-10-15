@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -62,6 +63,7 @@ class ProductAuthService:
         trusted_internal_request: bool = False,
     ) -> Tuple[dict[str, Any], Optional[str]]:
         from src.services.setup_wizard import SetupWizardService
+        from src.services.smtp_service import SmtpService
 
         setup_wizard = SetupWizardService()
 
@@ -88,6 +90,7 @@ class ProductAuthService:
             "enabled": enabled,
             "initialization_required": enabled and not self._has_active_operator(),
             "authenticated": current_user is not None,
+            "smtp_enabled": SmtpService().is_ready(),
             "cloud_marketplace_setup": setup_wizard.should_use_wizard(),
             "cloud_marketplace_setup_pending": setup_wizard.is_pending_setup(),
             "protected_modules": self.get_protected_modules(),
@@ -323,6 +326,7 @@ class ProductAuthService:
                     message="Operator Already Exists",
                     details="Username is already in use",
                 )
+            self._assert_unique_operator_email(operators, email)
 
             operator = self._build_operator(
                 username=username,
@@ -432,6 +436,7 @@ class ProductAuthService:
                     message="Invalid Request",
                     details="Display name cannot be empty",
                 )
+            self._assert_unique_operator_email(operators, email, exclude_operator_id=operator["id"])
 
             operator["display_name"] = normalized_display_name
             operator["email"] = email or None
@@ -494,6 +499,203 @@ class ProductAuthService:
             )
 
         return self._public_operator(operator)
+
+    def validate_password_reset_email(self, identifier: str) -> dict[str, Any]:
+        self._assert_enabled()
+        with self._lock:
+            self._ensure_storage()
+            self._get_password_reset_operator(identifier)
+        return {"valid": True}
+
+    def _get_password_reset_operator(self, identifier: str) -> dict[str, Any]:
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", identifier.strip()):
+            raise CustomException(400, "Invalid Email", "Email must be a valid email address")
+        operator = self._get_operator_by_email(identifier)
+        if operator is None or operator.get("deleted"):
+            raise CustomException(404, "Account Not Found", "Account or bound email not found")
+        if operator.get("disabled"):
+            raise CustomException(403, "Password Reset Denied", "User account is disabled")
+        if not operator.get("reset_password_eligible", True):
+            raise CustomException(409, "Password Reset Not Allowed", "Operator password reset is not allowed for this account")
+        return operator
+
+    def send_password_reset_code(
+        self,
+        identifier: str,
+        client_host: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> dict[str, Any]:
+        from src.services.smtp_service import SmtpService
+
+        self._assert_enabled()
+        smtp_service = SmtpService()
+        if not smtp_service.is_ready():
+            raise CustomException(
+                status_code=400,
+                message="SMTP Not Configured",
+                details="SMTP is not configured",
+            )
+
+        with self._lock:
+            self._ensure_storage()
+            try:
+                operator = self._get_password_reset_operator(identifier)
+            except CustomException:
+                self._append_audit(
+                    event="password_reset_code_denied",
+                    identifier=identifier.strip().lower(),
+                    reason="invalid_account",
+                    client_host=client_host,
+                    user_agent=user_agent,
+                )
+                raise
+
+            recipient_email = (operator.get("email") or "").strip()
+            if not recipient_email:
+                raise CustomException(
+                    status_code=400,
+                    message="Email Not Bound",
+                    details="Account has no bound email",
+                )
+
+            now = self._now()
+            existing_code = self._load_password_reset_code(operator["id"])
+            if existing_code is not None:
+                sent_at = self._parse_iso(existing_code["sent_at"])
+                if (now - sent_at).total_seconds() < 60:
+                    raise CustomException(
+                        status_code=429,
+                        message="Too Many Requests",
+                        details="Please wait before requesting another verification code",
+                    )
+
+            code = f"{secrets.randbelow(1_000_000):06d}"
+            expires_at = now + timedelta(minutes=10)
+            is_zh = str(operator.get("locale") or "en").startswith("zh")
+            subject = "[Websoft9] 密码重置验证码" if is_zh else "[Websoft9] Password Reset Verification Code"
+            body_text = (
+                "您好：\n\n"
+                "我们收到了您重置 Websoft9 账户密码的请求。请使用以下验证码完成验证：\n\n"
+                f"{code}\n\n"
+                "验证码自发送起 10 分钟内有效，请勿向任何人透露。\n"
+                "如果这不是您本人的操作，请忽略此邮件，您的账户密码不会因此更改。\n\n"
+                "Websoft9\n"
+                "此邮件由系统自动发送，请勿直接回复。\n"
+                if is_zh
+                else (
+                    "Hello,\n\n"
+                    "We received a request to reset your Websoft9 account password. Use the following verification code to continue:\n\n"
+                    f"{code}\n\n"
+                    "This code expires 10 minutes after it is sent. Do not share it with anyone.\n"
+                    "If you did not request this, ignore this email. Your account password will remain unchanged.\n\n"
+                    "Websoft9\n"
+                    "This is an automated message. Please do not reply.\n"
+                )
+            )
+            smtp_service.send_email(to_email=recipient_email, subject=subject, body_text=body_text)
+            self._store_password_reset_code(
+                operator_id=operator["id"],
+                code_hash=self._hash_session_token(f"{operator['id']}:{code}"),
+                sent_at=self._iso(now),
+                expires_at=self._iso(expires_at),
+            )
+            self._append_audit(
+                event="password_reset_code_sent",
+                operator_id=operator["id"],
+                username=operator["username"],
+                client_host=client_host,
+                user_agent=user_agent,
+            )
+
+        return {
+            "sent": True,
+            "masked_email": self._mask_email_address(recipient_email),
+            "expires_in_seconds": 600,
+        }
+
+    def confirm_password_reset_with_code(
+        self,
+        identifier: str,
+        code: str,
+        password: str,
+        client_host: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> dict[str, Any]:
+        self._assert_enabled()
+
+        with self._lock:
+            self._ensure_storage()
+            operators = self._load_operators()
+            normalized_identifier = identifier.strip().lower()
+            if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized_identifier):
+                raise CustomException(400, "Invalid Email", "Email must be a valid email address")
+            operator = next(
+                (
+                    item
+                    for item in operators
+                    if not item.get("deleted", False)
+                    and (item.get("email") or "").strip().lower() == normalized_identifier
+                ),
+                None,
+            )
+            if operator is None:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Verification Code",
+                    details="Invalid or expired verification code",
+                )
+
+            if operator.get("disabled"):
+                raise CustomException(
+                    status_code=403,
+                    message="Password Reset Denied",
+                    details="User account is disabled",
+                )
+
+            if not operator.get("reset_password_eligible", True):
+                raise CustomException(
+                    status_code=409,
+                    message="Password Reset Not Allowed",
+                    details="Operator password reset is not allowed for this account",
+                )
+
+            record = self._load_password_reset_code(operator["id"])
+            now = self._now()
+            if record is None or self._parse_iso(record["expires_at"]) <= now:
+                self._clear_password_reset_code(operator["id"])
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Verification Code",
+                    details="Invalid or expired verification code",
+                )
+
+            expected_hash = self._hash_session_token(f"{operator['id']}:{code.strip()}")
+            if not hmac.compare_digest(record["code_hash"], expected_hash):
+                attempts = int(record.get("attempts", 0)) + 1
+                if attempts >= 5:
+                    self._clear_password_reset_code(operator["id"])
+                else:
+                    self._increment_password_reset_attempts(operator["id"], attempts)
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Verification Code",
+                    details="Invalid or expired verification code",
+                )
+
+            operator["password_hash"] = self._hash_password(password)
+            operator["updated_at"] = self._now_iso()
+            self._store_operators(operators)
+            self._clear_password_reset_code(operator["id"])
+            self.invalidate_sessions_for_operator(operator["id"], "forgot-password-reset")
+            self._append_audit(
+                event="password_reset_via_email_code",
+                operator_id=operator["id"],
+                username=operator["username"],
+                client_host=client_host,
+                user_agent=user_agent,
+            )
+
+        return {"reset": True}
 
     def delete_operator(
         self,
@@ -849,7 +1051,7 @@ class ProductAuthService:
     def _get_operator_by_username(self, username: str) -> Optional[dict[str, Any]]:
         normalized_username = username.strip().lower()
         for operator in self._load_operators():
-            if operator.get("username") == normalized_username:
+            if not operator.get("deleted", False) and operator.get("username") == normalized_username:
                 return operator
         return None
 
@@ -858,10 +1060,107 @@ class ProductAuthService:
         if not normalized_email:
             return None
         for operator in self._load_operators():
+            if operator.get("deleted", False):
+                continue
             stored_email = (operator.get("email") or "").strip().lower()
             if stored_email and stored_email == normalized_email:
                 return operator
         return None
+
+    def _assert_unique_operator_email(
+        self,
+        operators: list[dict[str, Any]],
+        email: Optional[str],
+        exclude_operator_id: Optional[str] = None,
+    ) -> None:
+        normalized_email = (email or "").strip().lower()
+        if not normalized_email:
+            return
+        for item in operators:
+            if item.get("deleted", False):
+                continue
+            if exclude_operator_id and item.get("id") == exclude_operator_id:
+                continue
+            existing_email = (item.get("email") or "").strip().lower()
+            if existing_email and existing_email == normalized_email:
+                raise CustomException(
+                    status_code=409,
+                    message="Email Already Exists",
+                    details="Email is already in use",
+                )
+
+    @staticmethod
+    def _mask_email_address(email: str) -> str:
+        normalized = (email or "").strip()
+        if "@" not in normalized:
+            return "***"
+        local_part, domain_part = normalized.split("@", 1)
+        if len(local_part) <= 1:
+            masked_local = "*"
+        elif len(local_part) == 2:
+            masked_local = f"{local_part[0]}*"
+        else:
+            masked_local = f"{local_part[0]}***{local_part[-1]}"
+        return f"{masked_local}@{domain_part}"
+
+    def _store_password_reset_code(
+        self,
+        *,
+        operator_id: str,
+        code_hash: str,
+        sent_at: str,
+        expires_at: str,
+    ) -> None:
+        self._ensure_storage()
+        with self._db_connect() as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO password_reset_codes (
+                    operator_id, code_hash, sent_at, expires_at, attempts
+                ) VALUES (?, ?, ?, ?, 0)
+                """,
+                (operator_id, code_hash, sent_at, expires_at),
+            )
+            connection.commit()
+
+    def _load_password_reset_code(self, operator_id: str) -> Optional[dict[str, Any]]:
+        self._ensure_storage()
+        with self._db_connect() as connection:
+            row = connection.execute(
+                """
+                SELECT operator_id, code_hash, sent_at, expires_at, attempts
+                FROM password_reset_codes
+                WHERE operator_id = ?
+                """,
+                (operator_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "operator_id": row["operator_id"],
+            "code_hash": row["code_hash"],
+            "sent_at": row["sent_at"],
+            "expires_at": row["expires_at"],
+            "attempts": int(row["attempts"]),
+        }
+
+    def _increment_password_reset_attempts(self, operator_id: str, attempts: int) -> None:
+        self._ensure_storage()
+        with self._db_connect() as connection:
+            connection.execute(
+                "UPDATE password_reset_codes SET attempts = ? WHERE operator_id = ?",
+                (int(attempts), operator_id),
+            )
+            connection.commit()
+
+    def _clear_password_reset_code(self, operator_id: str) -> None:
+        self._ensure_storage()
+        with self._db_connect() as connection:
+            connection.execute(
+                "DELETE FROM password_reset_codes WHERE operator_id = ?",
+                (operator_id,),
+            )
+            connection.commit()
 
     def _get_operator_by_id(self, operator_id: str) -> Optional[dict[str, Any]]:
         for operator in self._load_operators():
@@ -1133,6 +1432,14 @@ class ProductAuthService:
                 app_key TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 PRIMARY KEY (operator_id, app_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS password_reset_codes (
+                operator_id TEXT PRIMARY KEY,
+                code_hash TEXT NOT NULL,
+                sent_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0
             );
             """
         )
