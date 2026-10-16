@@ -60,7 +60,9 @@ ensure_legacy_compat_link() {
   fi
 
   if [[ -d "$legacy_path" ]]; then
-    if [[ -n "$(find "$legacy_path" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+    if [[ "$legacy_path" == "/websoft9/media" && -s "$data_root/config/appstore_sync_state.json" && -s "$target_path/json/app-store-manifest_zh.json" ]]; then
+      :
+    elif [[ -n "$(find "$legacy_path" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
       cp -a "$legacy_path/." "$target_path/"
     fi
     rm -rf "$legacy_path"

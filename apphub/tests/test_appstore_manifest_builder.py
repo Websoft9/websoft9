@@ -108,6 +108,7 @@ def test_build_manifests_includes_complete_wordpress_metadata(tmp_path):
     assert wordpress["distribution"] == [{"key": "community", "value": ["6.6"]}]
     assert wordpress["settings"]["W9_HTTP_PORT_SET"] == "8080"
     assert wordpress["is_web_app"] is True
+    assert wordpress["default_scheme"] == "http"
     assert wordpress["profiles"]["external-db"]["is_external_database"] is True
     assert wordpress["help"] == {"en": "https://example.test/help"}
 
@@ -822,3 +823,77 @@ def test_manifest_validation_accepts_apps_without_a_logo():
     manifest = {"apps": [{"key": "springboot", "distribution": [], "settings": {}, "is_web_app": False}]}
 
     runtime_assets.validate_app_store_manifest(manifest, Path("generated.json"))
+
+
+def test_missing_container_snapshot_invalidates_stale_sync_state_and_forces_resync(tmp_path, monkeypatch):
+    media_root = tmp_path / "media"
+    library_root = tmp_path / "library"
+    snapshot_root = tmp_path / "appstore"
+    media_json = media_root / "json"
+    media_json.mkdir(parents=True)
+    _write_wordpress_library(library_root)
+    for locale in ("zh", "en"):
+        (media_json / f"app-store-manifest_{locale}.json").write_text(
+            json.dumps({"schemaVersion": "1", "locale": locale, "apps": []}),
+            encoding="utf-8",
+        )
+
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "1",
+                "datasetVersion": "cb4239d7039e1589",
+                "catalogDatasetVersion": "catalog-1",
+                "libraryDatasetVersion": "library-1",
+                "snapshotRoot": str(snapshot_root),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("WEBSOFT9_MEDIA_ROOT", str(media_root))
+    monkeypatch.setenv("WEBSOFT9_LIBRARY_ROOT", str(library_root))
+    monkeypatch.setenv("WEBSOFT9_MEDIA_MARKER", str(media_json / "product_en.json"))
+    monkeypatch.setenv("WEBSOFT9_LIBRARY_MARKER", str(library_root / "apps"))
+    monkeypatch.setenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", str(snapshot_root))
+    monkeypatch.setenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(state_path))
+
+    # Because snapshot_root/releases/cb4239d7039e1589 does not exist, _appstore_dataset_already_active must be False
+    assert (
+        runtime_assets._appstore_dataset_already_active(
+            {
+                "schemaVersion": "1",
+                "datasetVersion": "cb4239d7039e1589",
+                "catalog": {"datasetVersion": "catalog-1"},
+                "library": {"datasetVersion": "library-1"},
+            },
+            json.loads(state_path.read_text(encoding="utf-8")),
+            False,
+        )
+        is False
+    )
+
+
+def test_manifest_validity_detects_stale_removed_apps_against_product_and_library(tmp_path, monkeypatch):
+    media_root = tmp_path / "media"
+    media_json = media_root / "json"
+    media_json.mkdir(parents=True)
+    library_root = tmp_path / "library"
+    _write_wordpress_library(library_root)
+    _write_product(media_json / "product_zh.json", "wordpress")
+    _write_product(media_json / "product_en.json", "wordpress")
+
+    monkeypatch.setenv("WEBSOFT9_LIBRARY_ROOT", str(library_root))
+    runtime_assets.build_and_publish_app_store_manifests(media_root, library_root)
+    assert runtime_assets.has_valid_published_app_store_manifests(media_root) is True
+
+    # Simulate an overwritten manifest containing an archived app no longer in product_*.json or library/apps
+    for locale in ("zh", "en"):
+        manifest_path = media_json / f"app-store-manifest_{locale}.json"
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        data["apps"].append({"key": "archived_app", "distribution": [], "settings": {}, "is_web_app": True})
+        manifest_path.write_text(json.dumps(data), encoding="utf-8")
+
+    assert runtime_assets.has_valid_published_app_store_manifests(media_root) is False
+

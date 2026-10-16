@@ -211,9 +211,10 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
         endpoint_id = portainer_manager.get_local_endpoint_id()
 
     try:
-        add_installing_logs(install_tracking_id, "Initializing installation", "")
+        add_installing_logs(install_tracking_id, "Initializing installation", f"Creating repository {app_id}")
         repo_url = gitea_manager.create_repo(app_id)
 
+        add_installing_logs(install_tracking_id, "Initializing installation", f"Preparing Compose configuration for {app_id}")
         temp_root = tempfile.mkdtemp(prefix=f"compose-{payload.app_id}-")
         timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
         workspace_path = os.path.join(temp_root, f"{payload.app_id}_{timestamp_str}_{random.randint(1000, 9999)}")
@@ -229,12 +230,14 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
             FileHelper.write_file(target_path, mount.content)
 
+        add_installing_logs(install_tracking_id, "Initializing installation", f"Pushing configuration to repository {app_id}")
         compose_manager._init_local_repo_and_push_to_remote(workspace_path, repo_url)
+        add_installing_logs(install_tracking_id, "Initializing installation", "Application preparation completed")
 
         add_installing_logs(install_tracking_id, "Pulling docker image", "")
         compose_manager.pull_images_from_yml(workspace_path, install_tracking_id)
 
-        add_installing_logs(install_tracking_id, "Starting the services", "")
+        add_installing_logs(install_tracking_id, "Starting the services", f"Verifying repository files for {app_id}")
         credentials = IntegrationCredentialProvider().get_gitea_credentials()
         gitea_manager.wait_for_repo_files(
             app_id,
@@ -243,21 +246,29 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
             credentials.password,
             _collect_repository_required_files(workspace_path),
         )
+        add_installing_logs(install_tracking_id, "Starting the services", f"Deploying Docker Compose stack {app_id}")
         stack_info = portainer_manager.create_stack_from_repository(app_id, endpoint_id, repo_url, credentials.username, credentials.password)
+        add_installing_logs(install_tracking_id, "Starting the services", "Waiting for application containers to start")
         stack_containers = portainer_manager.wait_for_stack_containers(app_id, endpoint_id)
         if not stack_containers:
             raise CustomException(400, "Invalid Request", compose_manager._missing_stack_containers_error)
+        for container in stack_containers:
+            names = container.get("Names") if isinstance(container, dict) else None
+            container_name = str(names[0]).lstrip("/") if isinstance(names, list) and names else app_id
+            container_state = str(container.get("State") or "running") if isinstance(container, dict) else "running"
+            add_installing_logs(install_tracking_id, "Starting the services", f"Container {container_name} is {container_state}")
 
         if payload.domain:
             if forward_port is None:
                 raise CustomException(400, "Invalid Request", "Cannot configure a domain because the compose file does not expose a target port.")
-            add_installing_logs(install_tracking_id, "Configuring the domain", "")
+            add_installing_logs(install_tracking_id, "Configuring the domain", f"Configuring reverse proxy for {payload.domain} -> {app_id}:{forward_port} (http)")
             advanced_config_path = os.path.join(workspace_path, "src", "nginx-proxy.conf")
             if os.path.exists(advanced_config_path):
                 advanced_config = FileHelper.read_file(advanced_config_path)
                 ProxyManager().create_proxy_by_app([payload.domain], app_id, str(forward_port), advanced_config, "http")
             else:
                 ProxyManager().create_proxy_by_app([payload.domain], app_id, str(forward_port), forward_scheme="http")
+            add_installing_logs(install_tracking_id, "Configuring the domain", f"Access configuration completed for {payload.domain}")
 
         add_installing_logs(install_tracking_id, "Installation complete", "")
         remove_app_installation(install_tracking_id)

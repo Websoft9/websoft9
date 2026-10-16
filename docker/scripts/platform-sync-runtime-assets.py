@@ -463,6 +463,54 @@ def _resolve_sync_state_path() -> Path:
     return Path(os.getenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(Path(data_root) / "config" / "appstore_sync_state.json")))
 
 
+def _local_runtime_trees_match_state(previous_state: dict[str, object] | None) -> bool:
+    """Verify that the container's runtime trees still match the persisted sync state.
+
+    The sync state file lives on the persistent host volume (/opt/websoft9/data), while
+    /websoft9/library and /websoft9/appstore live inside the container rootfs.  When a
+    container is recreated or upgraded from an image, the container rootfs reverts to the
+    image build-time baseline even though the host sync state still records a newer dataset.
+    """
+    if not isinstance(previous_state, dict) or not previous_state:
+        return False
+
+    snapshots = previous_state.get("snapshots")
+    if isinstance(snapshots, dict) and snapshots:
+        for package_snapshots in snapshots.values():
+            if not isinstance(package_snapshots, dict):
+                continue
+            release_dir = package_snapshots.get("release") or package_snapshots.get("current")
+            if isinstance(release_dir, str) and release_dir.strip() and not Path(release_dir.strip()).exists():
+                return False
+
+    snapshot_root_raw = previous_state.get("snapshotRoot")
+    dataset_version_raw = previous_state.get("datasetVersion")
+    if (
+        isinstance(snapshot_root_raw, str)
+        and snapshot_root_raw.strip()
+        and isinstance(dataset_version_raw, str)
+        and dataset_version_raw.strip()
+    ):
+        release_root = Path(snapshot_root_raw.strip()) / "releases" / dataset_version_raw.strip()
+        if not release_root.exists():
+            return False
+
+    library_dsv = previous_state.get("libraryDatasetVersion")
+    if isinstance(library_dsv, str) and library_dsv.strip():
+        library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
+        apps_index_path = library_root / "apps-index.json"
+        if apps_index_path.is_file():
+            try:
+                index_payload = json.loads(apps_index_path.read_text(encoding="utf-8"))
+                index_dsv = index_payload.get("datasetVersion") if isinstance(index_payload, dict) else None
+                if isinstance(index_dsv, str) and index_dsv.strip() and index_dsv.strip() != library_dsv.strip():
+                    return False
+            except (OSError, json.JSONDecodeError):
+                return False
+
+    return True
+
+
 def _appstore_dataset_already_active(
     appstore_manifest: dict[str, object],
     previous_state: dict[str, object] | None,
@@ -476,6 +524,8 @@ def _appstore_dataset_already_active(
     if force_refresh:
         return False
     if not isinstance(previous_state, dict) or not previous_state:
+        return False
+    if not _local_runtime_trees_match_state(previous_state):
         return False
 
     latest_dataset_version = appstore_manifest.get("datasetVersion")
@@ -1645,7 +1695,20 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
             verbose_log(f"[platform-assets] skipping {app_key}: invalid Library metadata: {exc}")
             continue
         app_manifest = dict(product)
-        app_manifest.update({"distribution": distribution, "settings": get_install_settings(env_values), "is_web_app": "W9_URL" in env_values})
+        access_metadata = variables_metadata.get("access")
+        raw_default_scheme = access_metadata.get("defaultScheme") if isinstance(access_metadata, dict) else None
+        if isinstance(raw_default_scheme, str) and raw_default_scheme.strip().lower() in {"http", "https"}:
+            default_scheme = raw_default_scheme.strip().lower()
+        elif "W9_HTTPS_PORT" in env_values and "W9_HTTP_PORT" not in env_values:
+            default_scheme = "https"
+        else:
+            default_scheme = "http"
+        app_manifest.update({
+            "distribution": distribution,
+            "settings": get_install_settings(env_values),
+            "is_web_app": "W9_URL" in env_values,
+            "default_scheme": default_scheme,
+        })
         updated_at = updated_at_by_key.get(app_key)
         if updated_at:
             app_manifest["updatedAt"] = updated_at
@@ -1721,6 +1784,8 @@ def validate_app_store_manifest(manifest: object, source_path: Path) -> None:
             raise RuntimeError(f"app entry lacks installation metadata: {app.get('key')}")
         if not isinstance(app.get("is_web_app"), bool):
             raise RuntimeError(f"app entry has invalid web flag: {app.get('key')}")
+        if "default_scheme" in app and app["default_scheme"] not in {"http", "https"}:
+            raise RuntimeError(f"app entry has invalid default_scheme: {app.get('key')}")
         if "profiles" in app and not isinstance(app["profiles"], dict):
             raise RuntimeError(f"app entry has invalid profiles: {app.get('key')}")
         if "help" in app and not isinstance(app["help"], dict):
@@ -1749,8 +1814,11 @@ def get_published_app_store_schema_version(media_root: Path) -> str | None:
     return schemas.pop()
 
 
-def has_valid_published_app_store_manifests(media_root: Path) -> bool:
+def has_valid_published_app_store_manifests(media_root: Path, library_root: Path | None = None) -> bool:
     media_json_root = media_root / "json"
+    resolved_library_root = library_root or Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
+    library_apps_root = resolved_library_root / "apps"
+    has_library_apps = bool(library_apps_root.is_dir() and any(library_apps_root.iterdir()))
     try:
         for locale in ("zh", "en"):
             manifest_path = media_json_root / f"app-store-manifest_{locale}.json"
@@ -1763,6 +1831,27 @@ def has_valid_published_app_store_manifests(media_root: Path) -> bool:
             ):
                 return False
             validate_app_store_manifest(manifest, manifest_path)
+            manifest_apps = manifest.get("apps", [])
+            if manifest_apps:
+                if has_library_apps and library_apps_root is not None:
+                    for app in manifest_apps:
+                        app_key = app.get("key") if isinstance(app, dict) else None
+                        if not isinstance(app_key, str) or not (library_apps_root / app_key / "variables.json").is_file():
+                            return False
+                product_path = media_json_root / f"product_{locale}.json"
+                if product_path.is_file():
+                    products = json.loads(product_path.read_text(encoding="utf-8"))
+                    if isinstance(products, list):
+                        product_keys = {
+                            item.get("key").strip()
+                            for item in products
+                            if isinstance(item, dict) and isinstance(item.get("key"), str) and item.get("key").strip()
+                        }
+                        for app in manifest_apps:
+                            if not isinstance(app, dict) or app.get("app_origin") == "development":
+                                continue
+                            if app.get("key") not in product_keys:
+                                return False
         return True
     except (OSError, json.JSONDecodeError, RuntimeError):
         return False
@@ -1926,6 +2015,9 @@ def main() -> int:
     previous_state: dict[str, object] = {}
     try:
         previous_state = load_sync_state(sync_state_path)
+        if previous_state and not _local_runtime_trees_match_state(previous_state):
+            log("[platform-assets] local runtime assets do not match recorded sync state; forcing full synchronization")
+            previous_state = {}
         force_refresh = is_force_refresh_enabled()
         manifest_bundle = None
         latest_dataset_version = None
@@ -2090,6 +2182,9 @@ def main() -> int:
             log(f"[platform-assets] skipping manifest rebuild for unchanged dataset {applied_dataset_version}")
         else:
             build_and_publish_app_store_manifests(media_root, library_root)
+
+        if not package_snapshot_paths and isinstance(previous_state.get("snapshots"), dict):
+            package_snapshot_paths = dict(previous_state["snapshots"])
 
         state_payload: dict[str, object] = {
             "channel": channel,

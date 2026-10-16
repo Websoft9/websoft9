@@ -1247,6 +1247,42 @@ class AppManger:
                 modify_app_information(app_uuid, detail)
             raise
 
+    @staticmethod
+    def _read_default_scheme_from_dir(app_dir_path: str, http_port: str | None = None, https_port: str | None = None) -> str:
+        variables_path = os.path.join(app_dir_path, "variables.json")
+        try:
+            if os.path.isfile(variables_path):
+                with open(variables_path, "r", encoding="utf-8") as handle:
+                    variables = json.load(handle)
+                if isinstance(variables, dict):
+                    access = variables.get("access")
+                    if isinstance(access, dict):
+                        scheme = access.get("defaultScheme")
+                        if isinstance(scheme, str) and scheme.strip().lower() in {"http", "https"}:
+                            return scheme.strip().lower()
+        except Exception as exc:
+            logger.warning(f"Failed to read access.defaultScheme from {variables_path}: {exc}")
+        if https_port and not http_port:
+            return "https"
+        return "http"
+
+    @staticmethod
+    def _read_default_scheme_from_repo(app_id: str, http_port: str | None = None, https_port: str | None = None) -> str:
+        try:
+            raw = GiteaManager().get_file_raw_from_repo(app_id, "variables.json")
+            variables = json.loads(raw) if raw else {}
+            if isinstance(variables, dict):
+                access = variables.get("access")
+                if isinstance(access, dict):
+                    scheme = access.get("defaultScheme")
+                    if isinstance(scheme, str) and scheme.strip().lower() in {"http", "https"}:
+                        return scheme.strip().lower()
+        except Exception as exc:
+            logger.warning(f"Failed to read access.defaultScheme from repo for {app_id}: {exc}")
+        if https_port and not http_port:
+            return "https"
+        return "http"
+
     def _install_app(self,appInstall: appInstall, endpointId: int = None, tracked_app_id: str = None, tracking_id: str = None, library_path: str = None):
         """
         Install app
@@ -1275,7 +1311,7 @@ class AppManger:
 
         # add app to appInstalling when the request did not pre-register tracking
         app_uuid = tracking_id or start_app_installation(app_id, app_name)
-        add_installing_logs(app_uuid, "Initializing installation","")
+        add_installing_logs(app_uuid, "Initializing installation", f"Creating repository {app_id}")
 
         # Install app - Step 1 : create repo in gitea
         try:
@@ -1294,6 +1330,7 @@ class AppManger:
 
         # Install app - Step 2 : initialize local git repo and push to gitea
         try:
+            add_installing_logs(app_uuid, "Initializing installation", f"Preparing {app_name} ({app_version}) template and environment configuration")
             # The source directory.
             library_path = library_path or ConfigManager("system.ini").get_value("docker_library", "path")
             local_path = f"{library_path}/{app_name}"
@@ -1344,6 +1381,7 @@ class AppManger:
                     envHelper.set_value(key, value)
 
             if uses_external_database:
+                add_installing_logs(app_uuid, "Initializing installation", f"Validating external {external_database_type} database connection")
                 connection = validate_external_database_connection(
                     external_database_type,
                     envHelper.get_value("W9_DB_HOST_SET"),
@@ -1378,7 +1416,9 @@ class AppManger:
             #         envHelper.set_value("W9_URL", domain_names[0])
                     
             # Commit and push to remote repo
+            add_installing_logs(app_uuid, "Initializing installation", f"Pushing configuration to repository {app_id}")
             self._init_local_repo_and_push_to_remote(app_tmp_dir_path,repo_url)
+            add_installing_logs(app_uuid, "Initializing installation", "Application preparation completed")
         except CustomException as e:
             modify_app_information(app_uuid, e.details)
             # Rollback: remove repo in gitea
@@ -1420,7 +1460,7 @@ class AppManger:
 
         # Install app - Step 4 : create stack in portainer
         try:
-            add_installing_logs(app_uuid,"Starting the services","")
+            add_installing_logs(app_uuid, "Starting the services", f"Verifying repository files for {app_id}")
             # Get gitea user_name and user_pwd
             credentials = IntegrationCredentialProvider().get_gitea_credentials()
             user_name = credentials.username
@@ -1430,10 +1470,12 @@ class AppManger:
             giteaManager.wait_for_repo_files(app_id, repo_url, user_name, user_pwd, required_repo_files)
 
             # Create stack in portainer
+            add_installing_logs(app_uuid, "Starting the services", f"Deploying Docker Compose stack {app_id}")
             stack_info = portainerManager.create_stack_from_repository(app_id,endpointId,repo_url,user_name,user_pwd)
 
             # Get the stack_id
             stack_id = stack_info.get("Id")
+            add_installing_logs(app_uuid, "Starting the services", "Waiting for application containers to start")
             stack_containers = portainerManager.wait_for_stack_containers(app_id, endpointId)
             if not stack_containers:
                 raise CustomException(
@@ -1441,6 +1483,11 @@ class AppManger:
                     message="Invalid Request",
                     details=self._missing_stack_containers_error,
                 )
+            for container in stack_containers:
+                names = container.get("Names") if isinstance(container, dict) else None
+                container_name = str(names[0]).lstrip("/") if isinstance(names, list) and names else app_id
+                container_state = str(container.get("State") or "running") if isinstance(container, dict) else "running"
+                add_installing_logs(app_uuid, "Starting the services", f"Container {container_name} is {container_state}")
         except CustomException as e:
             modify_app_information(app_uuid,e.details)
             # Rollback: remove repo in gitea
@@ -1493,7 +1540,6 @@ class AppManger:
             # check the app is web app
             if is_web_app is not None :
                 if proxy_enabled and domain_names:
-                    add_installing_logs(app_uuid,"Configuring the domain","")
                     # Get the forward port form env file
                     http_port = EnvHelper(env_file_path).get_value("W9_HTTP_PORT")
                     https_port = EnvHelper(env_file_path).get_value("W9_HTTPS_PORT")
@@ -1504,17 +1550,27 @@ class AppManger:
                     elif https_port:
                         forward_scheme = "https"
                         forward_port = https_port
-                    
+
+                    domain_summary = ", ".join(domain_names)
+                    add_installing_logs(app_uuid, "Configuring the domain", f"Configuring reverse proxy for {domain_summary} -> {app_id}:{forward_port} ({forward_scheme})")
+                    default_scheme = self._read_default_scheme_from_dir(app_tmp_dir_path, http_port=http_port, https_port=https_port)
+                    proxy_manager = ProxyManager()
                     # Get the nginx proxy config path
                     nginx_proxy_path = f"{app_tmp_dir_path}/src/nginx-proxy.conf"
                     if os.path.exists(nginx_proxy_path):
                         # Get the advanced config
                         advanced_config = FileHelper.read_file(nginx_proxy_path)
                         # Create proxy in nginx proxy manager
-                        ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,advanced_config,forward_scheme)
+                        proxy_host = proxy_manager.create_proxy_by_app(domain_names,app_id,forward_port,advanced_config,forward_scheme)
                     else:
                         # Create proxy in nginx proxy manager
-                        ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
+                        proxy_host = proxy_manager.create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
+
+                    if default_scheme == "https" and isinstance(proxy_host, dict) and proxy_host.get("id"):
+                        add_installing_logs(app_uuid, "Configuring the domain", f"Provisioning SSL certificate for {domain_summary} (HTTPS required)")
+                        proxy_manager.provision_https_for_proxy_host(proxy_host.get("id"), domain_names)
+                        add_installing_logs(app_uuid, "Configuring the domain", "SSL certificate configured and HTTPS redirect enabled")
+                    add_installing_logs(app_uuid, "Configuring the domain", f"Access configuration completed for {domain_summary}")
         except CustomException as e:
             modify_app_information(app_uuid,e.details)
             # Rollback-1: remove repo in gitea
@@ -2174,6 +2230,9 @@ class AppManger:
                             asyncio.run(self.redeploy_app(app_id, False))
 
                 # Get the nginx proxy config
+                default_scheme = self._read_default_scheme_from_repo(app_id, http_port=http_port, https_port=https_port)
+                if default_scheme == "https" and certificate_id:
+                    ssl_forced = True
                 advanced_config = GiteaManager().get_file_raw_from_repo(app_id, "src/nginx-proxy.conf")
                 if advanced_config:
                     proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, advanced_config, forward_scheme=forward_scheme, certificate_id=certificate_id, ssl_forced=ssl_forced)
@@ -2181,6 +2240,11 @@ class AppManger:
                     proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, forward_scheme=forward_scheme, certificate_id=certificate_id, ssl_forced=ssl_forced)
 
                 if proxy_host:
+                    if default_scheme == "https" and not certificate_id and proxy_host.get("id"):
+                        try:
+                            proxy_host = proxyManager.provision_https_for_proxy_host(proxy_host.get("id"), domain_names)
+                        except Exception as exc:
+                            logger.warning(f"Failed to auto-provision HTTPS certificate for {app_id}: {exc}")
                     logger.access(f"Created domains: {domain_names} for app: [{app_id}]")
                     return proxy_host
                 else:

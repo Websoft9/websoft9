@@ -210,6 +210,7 @@ function LogDialog({
         ? 'https://support.websoft9.com/docs/helpdesk#contact'
         : 'https://support.websoft9.com/en/docs/helpdesk#contact'
     const followLogs = useRef(true)
+    const logContainerRef = useRef<HTMLDivElement | null>(null)
     const copyContainerRef = useRef<HTMLDivElement>(null)
     const [copyMessage, setCopyMessage] = useState('')
     const [isCancelling, setIsCancelling] = useState(false)
@@ -239,6 +240,17 @@ function LogDialog({
     const hasLogs = logRows.length > 0
     const visibleRows = logRows.slice(-MAX_INSTALL_LOG_LINES)
     const logOffset = logRows.length - visibleRows.length
+    const lastRenderedStageIndex = visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].stageIndex : -1
+    const trailingStages = stages
+        .map((stage, stageIndex) => ({ stage, stageIndex }))
+        .filter(({ stage, stageIndex }) => stageIndex > lastRenderedStageIndex && stage.title !== 'Installation complete' && stage.title !== 'Installation cancelled')
+    const lastRowText = visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].text : ''
+    useEffect(() => {
+        const container = logContainerRef.current
+        if (container && followLogs.current) {
+            container.scrollTop = container.scrollHeight
+        }
+    }, [logRows.length, stages.length, lastRowText])
     const exportText = app ? getInstallExportText(app, stageTitle) : ''
     const canExport = Boolean(exportText)
     const installationNotice = isCancelled || isError ? <Box role={isCancelled ? 'status' : undefined} sx={{ display: 'flex', gap: 1.25, px: 2.5, py: 1.75, flexShrink: 0, backgroundColor: isCancelled ? darkMode ? 'rgba(245, 158, 11, 0.14)' : '#fff7e6' : darkMode ? dialogPalette.dangerSoft : '#fff5f5', color: isCancelled ? darkMode ? '#fbbf24' : '#a16207' : dialogPalette.danger, borderBottom: `1px solid ${dialogPalette.border}` }}>
@@ -447,6 +459,7 @@ function LogDialog({
                 {isCancelled ? installationNotice : null}
 
                 <div ref={(container) => {
+                    logContainerRef.current = container
                     if (container && followLogs.current) container.scrollTop = container.scrollHeight
                 }} role="log" aria-label={t('myAppsPage.dialog.logsTitle')} aria-live="off" onScroll={(event) => {
                     const container = event.currentTarget
@@ -463,7 +476,7 @@ function LogDialog({
                     boxSizing: 'border-box',
                     backgroundColor: dialogPalette.dialogBg,
                 }}>
-                    {!hasLogs && !isError ? (
+                    {!hasLogs && trailingStages.length === 0 && !isError ? (
                         <div style={{
                             height: '100%',
                             display: 'flex',
@@ -496,6 +509,20 @@ function LogDialog({
                                 <Box component="span" sx={{ color: dialogPalette.placeholderText, userSelect: 'none', textAlign: 'right', fontSize: 11 }}>{logOffset + index + 1}</Box>
                                 <Box component="span" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: /\b(error|failed|fatal)\b/i.test(row.text) ? dialogPalette.danger : dialogPalette.text }}>{row.text}</Box>
                             </Box>
+                        </Box>
+                    ))}
+
+                    {trailingStages.map(({ stage, stageIndex }, idx) => (
+                        <Box key={`trailing-stage-${stageIndex}`}>
+                            <Typography sx={{ pl: '44px', py: 1, mt: visibleRows.length === 0 && idx === 0 ? 0 : 1, fontSize: 11, fontWeight: 600, color: dialogPalette.subtleText }}>
+                                {stageTitle(stage.title)}
+                            </Typography>
+                            {isInstalling && idx === trailingStages.length - 1 ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: '44px', py: 0.5, color: dialogPalette.subtleText }}>
+                                    <CircularProgress size={12} thickness={5} sx={{ color: dialogPalette.accent }} />
+                                    <Box component="span" sx={{ fontSize: 12 }}>{ `${stageTitle(stage.title)}...` }</Box>
+                                </Box>
+                            ) : null}
                         </Box>
                     ))}
                 </div>

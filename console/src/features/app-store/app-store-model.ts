@@ -54,6 +54,7 @@ export type AppStoreApp = {
     }
     settings?: Record<string, string>
     is_web_app?: boolean
+    default_scheme?: 'http' | 'https'
     profiles?: Record<string, AppStoreInstallProfile>
     help?: Record<string, string>
     production?: boolean

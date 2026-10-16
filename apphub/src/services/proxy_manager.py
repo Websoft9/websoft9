@@ -1,5 +1,8 @@
+import ipaddress
 import json
 import os
+from pathlib import Path
+import subprocess
 import time
 import jwt
 import keyring
@@ -452,7 +455,7 @@ class ProxyManager:
         else:
             self._handler_nginx_error(response)
 
-    def request_letsencrypt_certificate(self, email: str, domain_names: list[str], proxy_id: int | None = None):
+    def request_letsencrypt_certificate(self, email: str, domain_names: list[str], proxy_id: int | None = None, ssl_forced: bool | None = None):
         """
         Request a Let's Encrypt certificate and optionally bind it to a proxy host.
         """
@@ -466,10 +469,18 @@ class ProxyManager:
 
         certificate = response.json()
         if proxy_id is not None:
-            self.update_proxy_by_app(proxy_id, domain_names, certificate.get("id"))
+            self.update_proxy_by_app(proxy_id, domain_names, certificate.get("id"), ssl_forced=ssl_forced)
         return certificate
 
-    def upload_custom_certificate(self, nice_name: str, certificate_pem: str, key_pem: str, proxy_id: int | None = None, domain_names: list[str] | None = None):
+    def upload_custom_certificate(
+        self,
+        nice_name: str,
+        certificate_pem: str,
+        key_pem: str,
+        proxy_id: int | None = None,
+        domain_names: list[str] | None = None,
+        ssl_forced: bool | None = None,
+    ):
         """
         Upload a custom SSL certificate and optionally bind it to a proxy host.
         """
@@ -479,5 +490,140 @@ class ProxyManager:
 
         certificate = response.json()
         if proxy_id is not None and domain_names:
-            self.update_proxy_by_app(proxy_id, domain_names, certificate.get("id"))
+            self.update_proxy_by_app(proxy_id, domain_names, certificate.get("id"), ssl_forced=ssl_forced)
         return certificate
+
+    def ensure_inner_certificate(self) -> dict | None:
+        """
+        Ensure the built-in 'websoft9-inner' self-signed certificate exists in Nginx Proxy Manager.
+        """
+        certificates = self.get_all_certificates() or []
+        for cert in certificates:
+            if isinstance(cert, dict) and cert.get("nice_name") == "websoft9-inner" and cert.get("id"):
+                return cert
+
+        data_root = Path(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
+        ssl_dir = Path(os.getenv("WEBSOFT9_NPM_SSL_DIR", str(data_root / "custom_ssl")))
+        cert_file = Path(os.getenv("WEBSOFT9_NPM_CERT_MARKER", str(ssl_dir / "websoft9-self-signed.cert")))
+        key_file = Path(os.getenv("WEBSOFT9_NPM_SSL_KEY_PATH", str(ssl_dir / "websoft9-self-signed.key")))
+
+        if not (cert_file.is_file() and key_file.is_file() and cert_file.stat().st_size > 0 and key_file.stat().st_size > 0):
+            try:
+                cert_file.parent.mkdir(parents=True, exist_ok=True)
+                subprocess.run(
+                    [
+                        "openssl",
+                        "req",
+                        "-x509",
+                        "-newkey",
+                        "rsa:4096",
+                        "-nodes",
+                        "-keyout",
+                        str(key_file),
+                        "-out",
+                        str(cert_file),
+                        "-days",
+                        "3650",
+                        "-subj",
+                        "/CN=Websoft9 Universal Certificate",
+                        "-addext",
+                        "basicConstraints=critical,CA:TRUE",
+                        "-addext",
+                        "keyUsage=digitalSignature,keyEncipherment",
+                        "-addext",
+                        "extendedKeyUsage=serverAuth",
+                        "-addext",
+                        "subjectAltName=DNS:*,IP:0.0.0.0",
+                    ],
+                    check=True,
+                    capture_output=True,
+                    timeout=30,
+                )
+                cert_file.chmod(0o644)
+                key_file.chmod(0o600)
+            except Exception as exc:
+                logger.warning(f"Failed to generate fallback self-signed certificate files: {exc}")
+                return None
+
+        try:
+            cert_pem = cert_file.read_text(encoding="utf-8").strip()
+            key_pem = key_file.read_text(encoding="utf-8").strip()
+            if not cert_pem or not key_pem:
+                return None
+            return self.upload_custom_certificate(nice_name="websoft9-inner", certificate_pem=cert_pem, key_pem=key_pem)
+        except Exception as exc:
+            logger.warning(f"Failed to register websoft9-inner certificate in Nginx Proxy Manager: {exc}")
+            return None
+
+    @staticmethod
+    def _resolve_default_letsencrypt_email(domain_names: list[str]) -> str:
+        try:
+            from src.services.smtp_service import SmtpService
+            smtp_cfg = SmtpService().get_config()
+            from_email = str(smtp_cfg.get("from_email") or "").strip()
+            if "@" in from_email and "." in from_email.split("@")[-1]:
+                return from_email
+        except Exception:
+            pass
+
+        try:
+            npm_creds = IntegrationCredentialProvider().get_npm_credentials()
+            if "@" in npm_creds.username and not npm_creds.username.endswith("@mydomain.com"):
+                return npm_creds.username
+        except Exception:
+            pass
+
+        for domain in domain_names or []:
+            cleaned = str(domain or "").strip().lower()
+            if "." in cleaned and not cleaned.startswith("*."):
+                try:
+                    ipaddress.ip_address(cleaned)
+                except ValueError:
+                    return f"admin@{cleaned}"
+        return "admin@websoft9.com"
+
+    def provision_https_for_proxy_host(
+        self,
+        proxy_id: int,
+        domain_names: list[str],
+        email: str | None = None,
+    ) -> dict:
+        """
+        Provision HTTPS for a proxy host:
+        1. Attempt Let's Encrypt certificate issuance first when domains are valid hostnames.
+        2. Fall back to the built-in 'websoft9-inner' certificate with ssl_forced=True if Let's Encrypt fails.
+        """
+        cleaned_domains = [str(d).strip() for d in (domain_names or []) if str(d).strip()]
+        can_try_letsencrypt = bool(cleaned_domains)
+        for domain in cleaned_domains:
+            try:
+                ipaddress.ip_address(domain)
+                can_try_letsencrypt = False
+                break
+            except ValueError:
+                if "." not in domain:
+                    can_try_letsencrypt = False
+                    break
+
+        if can_try_letsencrypt:
+            resolved_email = (email or "").strip() or self._resolve_default_letsencrypt_email(cleaned_domains)
+            try:
+                cert = self.request_letsencrypt_certificate(resolved_email, cleaned_domains)
+                cert_id = cert.get("id") if isinstance(cert, dict) else None
+                if cert_id:
+                    return self.update_proxy_by_app(proxy_id, cleaned_domains, certificate_id=cert_id, ssl_forced=True)
+            except Exception as exc:
+                logger.warning(
+                    f"Automatic Let's Encrypt certificate request failed for {cleaned_domains}; "
+                    f"falling back to websoft9-inner certificate: {exc}"
+                )
+
+        inner_cert = self.ensure_inner_certificate()
+        inner_cert_id = inner_cert.get("id") if isinstance(inner_cert, dict) else None
+        if not inner_cert_id:
+            raise CustomException(
+                status_code=500,
+                message="Certificate Provisioning Failed",
+                details="Failed to issue Let's Encrypt certificate and fallback websoft9-inner certificate is unavailable",
+            )
+        return self.update_proxy_by_app(proxy_id, cleaned_domains, certificate_id=inner_cert_id, ssl_forced=True)

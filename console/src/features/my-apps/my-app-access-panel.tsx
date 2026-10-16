@@ -28,7 +28,7 @@ type MyAppAccessPanelProps = {
 }
 
 type AccessFeedback = {
-    severity: 'success' | 'error'
+    severity: 'success' | 'error' | 'warning'
     message: string
 }
 
@@ -296,6 +296,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
     )
     const resolvedPublicPort = profileCandidate ? getPublishedPort(profileCandidate.published_ports, currentProfile?.forward_port) : ''
     const directPort = env?.W9_HTTP_PORT_SET || env?.W9_HTTPS_PORT_SET || resolvedPublicPort
+    const requireHttps = Boolean(currentProfile?.require_https || currentProfile?.default_scheme === 'https' || (!env?.W9_HTTP_PORT && Boolean(env?.W9_HTTPS_PORT)))
     const frontendHref = directPort ? `${currentProfile?.forward_scheme === 'https' ? 'https' : 'http'}://${hostName}:${directPort}` : null
     const backendHref = frontendHref && env?.W9_ADMIN_PATH ? `${frontendHref}${env.W9_ADMIN_PATH}` : null
     const showComposeTargetSelector = isComposeApp
@@ -333,7 +334,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
     const bindingSummaries = useMemo(() => proxyHosts.map((host) => {
         const hostDomains = host.domain_names.filter(isDomainBindingValue)
         const domain = hostDomains[0] ?? null
-        const hostScheme = host.certificate_id ? 'https' : (currentProfile?.forward_scheme ?? 'http')
+        const hostScheme = (host.certificate_id || requireHttps) ? 'https' : (currentProfile?.forward_scheme ?? 'http')
         const baseUrl = domain ? `${hostScheme}://${domain}` : null
         const adminUrl = baseUrl && env?.W9_ADMIN_PATH ? `${baseUrl}${env.W9_ADMIN_PATH}` : null
         const cert = data?.certificates.find((certificate) => certificate.id === host.certificate_id)
@@ -735,9 +736,9 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
                 setBindDialogDomains(domains)
                 setBindDialogInitialDomainCount(domains.length)
                 setBindDialogDomainInput(domains.length > 1 ? '' : (domains[0] ?? ''))
-                setBindDialogForceHttps(Boolean(host.ssl_forced && host.certificate_id))
+                setBindDialogForceHttps(requireHttps ? true : Boolean(host.ssl_forced && host.certificate_id))
                 setBindDialogCertId(host.certificate_id ?? null)
-                setBindDialogSslEnabled(Boolean(host.certificate_id))
+                setBindDialogSslEnabled(requireHttps ? true : Boolean(host.certificate_id))
                 setBindDialogCertAction(host.certificate_id ? 'existing' : 'letsencrypt')
             }
             setBindDialogProxyId(proxyId)
@@ -745,10 +746,10 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
             setBindDialogDomains([])
             setBindDialogInitialDomainCount(0)
             setBindDialogDomainInput('')
-            setBindDialogForceHttps(false)
+            setBindDialogForceHttps(requireHttps)
             setBindDialogCertId(null)
             setBindDialogProxyId(null)
-            setBindDialogSslEnabled(false)
+            setBindDialogSslEnabled(requireHttps)
             setBindDialogCertAction('letsencrypt')
         }
         setCertificateEmail('')
@@ -768,8 +769,8 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
         setBindDialogCertId(null)
         setBindDialogCertAction('letsencrypt')
         setBindDialogDomainInputError(null)
-        setBindDialogSslEnabled(false)
-        setBindDialogForceHttps(false)
+        setBindDialogSslEnabled(requireHttps)
+        setBindDialogForceHttps(requireHttps)
         setCertificateEmail('')
         setCustomCertName('')
         setIsCustomCertNameAuto(true)
@@ -875,14 +876,17 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
                     body: JSON.stringify({ email: certificateEmail.trim(), domain_names: domains, proxy_id: effectiveProxyId }),
                 })
                 if (!certResp.ok) throw new Error(await parseJsonError(certResp, 'Failed to request certificate'))
-                const cert = await certResp.json() as { id?: number }
+                const cert = await certResp.json() as { id?: number; fallback?: boolean }
                 if (cert.id) {
-                    await ensureDomainBinding(domains, cert.id, bindDialogForceHttps, effectiveProxyId)
+                    await ensureDomainBinding(domains, cert.id, requireHttps ? true : bindDialogForceHttps, effectiveProxyId)
                 }
                 await refetch()
                 await onUpdated()
                 resetBindDialogState()
-                setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.certificateIssued') })
+                setFeedback({
+                    severity: cert.fallback ? 'warning' : 'success',
+                    message: t(cert.fallback ? 'myAppsDetailPage.accessPanel.certificateFallbackIssued' : 'myAppsDetailPage.accessPanel.certificateIssued'),
+                })
             } else if (bindDialogSslEnabled && bindDialogCertAction === 'upload') {
                 const binding = await ensureDomainBinding(domains, null, false, bindDialogProxyId)
                 const effectiveProxyId = (binding.proxy_id ?? (binding as { id?: number }).id ?? bindDialogProxyId) as number | null
@@ -904,7 +908,7 @@ ${customCertIntermediate.trim()}`
                 if (!certResp.ok) throw new Error(await parseJsonError(certResp, 'Failed to upload certificate'))
                 const cert = await certResp.json() as { id?: number }
                 if (cert.id) {
-                    await ensureDomainBinding(domains, cert.id, bindDialogForceHttps, effectiveProxyId)
+                    await ensureDomainBinding(domains, cert.id, requireHttps ? true : bindDialogForceHttps, effectiveProxyId)
                 }
                 await refetch()
                 await onUpdated()
@@ -912,7 +916,7 @@ ${customCertIntermediate.trim()}`
                 setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.customCertUploaded') })
             } else {
                 const certificateId = bindDialogSslEnabled ? bindDialogCertId : null
-                const sslForced = bindDialogSslEnabled && bindDialogCertId !== null && bindDialogForceHttps
+                const sslForced = requireHttps ? true : (bindDialogSslEnabled && bindDialogCertId !== null && bindDialogForceHttps)
                 await ensureDomainBinding(domains, certificateId, sslForced, bindDialogProxyId)
                 await refetch()
                 await onUpdated()
@@ -1455,12 +1459,13 @@ ${customCertIntermediate.trim()}`
                             <div className="myapps-bind-cert-switch">
                                 <div className="myapps-bind-https-label">
                                     <span className="myapps-bind-https-label-title">{t('myAppsDetailPage.accessPanel.sslCertScheme')}</span>
-                                    <span className="myapps-bind-https-label-desc">{t('myAppsDetailPage.accessPanel.sslCertSwitchHelper')}</span>
+                                    <span className="myapps-bind-https-label-desc">{t(requireHttps ? 'myAppsDetailPage.accessPanel.sslCertRequiredHelper' : 'myAppsDetailPage.accessPanel.sslCertSwitchHelper')}</span>
                                 </div>
                                 <Switch
-                                    checked={bindDialogSslEnabled}
-                                    disabled={isBindDialogSubmitting}
+                                    checked={requireHttps ? true : bindDialogSslEnabled}
+                                    disabled={isBindDialogSubmitting || requireHttps}
                                     onChange={(e) => {
+                                        if (requireHttps) return
                                         const enabled = e.target.checked
                                         setBindDialogSslEnabled(enabled)
                                         if (enabled && bindDialogCertId === null) {
@@ -1470,7 +1475,7 @@ ${customCertIntermediate.trim()}`
                                     size="small"
                                 />
                             </div>
-                            {bindDialogSslEnabled ? (
+                            {(requireHttps || bindDialogSslEnabled) ? (
                                 <>
                                     <div className="myapps-bind-cert-choice-grid myapps-bind-cert-choice-grid-three">
                                         <button
@@ -1695,9 +1700,12 @@ ${customCertIntermediate.trim()}`
                                             <span className="myapps-bind-https-label-desc">{t('myAppsDetailPage.accessPanel.forceHttpsHelper')}</span>
                                         </div>
                                         <Switch
-                                            checked={bindDialogForceHttps}
-                                            disabled={isBindDialogSubmitting || (bindDialogCertAction === 'existing' && bindDialogCertId === null)}
-                                            onChange={(e) => setBindDialogForceHttps(e.target.checked)}
+                                            checked={requireHttps ? true : bindDialogForceHttps}
+                                            disabled={isBindDialogSubmitting || requireHttps || (bindDialogCertAction === 'existing' && bindDialogCertId === null)}
+                                            onChange={(e) => {
+                                                if (requireHttps) return
+                                                setBindDialogForceHttps(e.target.checked)
+                                            }}
                                             size="small"
                                         />
                                     </div>

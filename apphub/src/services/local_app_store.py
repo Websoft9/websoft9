@@ -113,6 +113,14 @@ def _build_app(media_path: Path, library_root: Path) -> dict[str, object]:
         raise ValueError("variables.json has no valid edition")
 
     env_values = _load_env_values(env_path)
+    access_metadata = variables.get("access")
+    raw_default_scheme = access_metadata.get("defaultScheme") if isinstance(access_metadata, dict) else None
+    if isinstance(raw_default_scheme, str) and raw_default_scheme.strip().lower() in {"http", "https"}:
+        default_scheme = raw_default_scheme.strip().lower()
+    elif "W9_HTTPS_PORT" in env_values and "W9_HTTP_PORT" not in env_values:
+        default_scheme = "https"
+    else:
+        default_scheme = "http"
     manifest = dict(media)
     manifest.pop("catalogBindings", None)
     manifest.update({
@@ -121,6 +129,7 @@ def _build_app(media_path: Path, library_root: Path) -> dict[str, object]:
         "distribution": distribution,
         "settings": {key: value for key, value in env_values.items() if key.startswith("W9_") and key.endswith("_SET")},
         "is_web_app": "W9_URL" in env_values,
+        "default_scheme": default_scheme,
         "app_origin": "local",
     })
     profiles = _discover_profiles(app_dir)

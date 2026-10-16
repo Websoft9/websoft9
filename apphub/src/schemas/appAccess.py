@@ -20,6 +20,8 @@ class AppAccessProfile(BaseModel):
     forward_host: Optional[str] = Field(default=None, description="Forward host for the proxy target")
     forward_port: Optional[int] = Field(default=None, description="Forward port for the proxy target")
     forward_scheme: Literal["http", "https"] = Field(default="http")
+    default_scheme: Literal["http", "https"] = Field(default="http")
+    require_https: bool = Field(default=False)
 
 
 class AppCredentialDescriptor(BaseModel):

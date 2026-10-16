@@ -215,16 +215,16 @@ main() {
 
       JWT_RESPONSE=$(timeout 5 curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "http://localhost:81/api/tokens" \
           -H "Content-Type: application/json" \
-          -d "{\"identity\":\"$INITIAL_ADMIN_EMAIL\", \"secret\":\"$INITIAL_ADMIN_PASSWORD\", \"scope\":\"user\"}")
+          -d "{\"identity\":\"$INITIAL_ADMIN_EMAIL\", \"secret\":\"$INITIAL_ADMIN_PASSWORD\", \"scope\":\"user\"}" || true)
 
       HTTP_STATUS=${JWT_RESPONSE##*HTTP_STATUS:}
       RESPONSE_BODY=${JWT_RESPONSE/HTTP_STATUS:*/}
 
-      if [ "$HTTP_STATUS" -eq 200 ]; then
+      if [[ "$HTTP_STATUS" == "200" ]]; then
           JWT=$(jq -r '.token' <<< "$RESPONSE_BODY")
           [ -n "$JWT" ] && break
           echo "Access token is empty, continuing to retry..."
-      elif [ "$HTTP_STATUS" -ge 400 ] && [ "$HTTP_STATUS" -lt 500 ]; then
+      elif [[ "$HTTP_STATUS" =~ ^[0-9]+$ ]] && [ "$HTTP_STATUS" -ge 400 ] && [ "$HTTP_STATUS" -lt 500 ]; then
           echo "Authentication failed [HTTP $HTTP_STATUS] Please check your username and password"
           exit 1
       else

@@ -7,6 +7,8 @@ export type MyAppAccessProfile = {
     forward_host?: string | null
     forward_port?: number | null
     forward_scheme: 'http' | 'https'
+    default_scheme?: 'http' | 'https'
+    require_https?: boolean
 }
 
 export type MyAppAccessCandidate = {

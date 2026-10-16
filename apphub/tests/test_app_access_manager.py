@@ -21,8 +21,44 @@ def test_runtime_credentials_only_discover_supported_sources_and_login_help(monk
     rules, help_text = AppAccessManager()._credential_rules("portainer_demo", SimpleNamespace(app_name="portainer"))
     assert list(rules) == ["token"]
     assert help_text == "Use setup token"
-    assert AppAccessManager()._credential_rules("openclaw_demo", SimpleNamespace(app_name="openclaw")) == ({}, None)
-    assert AppAccessManager()._credential_rules("graylog_demo", SimpleNamespace(app_name="graylog")) == ({}, None)
+    static_only = {"credentials": {"username": {"source": "inline", "value": "admin"}, "password": {"source": "container-env", "name": "W9_LOGIN_PASSWORD"}}}
+    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(static_only)))
+    assert AppAccessManager()._credential_rules("static_demo", SimpleNamespace(app_name="custom")) == ({}, None)
+
+
+def test_staged_initial_and_login_credentials_discover_initial_runtime_rules(monkeypatch):
+    graylog_template = {
+        "credentials": {
+            "initial": {
+                "username": {"source": "inline", "value": "admin"},
+                "password": {
+                    "source": "container-log",
+                    "match": "regex",
+                    "pattern": "username 'admin' and password '([^']+)'",
+                    "group": 1,
+                },
+            },
+            "login": {
+                "username": {"source": "inline", "value": "admin"},
+                "password": {"source": "container-env", "name": "W9_LOGIN_PASSWORD"},
+            },
+        },
+        "help": {"login": "First run: read the temporary admin password from the container logs"},
+    }
+    app = SimpleNamespace(app_name="graylog", endpointId=1, containers=[{"Id": "main", "Names": ["/graylog_demo"]}])
+    log_payload = b"Initial configuration is accessible at 0.0.0.0:9000, with username 'admin' and password 'temp-secret'.\n"
+    monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
+    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(graylog_template)))
+    monkeypatch.setattr(app_access_manager_module, "PortainerManager", lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=lambda *args: log_payload)))
+    manager = AppAccessManager()
+
+    rules, help_text = manager._credential_rules("graylog_demo", app)
+    assert list(rules) == ["password"]
+    assert rules["password"]["source"] == "container-log"
+    assert help_text == graylog_template["help"]["login"]
+    result = manager.resolve_credential("graylog_demo", "password", 1)
+    assert result.status == "ready"
+    assert "temp-secret" in (result.content or "")
 
 
 def test_runtime_log_returns_all_original_content_and_reports_missing_initialization(monkeypatch):
@@ -210,17 +246,19 @@ def test_cli_route_requires_auth_and_prevents_caching(monkeypatch):
 
 
 @pytest.mark.parametrize("app_name", ["openclaw", "graylog", "ghost", "metabase", "seafile"])
-def test_runtime_excluded_apps_never_read_templates(monkeypatch, app_name):
-    def unexpected_read():
-        raise AssertionError("Excluded apps must not read credential templates")
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", unexpected_read)
+def test_apps_without_runtime_credential_rules_return_empty(monkeypatch, app_name):
+    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: '{"credentials": {"login": {"password": {"source": "container-env", "name": "W9_LOGIN_PASSWORD"}}}}'))
     assert AppAccessManager()._credential_rules("example", SimpleNamespace(app_name=app_name)) == ({}, None)
 
 def test_openclaw_cli_commands_are_allowlisted_and_run_fixed_argv(monkeypatch):
     app = SimpleNamespace(app_name="openclaw", endpointId=1, containers=[{"Id": "main", "Names": ["/openclaw_demo"]}])
     calls = []
+    template = {"cli_commands": [
+        {"id": "show-token", "command": "openclaw gateway auth-token --show", "argv": ["openclaw", "gateway", "auth-token", "--show"]},
+        {"id": "generate-token", "command": "openclaw doctor --generate-gateway-token", "argv": ["openclaw", "doctor", "--generate-gateway-token"], "action": "generate"},
+    ]}
     monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: "{}"))
+    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
     monkeypatch.setattr(app_access_manager_module, "PortainerManager", lambda: SimpleNamespace(portainer=SimpleNamespace(
         run_container_command=lambda *args, **kwargs: (calls.append((args, kwargs)) or "TOKEN"),
     )))
@@ -237,6 +275,19 @@ def test_openclaw_cli_commands_are_allowlisted_and_run_fixed_argv(monkeypatch):
     assert calls[0][0] == (1, "main", ["openclaw", "gateway", "auth-token", "--show"], app_access_manager_module.MAX_CLI_OUTPUT_BYTES)
     with pytest.raises(app_access_manager_module.CustomException):
         manager.execute_cli_command("openclaw_demo", "openclaw sh -c id", 1)
+
+
+def test_openclaw_without_declared_cli_commands_has_no_initial_credentials(monkeypatch):
+    app = SimpleNamespace(app_name="openclaw")
+    monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
+    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: '{"credentials": {}}'))
+    manager = AppAccessManager()
+
+    assert manager._cli_commands("openclaw_demo", app) == []
+    assert manager._credential_rules("openclaw_demo", app) == ({}, None)
+    for command in ["openclaw gateway auth-token --show", "openclaw doctor --generate-gateway-token"]:
+        with pytest.raises(app_access_manager_module.CustomException):
+            manager.execute_cli_command("openclaw_demo", command, 1)
 
 
 def test_login_help_is_available_without_dynamic_credentials(monkeypatch):
@@ -372,3 +423,91 @@ def test_save_domain_binding_rejects_domains_used_by_other_proxy(monkeypatch):
         assert exc.details == "['wp.create.websoft9.cn'] already used"
     else:
         raise AssertionError('Expected duplicate-domain validation to reject the binding')
+
+
+def test_resolve_profile_reads_access_default_scheme_https(monkeypatch):
+    manager = AppAccessManager()
+    template = {"access": {"defaultScheme": "https", "web": {"port": 8080, "path": "/"}}}
+    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
+    app = SimpleNamespace(app_dist="community", env={"W9_HTTP_PORT": "8080"})
+
+    profile = manager._resolve_profile("rancher_demo", app)
+
+    assert profile.default_scheme == "https"
+    assert profile.require_https is True
+    assert profile.forward_scheme == "http"
+    assert profile.forward_port == 8080
+
+
+def test_https_required_app_enforces_inner_cert_fallback_and_ssl_forced(monkeypatch):
+    manager = AppAccessManager()
+    template = {"access": {"defaultScheme": "https"}}
+    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
+    created_calls = []
+    updated_calls = []
+
+    class FakeAppManager:
+        def get_app_by_id(self, app_id, endpoint_id=None):
+            return SimpleNamespace(app_dist="community", env={"W9_HTTP_PORT": "8080"})
+
+        def create_proxy_by_app(self, app_id, domains, endpoint_id=None, certificate_id=None, ssl_forced=False):
+            created_calls.append((app_id, domains, certificate_id, ssl_forced))
+            return {"id": 11, "domain_names": domains, "certificate_id": certificate_id, "ssl_forced": ssl_forced}
+
+    class FakeProxyManager:
+        @staticmethod
+        def to_proxy_host_response(proxy_host):
+            return proxy_host
+
+        def check_proxy_host_exists(self, domains, exclude_proxy_id=None):
+            return False
+
+        def ensure_inner_certificate(self):
+            return {"id": 99, "nice_name": "websoft9-inner", "provider": "other"}
+
+        def request_letsencrypt_certificate(self, email, domain_names, proxy_id=None, ssl_forced=None):
+            raise app_access_manager_module.CustomException(400, "Invalid Request", "DNS lookup failed")
+
+        def update_proxy_by_app(self, proxy_id, domain_names, certificate_id=None, ssl_forced=None):
+            updated_calls.append((proxy_id, domain_names, certificate_id, ssl_forced))
+            return {"id": proxy_id, "domain_names": domain_names, "certificate_id": certificate_id, "ssl_forced": ssl_forced}
+
+    monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: FakeAppManager())
+    monkeypatch.setattr(app_access_manager_module, "ProxyManager", FakeProxyManager)
+    monkeypatch.setattr(manager, "_get_proxy_hosts", lambda app_id, profile: [{"id": 11, "domain_names": ["rancher.example.com"], "forward_host": "rancher_demo"}])
+
+    binding = manager.save_domain_binding("rancher_demo", ["new.example.com"], None, False, None, None)
+    assert created_calls == [("rancher_demo", ["new.example.com"], 99, True)]
+    assert binding["certificate_id"] == 99
+    assert binding["ssl_forced"] is True
+
+    cert = manager.issue_letsencrypt_certificate("rancher_demo", "admin@example.com", ["rancher.example.com"], 11, None)
+    assert cert["id"] == 99
+    assert cert["fallback"] is True
+    assert updated_calls == [(11, ["rancher.example.com"], 99, True)]
+
+
+def test_proxy_manager_provision_https_prefers_letsencrypt_and_falls_back_to_inner():
+    from src.services.proxy_manager import ProxyManager
+
+    pm = ProxyManager.__new__(ProxyManager)
+    updated = []
+    pm.update_proxy_by_app = lambda proxy_id, domains, certificate_id=None, ssl_forced=None: (
+        updated.append((proxy_id, domains, certificate_id, ssl_forced))
+        or {"id": proxy_id, "domain_names": domains, "certificate_id": certificate_id, "ssl_forced": ssl_forced}
+    )
+    pm.ensure_inner_certificate = lambda: {"id": 42, "nice_name": "websoft9-inner"}
+    pm.request_letsencrypt_certificate = lambda email, domains, proxy_id=None, ssl_forced=None: {"id": 77, "nice_name": domains[0]}
+
+    res1 = pm.provision_https_for_proxy_host(5, ["app.example.com"], email="ops@example.com")
+    assert res1["certificate_id"] == 77
+    assert res1["ssl_forced"] is True
+
+    def fail_le(email, domains, proxy_id=None, ssl_forced=None):
+        raise RuntimeError("ACME challenge failed")
+
+    pm.request_letsencrypt_certificate = fail_le
+    res2 = pm.provision_https_for_proxy_host(6, ["intranet.local"], email="ops@example.com")
+    assert res2["certificate_id"] == 42
+    assert res2["ssl_forced"] is True
+

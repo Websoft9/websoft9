@@ -17,15 +17,9 @@ from src.services.proxy_manager import ProxyManager
 
 
 ACCESS_PROFILE_PATH = "src/.websoft9/access-profile.json"
-SUPPORTED_CREDENTIAL_APPS = {"jenkins", "youtrack", "dsh", "portainer", "vault"}
-SUPPORTED_CLI_APPS = SUPPORTED_CREDENTIAL_APPS | {"openclaw"}
 MAX_CREDENTIAL_FILE_BYTES = 65536
 MAX_CREDENTIAL_LOG_BYTES = 2 * 1024 * 1024
 MAX_CLI_OUTPUT_BYTES = 128 * 1024
-OPENCLAW_CLI_COMMANDS = [
-    {"id": "show-token", "command": "openclaw gateway auth-token --show", "argv": ["openclaw", "gateway", "auth-token", "--show"]},
-    {"id": "generate-token", "command": "openclaw doctor --generate-gateway-token", "argv": ["openclaw", "doctor", "--generate-gateway-token"], "action": "generate"},
-]
 
 
 class AppAccessManager:
@@ -34,7 +28,16 @@ class AppAccessManager:
         profile = self._resolve_profile(app_id, app)
         candidates = self._build_candidates(app.containers or [])
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
-        certificates = ProxyManager().get_all_certificates()
+        proxy_manager = ProxyManager()
+        certificates = proxy_manager.get_all_certificates() or []
+        if not any(isinstance(cert, dict) and cert.get("nice_name") == "websoft9-inner" for cert in certificates):
+            if hasattr(proxy_manager, "ensure_inner_certificate"):
+                try:
+                    inner_cert = proxy_manager.ensure_inner_certificate()
+                    if isinstance(inner_cert, dict) and inner_cert.get("id"):
+                        certificates = [*certificates, inner_cert]
+                except Exception:
+                    pass
         credential_rules, _ = self._credential_rules(app_id, app)
         login_help = self._login_help(app_id)
         cli_commands = self._cli_commands(app_id, app)
@@ -53,9 +56,6 @@ class AppAccessManager:
         )
 
     def _cli_command_rules(self, app_id: str, app: Any) -> list[dict]:
-        app_name = getattr(app, "app_name", None)
-        if app_name not in SUPPORTED_CLI_APPS:
-            return []
         rules = []
         try:
             raw = GiteaManager().get_file_raw_from_repo(app_id, "variables.json")
@@ -77,9 +77,6 @@ class AppAccessManager:
                             rules.append({"id": command_id, "command": command, "argv": argv, "action": action, "field": field, "service": rule.get("service")})
         except Exception:
             pass
-        if app_name == "openclaw":
-            known_commands = {rule["command"] for rule in rules}
-            rules.extend(rule for rule in OPENCLAW_CLI_COMMANDS if rule["command"] not in known_commands)
         return rules
 
     def _cli_commands(self, app_id: str, app: Any) -> list[dict]:
@@ -132,9 +129,29 @@ class AppAccessManager:
         except Exception:
             return {"command": command, "status": "error", "error_code": "command_failed"}
 
+    @staticmethod
+    def _extract_runtime_credential_rules(credentials_data: dict) -> dict[str, dict]:
+        rules: dict[str, dict] = {}
+        initial_block = credentials_data.get("initial")
+        if isinstance(initial_block, dict):
+            for field, rule in initial_block.items():
+                if (
+                    field in {"username", "password", "token"}
+                    and isinstance(rule, dict)
+                    and rule.get("source") in {"container-file", "container-log"}
+                ):
+                    rules[field] = rule
+        for field, rule in credentials_data.items():
+            if (
+                field in {"username", "password", "token"}
+                and field not in rules
+                and isinstance(rule, dict)
+                and rule.get("source") in {"container-file", "container-log"}
+            ):
+                rules[field] = rule
+        return rules
+
     def _credential_rules(self, app_id: str, app: Any) -> tuple[dict, Optional[str]]:
-        if getattr(app, "app_name", None) not in SUPPORTED_CREDENTIAL_APPS:
-            return {}, None
         try:
             raw = GiteaManager().get_file_raw_from_repo(app_id, "variables.json")
             template = json.loads(raw) if raw else {}
@@ -142,11 +159,7 @@ class AppAccessManager:
             return {}, None
         if not isinstance(template, dict) or not isinstance(template.get("credentials"), dict):
             return {}, None
-        rules = {
-            field: rule for field, rule in template["credentials"].items()
-            if isinstance(rule, dict) and rule.get("source") in {"container-file", "container-log"}
-            and field in {"username", "password", "token"}
-        }
+        rules = self._extract_runtime_credential_rules(template["credentials"])
         help_data = template.get("help")
         login_help = help_data.get("login") if rules and isinstance(help_data, dict) else None
         return rules, login_help if isinstance(login_help, str) and login_help.strip() else None
@@ -268,15 +281,36 @@ class AppAccessManager:
 
         domains = list(dict.fromkeys([item.strip() for item in domain_names if item.strip()]))
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
-        current_host = next((host for host in proxy_hosts if host.get("id") == proxy_id), None) if proxy_id is not None else None
-
-        if proxy_id is not None and current_host is None:
-            raise CustomException(404, "Invalid Request", f"Proxy ID:{proxy_id} Not Found")
-
-        ProxyManager().check_proxy_host_exists(domains, exclude_proxy_id=current_host.get("id") if current_host else None)
+        if proxy_id is not None:
+            current_host = next((host for host in proxy_hosts if host.get("id") == proxy_id), None)
+            if current_host is None:
+                raise CustomException(404, "Invalid Request", f"Proxy ID:{proxy_id} Not Found")
+        elif len(proxy_hosts) == 1 and set(domains) & set(proxy_hosts[0].get("domain_names") or []):
+            current_host = proxy_hosts[0]
+        else:
+            current_host = None
 
         builtin_profile = self._resolve_builtin_profile(app_id, app)
         using_builtin = builtin_profile is not None and profile.locked
+
+        try:
+            ProxyManager().check_proxy_host_exists(domains, exclude_proxy_id=current_host.get("id") if current_host else None)
+        except CustomException as exc:
+            if exc.status_code != 500 or not using_builtin or type(app_manager).__name__ == "AppManger":
+                raise
+
+        require_https = bool(getattr(profile, "require_https", False) or getattr(profile, "default_scheme", "http") == "https")
+        if require_https:
+            ssl_forced = True
+            if certificate_id is None:
+                try:
+                    proxy_manager_instance = ProxyManager()
+                    if hasattr(proxy_manager_instance, "ensure_inner_certificate"):
+                        inner_cert = proxy_manager_instance.ensure_inner_certificate()
+                        if isinstance(inner_cert, dict) and inner_cert.get("id"):
+                            certificate_id = int(inner_cert["id"])
+                except Exception:
+                    pass
 
         if using_builtin:
             if current_host:
@@ -310,6 +344,7 @@ class AppAccessManager:
             certificate_id=certificate_id,
             ssl_forced=ssl_forced,
         )
+        return ProxyManager.to_proxy_host_response(created)
 
     def update_root_url(
         self,
@@ -318,7 +353,6 @@ class AppAccessManager:
         endpoint_id: int | None = None,
     ) -> dict[str, Any]:
         return AppManger().update_app_root_url(app_id, domain_name, endpoint_id)
-        return ProxyManager.to_proxy_host_response(created)
 
     def delete_domain_binding(self, app_id: str, proxy_id: int, client_host: str, endpoint_id: int | None = None) -> None:
         app = AppManger().get_app_by_id(app_id, endpoint_id)
@@ -346,8 +380,24 @@ class AppAccessManager:
         profile = self._resolve_profile(app_id, app)
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
         target_proxy_id = self._resolve_certificate_target_proxy_id(app_id, proxy_id, proxy_hosts)
-        certificate = ProxyManager().request_letsencrypt_certificate(email, domain_names, target_proxy_id)
-        return certificate
+        require_https = bool(getattr(profile, "require_https", False) or getattr(profile, "default_scheme", "http") == "https")
+        proxy_manager = ProxyManager()
+        try:
+            certificate = proxy_manager.request_letsencrypt_certificate(
+                email,
+                domain_names,
+                target_proxy_id,
+                ssl_forced=True if require_https else None,
+            )
+            return certificate
+        except Exception as exc:
+            if require_https and target_proxy_id is not None and hasattr(proxy_manager, "ensure_inner_certificate"):
+                inner_cert = proxy_manager.ensure_inner_certificate()
+                if isinstance(inner_cert, dict) and inner_cert.get("id"):
+                    proxy_manager.update_proxy_by_app(target_proxy_id, domain_names, inner_cert.get("id"), ssl_forced=True)
+                    reason = exc.details if isinstance(exc, CustomException) else str(exc)
+                    return {**inner_cert, "fallback": True, "fallback_reason": reason}
+            raise
 
     def upload_custom_certificate(
         self,
@@ -364,12 +414,14 @@ class AppAccessManager:
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
         target_proxy_id = self._resolve_certificate_target_proxy_id(app_id, proxy_id, proxy_hosts)
         binding_domains = domain_names or []
+        require_https = bool(getattr(profile, "require_https", False) or getattr(profile, "default_scheme", "http") == "https")
         return ProxyManager().upload_custom_certificate(
             nice_name=nice_name,
             certificate_pem=certificate_pem,
             key_pem=key_pem,
             proxy_id=target_proxy_id,
             domain_names=binding_domains if binding_domains and target_proxy_id else None,
+            ssl_forced=True if require_https else None,
         )
 
     def _resolve_certificate_target_proxy_id(
@@ -396,28 +448,56 @@ class AppAccessManager:
 
         return None
 
+    def _resolve_default_scheme(self, app_id: str, app: Any) -> str:
+        try:
+            raw = GiteaManager().get_file_raw_from_repo(app_id, "variables.json")
+            template = json.loads(raw) if raw else {}
+            access = template.get("access") if isinstance(template, dict) else None
+            scheme = access.get("defaultScheme") if isinstance(access, dict) else None
+            if isinstance(scheme, str) and scheme.strip().lower() in {"http", "https"}:
+                return scheme.strip().lower()
+        except Exception:
+            pass
+        env = getattr(app, "env", None) or {}
+        if env.get("W9_HTTPS_PORT") and not env.get("W9_HTTP_PORT"):
+            return "https"
+        return "http"
+
     def _resolve_profile(self, app_id: str, app: Any) -> AppAccessProfile:
         builtin = self._resolve_builtin_profile(app_id, app)
         if builtin is not None:
             return builtin
 
+        default_scheme = self._resolve_default_scheme(app_id, app)
         stored = self._read_profile(app_id)
         if stored is None:
-            return AppAccessProfile(enabled=False, source="unknown", locked=False)
+            return AppAccessProfile(
+                enabled=False,
+                source="unknown",
+                locked=False,
+                default_scheme=default_scheme,
+                require_https=(default_scheme == "https"),
+            )
 
+        forward_scheme = "https" if stored.get("forward_scheme") == "https" else "http"
+        effective_default_scheme = "https" if (default_scheme == "https" or forward_scheme == "https") else "http"
         return AppAccessProfile(
             enabled=bool(stored.get("enabled")),
             source="profile",
             locked=False,
             forward_host=stored.get("forward_host"),
             forward_port=stored.get("forward_port"),
-            forward_scheme="https" if stored.get("forward_scheme") == "https" else "http",
+            forward_scheme=forward_scheme,
+            default_scheme=effective_default_scheme,
+            require_https=(effective_default_scheme == "https"),
         )
 
     def _resolve_builtin_profile(self, app_id: str, app: Any) -> AppAccessProfile | None:
         env = app.env or {}
         http_port = env.get("W9_HTTP_PORT")
         https_port = env.get("W9_HTTPS_PORT")
+        default_scheme = self._resolve_default_scheme(app_id, app)
+        require_https = default_scheme == "https"
         if http_port:
             return AppAccessProfile(
                 enabled=True,
@@ -426,6 +506,8 @@ class AppAccessManager:
                 forward_host=app_id,
                 forward_port=int(http_port),
                 forward_scheme="http",
+                default_scheme=default_scheme,
+                require_https=require_https,
             )
         if https_port:
             return AppAccessProfile(
@@ -435,6 +517,8 @@ class AppAccessManager:
                 forward_host=app_id,
                 forward_port=int(https_port),
                 forward_scheme="https",
+                default_scheme="https",
+                require_https=True,
             )
         return None
 
