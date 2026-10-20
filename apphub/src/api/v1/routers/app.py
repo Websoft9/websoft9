@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, Optional
 from fastapi import APIRouter, Cookie, Query,Path, Body, Request, Response
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from src.core import logger
 from src.core.exception import CustomException
 from src.schemas.appAvailable import AppAvailableResponse
@@ -26,6 +27,8 @@ from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthServi
 from src.services.scheduled_tasks import ScheduledTaskService
 from src.schemas.scheduledTasks import ImagePrewarmRequest
 from src.services.app_manager import AppManger
+from src.services.gitea_manager import GiteaManager
+from src.services.portainer_manager import PortainerManager
 from src.services.apps_stream_cache import apps_stream_cache
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
 from src.services.common_check import install_validate
@@ -855,3 +858,110 @@ def save_custom_fields(
 ):
     fields = [f.model_dump() for f in payload.fields]
     return save_app_custom_fields(app_id, fields)
+
+
+class AppRepositoryFileWriteRequest(BaseModel):
+    path: str = Field(..., min_length=1, max_length=512, description="Repository-relative file path")
+    content: str = Field(default="", description="UTF-8 text content")
+    sha: Optional[str] = Field(default=None, description="Current blob SHA of the file")
+
+
+def _resolve_deployed_commit_sha(app_id: str, endpoint_id: Optional[int] = None) -> str:
+    try:
+        pm = PortainerManager()
+        resolved_endpoint = endpoint_id or pm.get_local_endpoint_id()
+        stack = pm.get_stack_by_name(app_id, resolved_endpoint) or {}
+        git_cfg = stack.get("GitConfig") if isinstance(stack, dict) else None
+        if isinstance(git_cfg, dict):
+            return str(git_cfg.get("ConfigHash") or "")
+    except Exception:
+        pass
+    return ""
+
+
+@router.get(
+    "/apps/{app_id}/repository/files",
+    summary="List App Repository Files",
+    responses={
+        200: {"model": dict},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def list_app_repository_files(
+    response: Response,
+    app_id: str = Path(..., description="App ID whose repository files should be listed"),
+    path: str = Query("", max_length=512, description="Optional directory path inside repository"),
+    endpointId: Optional[int] = Query(None, description="Endpoint ID"),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    response.headers["Cache-Control"] = "no-store"
+    repo_tree = GiteaManager().list_repo_files(app_id, dir_path=path)
+    head_sha = str(repo_tree.get("head_sha") or "")
+    deployed_sha = _resolve_deployed_commit_sha(app_id, endpointId)
+    return {
+        "app_id": app_id,
+        "current_dir": repo_tree.get("current_dir") or "",
+        "head_sha": head_sha,
+        "deployed_sha": deployed_sha,
+        "pending_redeploy": bool(head_sha and deployed_sha and head_sha != deployed_sha),
+        "files": repo_tree.get("files") or [],
+        "all_entries": repo_tree.get("all_entries") or repo_tree.get("files") or [],
+    }
+
+
+@router.get(
+    "/apps/{app_id}/repository/file",
+    summary="Read App Repository File",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def read_app_repository_file(
+    response: Response,
+    app_id: str = Path(..., description="App ID"),
+    path: str = Query(..., min_length=1, max_length=512, description="Repository-relative file path"),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    response.headers["Cache-Control"] = "no-store"
+    return GiteaManager().read_repo_text_file(app_id, path)
+
+
+@router.put(
+    "/apps/{app_id}/repository/file",
+    summary="Update App Repository File",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def update_app_repository_file(
+    response: Response,
+    payload: AppRepositoryFileWriteRequest = Body(...),
+    app_id: str = Path(..., description="App ID"),
+    endpointId: Optional[int] = Query(None, description="Endpoint ID"),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    response.headers["Cache-Control"] = "no-store"
+    saved = GiteaManager().write_repo_text_file(app_id, payload.path, payload.content, payload.sha)
+    head_sha = str(saved.get("head_sha") or "")
+    deployed_sha = _resolve_deployed_commit_sha(app_id, endpointId)
+    return {
+        **saved,
+        "deployed_sha": deployed_sha,
+        "pending_redeploy": bool(head_sha and deployed_sha and head_sha != deployed_sha),
+    }
+

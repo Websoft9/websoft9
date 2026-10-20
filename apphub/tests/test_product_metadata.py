@@ -145,3 +145,76 @@ def test_migrate_product_metadata_rejects_nonstandard_legacy_max_apps(tmp_path, 
         assert 'Unsupported legacy max_apps value' in str(error)
     else:
         raise AssertionError('Expected ValueError for nonstandard legacy max_apps')
+
+
+@pytest.mark.parametrize("query", ["metadata", "edition", "settings", "overview"])
+def test_cli_product_queries_only_open_existing_database_readonly(tmp_path, monkeypatch, query):
+    import sqlite3
+    from click.testing import CliRunner
+    from unittest.mock import MagicMock
+    from src.cli.overview_commands import overview_group
+    from src.cli.settings_commands import settings_group
+    from src.schemas.overview import OverviewAppsSummary
+    from src.services.overview_service import OverviewService
+
+    _configure_runtime_state_paths(tmp_path, monkeypatch)
+    monkeypatch.setenv("WEBSOFT9_DATA_ROOT", str(tmp_path))
+    monkeypatch.setenv("WEBSOFT9_APPHUB_CONFIG_PATH", str(tmp_path / "config.ini"))
+    product_metadata_service.write_product_edition("starter")
+    original_connect = sqlite3.connect
+    opened = []
+
+    def readonly_connect(database, *args, **kwargs):
+        assert "?mode=ro" in str(database)
+        assert kwargs.get("uri") is True
+        opened.append(database)
+        return original_connect(database, *args, **kwargs)
+
+    def reject_initialization(_self):
+        pytest.fail("Product query must not initialize or migrate storage")
+
+    monkeypatch.setattr(sqlite3, "connect", readonly_connect)
+    monkeypatch.setattr(runtime_state_service.ProductRuntimeStateStore, "_ensure_storage", reject_initialization)
+    if query == "metadata":
+        result = CliRunner().invoke(overview_group, ["edition", "--json"])
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["data"]["edition_key"] == "starter"
+    elif query == "edition":
+        assert product_metadata_service.read_product_edition(readonly=True).key == "starter"
+    elif query == "settings":
+        result = CliRunner().invoke(settings_group, ["summary", "--json"])
+        assert result.exit_code == 0, result.output
+        groups = json.loads(result.output)["data"]["groups"]
+        version = next(group for group in groups if group["id"] == "version")
+        assert version["items"][0]["metadata"]["edition_key"] == "starter"
+    else:
+        service = OverviewService(auth_service=MagicMock(), available_catalog_count_loader=lambda _locale: 0)
+        summary = service._safe_product_summary(OverviewAppsSummary(), readonly=True)
+        assert summary.available is True, summary.unavailable_reason
+        assert summary.edition_key == "starter"
+    assert opened
+
+
+@pytest.mark.parametrize("storage", ["missing", "corrupt", "missing-table", "empty-state"])
+def test_readonly_product_state_errors_do_not_create_or_repair_storage(tmp_path, monkeypatch, storage):
+    import sqlite3
+    from src.core.exception import CustomException
+
+    _configure_runtime_state_paths(tmp_path, monkeypatch)
+    database = tmp_path / "apphub-data" / "install-tracking.sqlite"
+    if storage != "missing":
+        database.parent.mkdir()
+        if storage == "corrupt":
+            database.write_bytes(b"invalid sqlite fixture")
+        elif storage == "missing-table":
+            with sqlite3.connect(database) as connection:
+                connection.execute("CREATE TABLE unrelated (id INTEGER)")
+        else:
+            runtime_state_service.ProductRuntimeStateStore()
+    before = database.read_bytes() if database.exists() else None
+    with pytest.raises(CustomException) as error:
+        product_metadata_service.read_product_metadata(readonly=True)
+    assert error.value.status_code == 503
+    assert (database.read_bytes() if database.exists() else None) == before
+    if storage == "missing":
+        assert not database.parent.exists()

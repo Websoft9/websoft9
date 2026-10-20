@@ -64,10 +64,10 @@ class SettingsManager:
             logger.error(e)
             raise CustomException()
 
-    def read_summary(self) -> dict:
+    def read_summary(self, *, readonly: bool = False) -> dict:
         self.config.read(self.config_file_path)
-        version_payload = read_product_metadata()
-        edition = read_product_edition()
+        version_payload = read_product_metadata(readonly=True) if readonly else read_product_metadata()
+        edition = read_product_edition(readonly=True) if readonly else read_product_edition()
         raw_version = str(version_payload.get("version", "")).strip()
         edition_name = str(edition.name or "").strip()
         product_version = f"{edition_name} {raw_version}".strip() or "-"

@@ -12,7 +12,7 @@ class APIHelper:
         get(path: str, params: dict = None, headers: dict = None) -> Response: Get a resource
         post(path: str, params: dict = None, json: dict = None, headers: dict = None) -> Response: Create a resource
         put(path: str, params: dict = None, json: dict = None, headers: dict = None) -> Response: Update a resource
-        delete(path: str, headers: dict = None) -> Response: Delete a resource
+        delete(path: str, params: dict = None, headers: dict = None, json: dict = None) -> Response: Delete a resource
     """
     def __init__(self, base_url, headers=None, verify=True):
         """
@@ -73,19 +73,21 @@ class APIHelper:
         url = f"{self.base_url}/{path}"
         return requests.put(url, params=params, json=json, headers=self._merge_headers(headers), verify=self.verify)
 
-    def delete(self, path,params=None, headers=None):
+    def delete(self, path, params=None, headers=None, json=None):
         """
         Delete a resource
 
         Args:
             path (str): Path to resource
+            params (dict): Query parameters
             headers (dict): Headers
+            json (dict): JSON payload
         
         Returns:
             Response: Response from API
         """
         url = f"{self.base_url}/{path}"
-        return requests.delete(url, params=params, headers=self._merge_headers(headers), verify=self.verify)
+        return requests.delete(url, params=params, headers=self._merge_headers(headers), verify=self.verify, json=json)
 
     def _merge_headers(self, headers):
         """

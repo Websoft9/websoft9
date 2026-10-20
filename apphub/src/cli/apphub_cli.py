@@ -3,12 +3,12 @@ import sys
 import os
 import json
 import re
-from urllib.error import URLError
-from urllib.request import Request, urlopen
+from urllib.request import urlopen
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import click
+from src.cli.cli_help import TopicGroup, register_organized_commands
 from src.core.runtime_paths import resolve_apphub_config_path
 from src.services.product_metadata import write_product_edition
 from src.services.settings_manager import SettingsManager
@@ -20,45 +20,78 @@ from src.services.scheduled_tasks import SKIPPED_EXIT_CODE, ScheduledTaskService
 from src.services.product_runtime_state import read_release_channel
 from src.services.release_checker import ReleaseVersionChecker
 from src.cli.app_commands import app_group
-
-
-UPGRADE_DISPATCH_URL = "http://127.0.0.1:8080/api/settings/internal/upgrade/auto-prepare"
-UPGRADE_DISPATCH_SECRET_HEADER = "x-websoft9-upgrade-dispatch-secret"
+from src.cli.appstore_commands import register_appstore_commands
+from src.cli.backup_commands import backup_group
+from src.cli.cli_output import upgrade_group_commands_to_json_aware
+from src.cli.db_commands import db_group
+from src.cli.docker_commands import docker_group
+from src.cli.gateway_commands import gateway_group
+from src.cli.git_commands import git_group
+from src.cli.host_commands import host_group
+from src.cli.overview_commands import overview_group
+from src.cli.service_commands import service_group
+from src.cli.settings_commands import settings_group
+from src.cli.task_commands import task_group
+from src.cli.upgrade_dispatch import (
+    UPGRADE_DISPATCH_SECRET_HEADER,
+    UPGRADE_DISPATCH_URL,
+    dispatch_upgrade_preparation,
+)
 
 
 def _dispatch_auto_download() -> bool:
-    data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
-    secret_path = os.getenv(
-        "WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE",
-        f"{data_root}/config/internal-gateway-auth/trust_key",
-    )
     try:
-        with open(secret_path, encoding="utf-8") as handle:
-            secret = handle.read().strip()
-    except OSError as exc:
-        raise click.ClickException(f"Unable to read the upgrade dispatcher credential: {exc}") from exc
-    if not secret:
-        raise click.ClickException("The upgrade dispatcher credential is empty")
+        return bool(dispatch_upgrade_preparation(automatic=True, opener=urlopen).get("started"))
+    except CustomException as exc:
+        raise click.ClickException(str(exc.details or exc.message)) from exc
 
-    request = Request(
-        UPGRADE_DISPATCH_URL,
-        data=b"",
-        headers={UPGRADE_DISPATCH_SECRET_HEADER: secret},
-        method="POST",
-    )
-    try:
-        with urlopen(request, timeout=5) as response:  # noqa: S310 - fixed loopback URL
-            payload = json.loads(response.read().decode("utf-8"))
-    except (OSError, URLError, ValueError) as exc:
-        raise click.ClickException(f"Unable to dispatch the upgrade download to AppHub: {exc}") from exc
-    return bool(payload.get("started"))
+def _show_version(ctx, _param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    from src.services.product_runtime_state import read_release_version
 
-@click.group()
+    version = read_release_version()
+    if not version:
+        raise click.ClickException("The platform release version is unavailable")
+    click.echo(f"{ctx.info_name or 'websoft9'}, version {version}")
+    ctx.exit()
+
+
+@click.group(
+    cls=TopicGroup,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    epilog="Use 'websoft9 COMMAND -h' for command help. Legacy command paths remain supported.",
+)
+@click.option("--version", is_flag=True, is_eager=True, expose_value=False, callback=_show_version, help="Show the platform version and exit.")
 def cli():
-    pass
+    """Manage Websoft9 applications, infrastructure, and platform services."""
 
+
+app_group.add_command(db_group)
+upgrade_group_commands_to_json_aware(app_group, exclude_commands={"install", "refresh"})
+for _grp in (
+    overview_group,
+    host_group,
+    docker_group,
+    service_group,
+    git_group,
+    gateway_group,
+    backup_group,
+    task_group,
+    settings_group,
+):
+    upgrade_group_commands_to_json_aware(_grp)
 
 cli.add_command(app_group)
+cli.add_command(overview_group)
+cli.add_command(host_group)
+cli.add_command(docker_group)
+cli.add_command(service_group)
+cli.add_command(git_group)
+cli.add_command(gateway_group)
+cli.add_command(backup_group)
+cli.add_command(task_group)
+cli.add_command(settings_group)
 
 
 @cli.command()
@@ -145,6 +178,10 @@ def upgrade(target, channel, dev, force_refresh):
 @cli.group()
 def appstore():
     """Manage the local App Store dataset"""
+
+
+register_appstore_commands(appstore)
+upgrade_group_commands_to_json_aware(appstore, exclude_commands={"sync"})
 
 
 @cli.group()
@@ -376,7 +413,7 @@ def reconcile_scheduled_tasks():
         raise click.ClickException(str(e))
 
 
-@cli.command(hidden=True)
+@cli.command()
 @click.option('--password', prompt=True, hide_input=True, confirmation_prompt=True, help='New password for the system user')
 def resetpwd(password):
     """Reset the Websoft9 system user password"""
@@ -404,6 +441,9 @@ def resetpwd(password):
         raise
     except Exception as e:
         raise click.ClickException(str(e))
+
+register_organized_commands(cli)
+
 
 if __name__ == "__main__":
     cli(prog_name=os.environ.get('WEBSOFT9_CLI_NAME') or None)

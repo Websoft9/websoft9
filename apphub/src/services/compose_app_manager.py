@@ -12,7 +12,7 @@ import shutil
 import tempfile
 
 import docker
-from git import GitCommandError, Repo
+from git import Actor, Repo
 
 from src.core.exception import CustomException
 from src.core.logger import logger
@@ -27,6 +27,7 @@ from src.services.image_pull import (
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.portainer_manager import PortainerManager
 from src.utils.file_manager import FileHelper
+from src.utils.env_file import format_env_assignment, parse_env_values
 
 _COMPOSE_DIST = "compose"
 _COMPOSE_METADATA_PATH = ".websoft9/compose-metadata.json"
@@ -49,30 +50,16 @@ def _read_compose_metadata(gitea: GiteaManager, app_id: str) -> dict:
 
 
 def _is_compose_app(portainer: PortainerManager, app_id: str, endpoint_id: int) -> bool:
-    """Determine if an app is a custom compose app by checking Portainer stack properties.
-    
-    Compose apps have a GitConfig (deployed via Gitea) but no W9_APP_NAME env var
-    (unlike marketplace apps which set W9_APP_NAME in container env)."""
-    try:
-        stack = portainer.get_stack_by_name(app_id, endpoint_id)
-        if not stack:
-            return False
-        git_config = stack.get("GitConfig") or {}
-        if not git_config:
-            return False
-        containers = portainer.get_containers_by_stack_name(app_id, endpoint_id) or []
-        # If no containers exist, this is not a compose app — it's either
-        # a failed marketplace install or an empty stack.
-        if not containers:
-            return False
-        for c in containers:
-            env = c.get("Config", {}).get("Env") or []
-            for e in env:
-                if e.startswith("W9_APP_NAME="):
-                    return False  # has marketplace env → not compose
-        return True
-    except Exception:
+    """Use the shared app type, including retained apps without containers."""
+    stack = portainer.get_stack_by_name(app_id, endpoint_id)
+    if not stack or not stack.get("GitConfig"):
         return False
+    from src.services.app_manager import AppManger
+
+    app = AppManger().get_app_by_id(
+        app_id, endpoint_id, reconcile_stale=False, readonly_install_state=True, strict_exists=True,
+    )
+    return bool(app.is_compose_app)
 
 
 def _require_stack(portainer: PortainerManager, app_id: str, endpoint_id: int) -> dict:
@@ -85,33 +72,50 @@ def _require_stack(portainer: PortainerManager, app_id: str, endpoint_id: int) -
 
 def _require_compose_app(portainer: PortainerManager, app_id: str, endpoint_id: int):
     """Validate that the app is a custom compose app, return AppResponse."""
-    if not _is_compose_app(portainer, app_id, endpoint_id):
+    from src.services.app_manager import AppManger
+
+    _require_stack(portainer, app_id, endpoint_id)
+    app = AppManger().get_app_by_id(
+        app_id, endpoint_id, reconcile_stale=False, readonly_install_state=True, strict_exists=True,
+    )
+    if not app.is_compose_app:
         raise CustomException(
             400, "Invalid Request",
-            f"'{app_id}' is not a custom compose application (dist={dist!r})"
+            f"'{app_id}' is not a custom compose application"
         )
-    from src.services.app_manager import AppManger
-    return AppManger().get_app_by_id(app_id, endpoint_id)
+    return app
 
 
 def _parse_user_env(env_content: str) -> list[dict]:
     """Parse .env content into user-visible key-value pairs, excluding W9_* vars."""
-    entries = []
-    for line in env_content.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, _, value = stripped.partition("=")
-        key = key.strip()
-        if key.startswith("W9_"):
-            continue
-        entries.append({"key": key, "value": value})
-    return entries
+    values = parse_env_values(env_content)
+    return [
+        {"key": key, "value": value}
+        for key, value in values.items()
+        if not key.startswith("W9_") and value is not None
+    ]
 
 
 def _list_src_files(gitea: GiteaManager, app_id: str) -> list[dict]:
-    """List config/mount files under src/ in the Gitea repo (stub — returns empty list)."""
-    return []
+    """List config/mount files under src/ in the Gitea repo."""
+    try:
+        listing = gitea.list_repo_files(app_id)
+    except Exception:
+        return []
+    entries = listing.get("all_entries") or listing.get("files") or []
+    mounts: list[dict] = []
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("type") != "file":
+            continue
+        path = str(entry.get("path") or "").strip()
+        if not path.startswith("src/") or path.startswith("src/.websoft9/"):
+            continue
+        try:
+            file_data = gitea.read_repo_text_file(app_id, path)
+            mounts.append({"path": path, "content": file_data.get("content") or ""})
+        except Exception:
+            continue
+    return mounts
 
 
 class ComposeAppManager:
@@ -323,10 +327,10 @@ class ComposeAppManager:
             # Write updated docker-compose.yml
             FileHelper.write_file(os.path.join(workspace, "docker-compose.yml"), compose_content)
 
-            user_lines = [f"{e['key']}={e['value']}" for e in env]
+            env_content = "".join(format_env_assignment(e["key"], e["value"]) for e in env)
             FileHelper.write_file(
                 os.path.join(workspace, ".env"),
-                "\n".join(user_lines) + "\n",
+                env_content or "\n",
             )
 
             # Write mount / config files
@@ -338,10 +342,9 @@ class ComposeAppManager:
             # Commit and push
             repo = Repo(workspace)
             repo.git.add(".")
-            try:
-                repo.git.commit("-m", "Update compose content")
-            except GitCommandError:
-                pass  # Nothing changed — still redeploy below
+            if repo.is_dirty(index=True, working_tree=False, untracked_files=False):
+                actor = Actor(credentials.username, credentials.email)
+                repo.index.commit("Update compose content", author=actor, committer=actor)
             repo.git.push("origin", "main")
 
         except CustomException:

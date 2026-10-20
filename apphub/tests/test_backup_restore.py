@@ -97,17 +97,20 @@ def test_restore_starts_containers_after_restore(monkeypatch):
     manager = _build_manager()
     portainer = FakePortainer(
         stack_status=1,
-        container_sequences=[[
-            {"Names": ["/wordpress_demo"], "State": "running"},
-        ]],
+        container_sequences=[
+            [{"Names": ["/wordpress_demo"], "State": "running"}],
+            [{"Names": ["/wordpress_demo"], "State": "exited"}],
+            [{"Names": ["/wordpress_demo"], "State": "running"}],
+        ],
     )
 
     monkeypatch.setattr(manager, '_ensure_repository', lambda: None)
-    monkeypatch.setattr(manager, 'list_snapshots', lambda app_id, use_cache=True: [{"id": "snap-1", "short_id": "snap-1"}])
+    monkeypatch.setattr(manager, 'list_snapshots', lambda app_id, use_cache=True: [{"id": "snap-1", "short_id": "snap-1", "paths": ["/wordpress_demo"]}])
     monkeypatch.setattr(manager, '_run_restic_container', lambda command, extra_volumes: '{"message_type":"summary"}')
     monkeypatch.setattr(back_manager_module, 'AppManger', lambda: types.SimpleNamespace(
-        get_app_by_id=lambda app_id: types.SimpleNamespace(
+        get_app_by_id=lambda app_id, **kwargs: types.SimpleNamespace(
             endpointId=1,
+            status=1,
             volumes=[{"Mountpoint": "/var/lib/docker/volumes/wordpress_demo/_data", "Name": "wordpress_demo"}],
         )
     ))
@@ -119,6 +122,7 @@ def test_restore_starts_containers_after_restore(monkeypatch):
     assert portainer.stop_calls == [('wordpress_demo', 1)]
     assert portainer.up_calls == []
     assert portainer.start_calls == [('wordpress_demo', 1)]
+    assert portainer.container_sequences == []
 
 
 def test_restore_validation_rejects_only_exited_runtime_containers(monkeypatch):

@@ -17,6 +17,7 @@ from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.portainer_manager import PortainerManager
 from src.services.proxy_manager import ProxyManager
 from src.utils.file_manager import FileHelper
+from src.utils.env_file import format_env_assignment
 from src.utils.password_generator import PasswordGenerator
 
 
@@ -222,8 +223,8 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
 
         FileHelper.write_file(os.path.join(workspace_path, "docker-compose.yml"), yaml.dump(compose_document, default_flow_style=False, allow_unicode=True, sort_keys=False))
 
-        env_lines = [f"{entry.key}={entry.value}" for entry in payload.env]
-        FileHelper.write_file(os.path.join(workspace_path, ".env"), "\n".join(env_lines) + "\n")
+        env_content = "".join(format_env_assignment(entry.key, entry.value) for entry in payload.env)
+        FileHelper.write_file(os.path.join(workspace_path, ".env"), env_content or "\n")
 
         for mount in payload.mounts:
             target_path = os.path.join(workspace_path, mount.path)

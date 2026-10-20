@@ -181,6 +181,9 @@ class CoreServicesService:
 
     def list_services(self, session_token: Optional[str]) -> list[CoreServiceSummary]:
         self.auth_service._require_authenticated_operator(session_token)
+        return self.collect_services()
+
+    def collect_services(self) -> list[CoreServiceSummary]:
         statuses = self._safe_load_supervisor_statuses()
         updated_at = self._timestamp_now()
 
@@ -191,6 +194,9 @@ class CoreServicesService:
 
     def get_service_logs(self, session_token: Optional[str], service_key: str, query: ServiceLogsQuery) -> ServiceLogsResponse:
         self.auth_service._require_authenticated_operator(session_token)
+        return self.collect_service_logs(service_key, query)
+
+    def collect_service_logs(self, service_key: str, query: ServiceLogsQuery) -> ServiceLogsResponse:
         definition = self._get_definition(service_key)
         entries, unavailable_reason = self._read_service_logs(definition, query.limit)
         entries = self._filter_log_entries(entries, query)
@@ -411,7 +417,7 @@ class CoreServicesService:
             return HealthProbeResult(ok=True, detail=f"HTTP {response.status_code}")
         return HealthProbeResult(ok=False, detail=f"HTTP {response.status_code}")
 
-    def _read_service_logs(self, definition: ServiceDefinition, limit: int) -> tuple[list[ServiceLogEntry], Optional[str]]:
+    def _read_service_logs(self, definition: ServiceDefinition, limit: int, *, max_scan_bytes: int = 1024 * 1024) -> tuple[list[ServiceLogEntry], Optional[str]]:
         if not definition.log_root.exists() and not definition.log_paths:
             return [], "Service raw logs are not currently available"
 
@@ -420,9 +426,15 @@ class CoreServicesService:
             return [], "Service raw logs are not currently available"
 
         lines: deque[tuple[str, str, str]] = deque(maxlen=max(limit * 10, 400))
+        readable_files = 0
         for path in files:
             try:
+                size = path.stat().st_size
+                start_offset = max(size - max_scan_bytes, 0) if max_scan_bytes > 0 else 0
                 with path.open("r", encoding="utf-8", errors="replace") as handle:
+                    if start_offset > 0:
+                        handle.seek(start_offset)
+                        handle.readline()
                     while True:
                         offset = handle.tell()
                         line = handle.readline()
@@ -431,8 +443,12 @@ class CoreServicesService:
                         stripped = self._sanitize_log_line(line)
                         if stripped:
                             lines.append((path.name, stripped, f"{path.name}:{offset}"))
+                readable_files += 1
             except OSError:
                 continue
+
+        if readable_files == 0:
+            return [], "Service raw logs are not currently available"
 
         entries = [self._parse_log_line(source, raw_line, fingerprint) for source, raw_line, fingerprint in lines]
         return [entry for entry in entries if entry is not None], None

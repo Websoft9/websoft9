@@ -1,4 +1,5 @@
 import json
+import logging
 import sys
 import types
 from pathlib import Path
@@ -80,11 +81,40 @@ def test_install_maps_cli_arguments_to_app_install(monkeypatch):
     )
 
     assert result.exit_code == 0
-    assert json.loads(result.output.splitlines()[-1]) == {"app_id": "mywp_abcde", "tracking_id": "tracking-1"}
+    assert json.loads(result.stdout) == {"app_id": "mywp_abcde", "tracking_id": "tracking-1"}
     payload = calls[0][1]
     assert payload.settings == {"W9_HTTP_PORT_SET": "9002"}
     assert payload.proxy_enabled is True
     assert [call[0] for call in calls] == ["validate", "track", "install"]
+
+
+def test_install_routes_backend_logs_to_stderr_preserving_legacy_json(monkeypatch):
+    from src.cli.app_commands import app_group
+
+    _install_service_stubs(monkeypatch, [])
+    log = logging.getLogger("apphub.install")
+    monkeypatch.setattr(log, "level", logging.INFO)
+    monkeypatch.setattr(log, "propagate", False)
+
+    def noisy_install(*args):
+        log.info("fixture installation progress")
+
+    monkeypatch.setattr(sys.modules["src.services.app_manager"].AppManger, "install_app", noisy_install)
+    with CliRunner().isolation() as streams:
+        handler = logging.StreamHandler(sys.stdout)
+        monkeypatch.setattr(log, "handlers", [handler])
+        app_group.main([
+            "install", "wordpress", "--app-id", "mywp", "--version", "latest",
+            "--domain", "192.0.2.10", "--json",
+        ], standalone_mode=False)
+        assert handler.stream is sys.stdout
+        stdout = streams[0].getvalue().decode()
+        stderr = streams[1].getvalue().decode()
+    handler.close()
+
+    assert json.loads(stdout) == {"app_id": "mywp_abcde", "tracking_id": "tracking-1"}
+    assert "fixture installation progress" in stderr
+    assert "Installing wordpress" in stderr
 
 
 def test_install_rejects_empty_settings_key():

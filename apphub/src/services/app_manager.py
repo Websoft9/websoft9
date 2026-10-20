@@ -54,7 +54,7 @@ from src.utils.password_generator import PasswordGenerator
 from tenacity import retry, stop_after_attempt, wait_fixed
 from src.utils.async_utils import AsyncWrapper
 
-from src.services.app_status import appInstalling, appInstallingCancelled, appInstallingError, add_installing_logs, begin_install_deploy, install_cancel_requested, mark_install_cancelled, modify_app_information, remove_app_from_errors_by_app_id, remove_app_installation, remove_installation_logs, set_install_phase, start_app_installation
+from src.services.app_status import appInstalling, appInstallingCancelled, appInstallingError, add_installing_logs, begin_install_deploy, install_cancel_requested, list_install_tasks_readonly, mark_install_cancelled, modify_app_information, remove_app_from_errors_by_app_id, remove_app_installation, remove_installation_logs, set_install_phase, start_app_installation
 
 
 class AppManger:
@@ -327,17 +327,18 @@ class AppManger:
 
         return stack_status, None
 
-    def _get_install_error_by_app_id(self, app_id: str | None) -> dict[str, Any] | None:
+    def _get_install_error_by_app_id(self, app_id: str | None, *, readonly_install_state: bool = False) -> dict[str, Any] | None:
         if not app_id:
             return None
 
-        for _, app in appInstallingError.items():
+        entries = list_install_tasks_readonly((4,)) if readonly_install_state else appInstallingError.items()
+        for _, app in entries:
             if app.get("app_id") == app_id:
                 return app
         return None
 
-    def _resolve_display_error(self, app_id: str | None, runtime_error: str | None) -> str | None:
-        install_error = self._get_install_error_by_app_id(app_id)
+    def _resolve_display_error(self, app_id: str | None, runtime_error: str | None, *, readonly_install_state: bool = False) -> str | None:
+        install_error = self._get_install_error_by_app_id(app_id, readonly_install_state=readonly_install_state)
         if install_error:
             preserved_error = str(install_error.get("error") or "").strip()
             if preserved_error:
@@ -818,7 +819,7 @@ class AppManger:
         tracking_id = start_app_installation(tracked_app_id, app_install.app_name, reserved_ports=reserved_ports)
         return tracked_app_id, tracking_id
 
-    def get_apps(self,endpointId:int = None, locale: str = "en"):
+    def get_apps(self,endpointId:int = None, locale: str = "en", *, reconcile_stale: bool = True, readonly_install_state: bool = False):
         """
         Get apps
 
@@ -871,7 +872,7 @@ class AppManger:
                     app_env_format: dict[str, str] = {}
                     stack_containers = containers_by_project.get(stack_name, [])
                     stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, stack_containers)
-                    display_error = self._resolve_display_error(stack_name, stack_error)
+                    display_error = self._resolve_display_error(stack_name, stack_error, readonly_install_state=readonly_install_state)
                     stack_volumes = portainerManager.get_volumes_by_stack_name(stack_name, endpointId, False)
 
                     if stack_status == 1 and stack_containers:
@@ -938,11 +939,17 @@ class AppManger:
 
             now = datetime.now(timezone.utc)
 
+            installing_entries = (
+                list_install_tasks_readonly((3,))
+                if readonly_install_state
+                else appInstalling.items()
+            )
+
             # Get the installing apps. Auto-clean stale tasks that no longer have
             # a Portainer stack. A leftover repo can remain after failed or manually
             # deleted installs, so treating repo existence as proof of progress keeps
             # those tasks stuck in "Installing" forever.
-            for app_uuid,app in appInstalling.items(): 
+            for app_uuid,app in installing_entries:
                 install_app_id = app.get("app_id", None)
                 stack_exists = bool(install_app_id) and install_app_id in stack_names
                 repo_exists = False
@@ -952,7 +959,7 @@ class AppManger:
                     except Exception:
                         repo_exists = False
 
-                if self._is_stale_install_task(app, now) and not stack_exists:
+                if reconcile_stale and self._is_stale_install_task(app, now) and not stack_exists:
                     self._mark_stale_install_as_error(app_uuid, app)
                     continue
 
@@ -976,7 +983,12 @@ class AppManger:
 
             # Get failed and cancelled install entries. Both retain partial resources until removed.
             existing_apps_by_id = {info.app_id: info for info in apps_info}
-            for entries in (appInstallingError.items(), appInstallingCancelled.items()):
+            terminal_entries = (
+                (list_install_tasks_readonly((4,)), list_install_tasks_readonly((6,)))
+                if readonly_install_state
+                else (appInstallingError.items(), appInstallingCancelled.items())
+            )
+            for entries in terminal_entries:
                 for app_uuid, app in list(entries):
                     err_app_id = app.get("app_id")
                     existing_app = existing_apps_by_id.get(err_app_id)
@@ -1004,7 +1016,7 @@ class AppManger:
             logger.error(f"Get apps error:{e}")
             raise CustomException()
 
-    def get_app_by_id(self,app_id:str,endpointId:int = None, locale: str = "en"):
+    def get_app_by_id(self,app_id:str,endpointId:int = None, locale: str = "en", *, reconcile_stale: bool = True, readonly_install_state: bool = False, strict_exists: bool = False):
         """
         Get app by app_id
 
@@ -1025,9 +1037,27 @@ class AppManger:
             # Get stack_info by app_id from portainer
             stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
             if stack_info is None:
-                fallback_app = next((app for app in self.get_apps(endpointId, locale) if app.app_id == app_id), None)
+                fallback_app = next(
+                    (
+                        app
+                        for app in self.get_apps(
+                            endpointId,
+                            locale,
+                            reconcile_stale=reconcile_stale,
+                            readonly_install_state=readonly_install_state,
+                        )
+                        if app.app_id == app_id
+                    ),
+                    None,
+                )
                 if fallback_app is not None:
                     return fallback_app
+                if strict_exists:
+                    raise CustomException(
+                        status_code=404,
+                        message="App Not Found",
+                        details=f"{app_id} Not Found",
+                    )
                 domain_names = self._get_proxy_host_by_app_safe(app_id)
                 proxy_enabled = len(domain_names) > 0
                 app_name = None
@@ -1077,7 +1107,7 @@ class AppManger:
             app_volumes = portainerManager.get_volumes_by_stack_name(app_id,endpointId,False)
             app_containers = portainerManager.get_containers_by_stack_name(app_id,endpointId) if stack_status == 1 else []
             stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, app_containers)
-            display_error = self._resolve_display_error(app_id, stack_error)
+            display_error = self._resolve_display_error(app_id, stack_error, readonly_install_state=readonly_install_state)
 
             # if stack is empty(status=2-inactive),can not get it
             if stack_status == 1:
@@ -1183,7 +1213,7 @@ class AppManger:
             logger.error(f"Get app by app_id:{app_id} error:{e}")
             raise CustomException()
 
-    def get_external_databases(self, endpointId: int | None = None, locale: str = "en") -> list[dict[str, str]]:
+    def get_external_databases(self, endpointId: int | None = None, locale: str = "en", *, readonly: bool = False) -> list[dict[str, str]]:
         """
         Collect external database information from all installed apps.
 
@@ -1191,8 +1221,13 @@ class AppManger:
         W9_DATABASE_MODE is 'external'.
         """
         try:
-            apps = self.get_apps(endpointId, locale)
+            apps = (
+                self.get_apps(endpointId, locale, reconcile_stale=False, readonly_install_state=True)
+                if readonly else self.get_apps(endpointId, locale)
+            )
         except Exception as exc:
+            if readonly:
+                raise
             logger.warning(f"Failed to list apps for external databases: {exc}")
             return []
 
@@ -1939,17 +1974,19 @@ class AppManger:
         """
         # validate the app_id is exists in appInstallingError
         try:
-            is_app_in_appInstallingError = any(item['app_id'] == app_id for item in [*appInstallingError.values(), *appInstallingCancelled.values()])
+            tasks = [
+                item for _, item in list_install_tasks_readonly((3, 4, 6), strict=True)
+                if item.get("app_id") == app_id
+            ]
+            if any(item.get("status") == 3 for item in tasks):
+                raise CustomException(400, "Invalid Request", f"{app_id} has an active installation; cancel it first")
+            is_app_in_appInstallingError = any(item.get("status") in (4, 6) for item in tasks)
             if not is_app_in_appInstallingError:
                 raise CustomException(
                     status_code=400,
                     message="Invalid Request",
                     details=f"Error App:{app_id}  Not Found"
                 )
-            # Clean up any Portainer / Gitea / proxy resources that were
-            # created before the install failed (e.g. a compose stack that
-            # hit a port conflict).  Without this the first remove call only
-            # deletes the tracking entry, leaving the broken stack behind.
             self._cleanup_error_app_resources(app_id)
             forget_install_secrets(app_id)
             # remove app from appInstallingError
@@ -1958,42 +1995,33 @@ class AppManger:
             raise
         except Exception as e:
             logger.error(f"Remove error app error:{e}")
-            raise CustomException()    
+            raise CustomException(500, "Cleanup incomplete; installation tracking retained", str(e)) from e
 
         logger.access(f"Removed error app: [{app_id}]")
 
     def _cleanup_error_app_resources(self, app_id: str) -> None:
-        """Best-effort cleanup of leftover resources from a failed install."""
+        """Clean orphaned install resources without claiming ownership of a deployment."""
         portainer_manager = PortainerManager()
-        try:
-            endpoint_id = portainer_manager.get_local_endpoint_id()
-        except Exception:
-            return
-        # Remove Portainer stack + volumes if they exist
-        try:
-            stack = portainer_manager.get_stack_by_name(app_id, endpoint_id)
-            if stack and stack.get("Id"):
-                portainer_manager.remove_stack_and_volumes(stack["Id"], endpoint_id)
-                logger.access(f"Cleaned up Portainer stack for error app: [{app_id}]")
-        except Exception as exc:
-            logger.warn(f"Portainer cleanup for error app [{app_id}] skipped: {exc}")
-        # Remove Gitea repo if it exists
-        try:
-            gitea_manager = GiteaManager()
-            if gitea_manager.check_repo_exists(app_id):
-                gitea_manager.remove_repo(app_id)
-                logger.access(f"Cleaned up Gitea repo for error app: [{app_id}]")
-        except Exception as exc:
-            logger.warn(f"Gitea cleanup for error app [{app_id}] skipped: {exc}")
-        # Remove NPM proxy hosts if any
-        try:
-            proxy_manager = ProxyManager()
-            proxy_hosts = proxy_manager.get_proxy_host_by_app(app_id)
-            if proxy_hosts:
-                proxy_manager.remove_proxy_host_by_app(app_id)
-                logger.access(f"Cleaned up proxy hosts for error app: [{app_id}]")
-        except Exception as exc:
-            logger.warn(f"Proxy cleanup for error app [{app_id}] skipped: {exc}")
+        endpoint_id = portainer_manager.get_local_endpoint_id()
+        stack = portainer_manager.get_stack_by_name(app_id, endpoint_id)
+        containers = portainer_manager.get_containers_by_stack_name(app_id, endpoint_id)
+        # Tracking records contain no stack identity, so a same-name deployment
+        # cannot safely be attributed to the failed installation.
+        if stack or containers:
+            raise CustomException(
+                400,
+                "Invalid Request",
+                f"{app_id} still has a deployment; use app uninstall/app remove explicitly before cleaning its failed record",
+            )
+        gitea_manager = GiteaManager()
+        if gitea_manager.check_repo_exists(app_id):
+            gitea_manager.remove_repo(app_id)
+            logger.access(f"Cleaned up Gitea repo for error app: [{app_id}]")
+        proxy_manager = ProxyManager()
+        proxy_hosts = proxy_manager.get_proxy_host_by_app(app_id)
+        if proxy_hosts:
+            proxy_manager.remove_proxy_host_by_app(app_id)
+            logger.access(f"Cleaned up proxy hosts for error app: [{app_id}]")
 
     def start_app(self,app_id:str,endpointId:int = None):
         """

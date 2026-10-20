@@ -182,7 +182,7 @@ class PlatformReadinessService:
         try:
             if not database_file.is_file():
                 return False
-            connection = sqlite3.connect(str(database_file), timeout=1)
+            connection = sqlite3.connect(f"{database_file.resolve().as_uri()}?mode=ro", uri=True, timeout=1)
             try:
                 row = connection.execute(
                     "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",

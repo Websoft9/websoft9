@@ -27,18 +27,21 @@ def _json_dumps(value: Any) -> str:
 
 
 class InstallStateStore:
-    def __init__(self, data_dir: str | None = None):
+    def __init__(self, data_dir: str | None = None, *, initialize: bool = True):
         self._lock = threading.RLock()
-        self.reconfigure(data_dir)
+        self._storage_initialized = False
+        self.reconfigure(data_dir, initialize=initialize)
 
-    def reconfigure(self, data_dir: str | None = None) -> None:
+    def reconfigure(self, data_dir: str | None = None, *, initialize: bool = True) -> None:
         data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
         base_dir = data_dir or os.getenv("WEBSOFT9_INSTALL_TRACKING_DIR") or f"{data_root}/config/apphub"
         self.data_dir = Path(base_dir)
         self.database_file = self.data_dir / "install-tracking.sqlite"
-        self._ensure_storage()
+        self._storage_initialized = False
+        if initialize:
+            self._ensure_storage()
 
-    def _db_connect(self) -> sqlite3.Connection:
+    def _raw_connect(self) -> sqlite3.Connection:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.database_file, timeout=30)
         connection.row_factory = sqlite3.Row
@@ -46,9 +49,22 @@ class InstallStateStore:
         connection.execute("PRAGMA foreign_keys=ON")
         return connection
 
+    def _db_connect(self) -> sqlite3.Connection:
+        if not self._storage_initialized:
+            self._ensure_storage()
+        return self._raw_connect()
+
+    def _readonly_connect(self) -> sqlite3.Connection:
+        if not self.database_file.is_file():
+            raise FileNotFoundError(f"Install tracking database does not exist: {self.database_file}")
+        uri = f"{self.database_file.resolve().as_uri()}?mode=ro"
+        connection = sqlite3.connect(uri, uri=True, timeout=10)
+        connection.row_factory = sqlite3.Row
+        return connection
+
     def _ensure_storage(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        with self._db_connect() as connection:
+        with self._raw_connect() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS install_tasks (
@@ -108,6 +124,7 @@ class InstallStateStore:
             )
             self._run_migrations(connection)
             connection.commit()
+            self._storage_initialized = True
 
     # ── Schema migrations (versioned, data-safe) ──────────────────────
 
@@ -263,9 +280,10 @@ class InstallStateStore:
         )
         return self._get_stage_row(connection, tracking_id, stage_name)
 
-    def create_task(self, app_id: str, app_name: str | None, tracking_id: str | None = None, reserved_ports: Any = None, status: int = 3, app_official: bool = True, error: str | None = None, logs: list[dict[str, Any]] | None = None) -> str:
+    def create_task(self, app_id: str, app_name: str | None, tracking_id: str | None = None, reserved_ports: Any = None, status: int = 3, app_official: bool = True, error: str | None = None, logs: list[dict[str, Any]] | None = None, updated_at: str | None = None) -> str:
         tracking_id = tracking_id or str(uuid.uuid4())
         now = _utc_now()
+        effective_updated_at = str(updated_at).strip() if isinstance(updated_at, str) and updated_at.strip() else now
         with self._lock, self._db_connect() as connection:
             connection.execute(
                 """
@@ -282,7 +300,7 @@ class InstallStateStore:
                     _json_dumps(self._normalize_ports(reserved_ports)),
                     tracking_id,
                     now,
-                    now,
+                    effective_updated_at,
                 ),
             )
             connection.execute(
@@ -444,6 +462,26 @@ class InstallStateStore:
             ).fetchall()
             return [(row["tracking_id"], self._task_row_to_dict(connection, row)) for row in rows]
 
+    def list_tasks_readonly(self, statuses: tuple[int, ...], *, strict: bool = True) -> list[tuple[str, dict[str, Any]]]:
+        if not self.database_file.is_file():
+            if strict:
+                raise FileNotFoundError(f"Install tracking database not found: {self.database_file}")
+            return []
+        try:
+            with self._lock, self._readonly_connect() as connection:
+                placeholders = ", ".join("?" for _ in statuses)
+                rows = connection.execute(
+                    f"SELECT * FROM install_tasks WHERE status IN ({placeholders}) ORDER BY created_at ASC",
+                    statuses,
+                ).fetchall()
+                return [(row["tracking_id"], self._task_row_to_dict(connection, row)) for row in rows]
+        except sqlite3.Error as exc:
+            if strict:
+                from src.core.exception import CustomException
+
+                raise CustomException(503, "Install State Unavailable", f"Install tracking database is unavailable or incompatible: {exc}") from exc
+            return []
+
     def upsert_task_from_payload(self, tracking_id: str, payload: dict[str, Any]) -> None:
         self.create_task(
             app_id=payload.get("app_id", ""),
@@ -454,6 +492,7 @@ class InstallStateStore:
             app_official=bool(payload.get("app_official", True)),
             error=payload.get("error"),
             logs=payload.get("logs") or [],
+            updated_at=payload.get("updated_at"),
         )
 
     def _task_row_to_dict(self, connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
@@ -496,13 +535,18 @@ class InstallStateStore:
 
     # ── Custom Fields CRUD ──────────────────────────────────────────
 
-    def get_custom_fields(self, app_id: str) -> list[dict[str, Any]]:
-        with self._lock, self._db_connect() as connection:
-            rows = connection.execute(
-                "SELECT id, app_id, field_name, field_value, field_type, sort_order FROM app_custom_fields WHERE app_id = ? ORDER BY sort_order, id",
-                (app_id,),
-            ).fetchall()
-            return [dict(row) for row in rows]
+    def get_custom_fields(self, app_id: str, *, readonly: bool = False) -> list[dict[str, Any]]:
+        try:
+            with self._lock, (self._readonly_connect() if readonly else self._db_connect()) as connection:
+                rows = connection.execute(
+                    "SELECT id, app_id, field_name, field_value, field_type, sort_order FROM app_custom_fields WHERE app_id = ? ORDER BY sort_order, id",
+                    (app_id,),
+                ).fetchall()
+                return [dict(row) for row in rows]
+        except sqlite3.Error as exc:
+            from src.core.exception import CustomException
+
+            raise CustomException(503, "Install State Unavailable", f"Custom field storage is unavailable or incompatible: {exc}") from exc
 
     def save_custom_fields(self, app_id: str, fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
         with self._lock, self._db_connect() as connection:
@@ -567,14 +611,18 @@ class InstallStateCollection:
         return len(self.items())
 
 
-_install_state_store = InstallStateStore()
+_install_state_store = InstallStateStore(initialize=False)
 appInstalling = InstallStateCollection(_install_state_store, (3,))
 appInstallingError = InstallStateCollection(_install_state_store, (4,))
 appInstallingCancelled = InstallStateCollection(_install_state_store, (6,))
 
 
-def configure_install_state_store(data_dir: str | None = None) -> None:
-    _install_state_store.reconfigure(data_dir)
+def configure_install_state_store(data_dir: str | None = None, *, initialize: bool = True) -> None:
+    _install_state_store.reconfigure(data_dir, initialize=initialize)
+
+
+def list_install_tasks_readonly(statuses: tuple[int, ...], *, strict: bool = True) -> list[tuple[str, dict[str, Any]]]:
+    return _install_state_store.list_tasks_readonly(statuses, strict=strict)
 
 
 def start_app_installation(app_id, app_name, app_uuid=None, reserved_ports=None):
@@ -629,8 +677,8 @@ def mark_install_cancelled(app_uuid: str) -> None:
     _install_state_store.mark_cancelled(app_uuid)
 
 
-def get_app_custom_fields(app_id: str) -> list[dict[str, Any]]:
-    return _install_state_store.get_custom_fields(app_id)
+def get_app_custom_fields(app_id: str, *, readonly: bool = False) -> list[dict[str, Any]]:
+    return _install_state_store.get_custom_fields(app_id, readonly=readonly)
 
 
 def save_app_custom_fields(app_id: str, fields: list[dict[str, Any]]) -> list[dict[str, Any]]:

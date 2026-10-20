@@ -380,60 +380,81 @@ class BackupManager:
 
             # Verify the snapshot exists before attempting restore
             snapshots = self.list_snapshots(app_id, use_cache=False)
-            snapshot_ids = {s.get("short_id") or s.get("id") or "" for s in snapshots}
-            full_snapshot_ids = {s.get("id") or "" for s in snapshots}
-            if snapshot_id not in snapshot_ids and snapshot_id not in full_snapshot_ids:
+            snapshot = next(
+                (s for s in snapshots if snapshot_id in {s.get("short_id"), s.get("id")}),
+                None,
+            )
+            if snapshot is None:
                 raise CustomException(400, f"Snapshot {snapshot_id} not found", "Snapshot Not Found")
 
-            app_info = AppManger().get_app_by_id(app_id)
+            app_info = AppManger().get_app_by_id(
+                app_id, reconcile_stale=False, readonly_install_state=True, strict_exists=True,
+            )
             volumes_info = getattr(app_info, "volumes", [])
             endpoint_id = app_info.get("endpointId") if isinstance(app_info, dict) else getattr(app_info, "endpointId", None)
+
+            if not endpoint_id or getattr(app_info, "status", None) == 2:
+                raise CustomException(400, "Restore requires an existing application stack", "Restore the inactive application with app restore first")
 
             if not volumes_info:
                 raise CustomException(400, f"No volumes found for app: {app_id}", "No Volumes")
 
-            extra_volumes, _ = self._build_restic_volume_mounts(volumes_info)
+            extra_volumes, container_paths = self._build_restic_volume_mounts(volumes_info)
 
-            if not extra_volumes:
+            if not extra_volumes or len(extra_volumes) != len(volumes_info):
                 raise CustomException(400, f"No valid volume mounts found for app: {app_id}", "No Volume Mounts")
 
-            # Stop containers before restore to release file locks and caches
+            snapshot_paths = snapshot.get("paths")
+            if (
+                not isinstance(snapshot_paths, list)
+                or not all(isinstance(path, str) for path in snapshot_paths)
+                or set(snapshot_paths) != set(container_paths)
+            ):
+                raise CustomException(
+                    400,
+                    "Snapshot paths do not match application volume mounts",
+                    f"Snapshot paths: {snapshot_paths}; destination paths: {container_paths}",
+                )
+
             portainer = PortainerManager()
+            containers = portainer.get_containers_by_stack_name(app_id, endpoint_id)
+            if not any(_is_effective_runtime_container(c, app_id) for c in containers):
+                raise CustomException(400, "Application has no runtime containers", "Restore the application stack before restoring its data")
+
+            # Capture top-level volume ownership before restore so we do not
+            # blindly force 33:33 onto non-www-data volumes (e.g. mysql 999, postgres 70).
+            pre_restore_owners: dict[str, tuple[int, int]] = {}
+            for host_path in extra_volumes:
+                try:
+                    st = os.stat(host_path)
+                    pre_restore_owners[host_path] = (st.st_uid, st.st_gid)
+                except OSError:
+                    pass
+
+            # Stop containers before restore to release file locks and caches.
+            # If stopping fails, abort before overwriting live volume data!
             if endpoint_id:
                 try:
                     portainer.stop_stack(app_id, endpoint_id)
                     logger.access(f"Stopped containers for app {app_id} before restore")
+                except CustomException:
+                    raise
                 except Exception as exc:
-                    logger.warning(f"Failed to stop containers for app {app_id}: {exc}")
+                    logger.error(f"Failed to stop containers for app {app_id} before restore: {exc}")
+                    raise CustomException(
+                        500,
+                        f"Failed to stop containers for app {app_id} before restore: {exc}",
+                        "Restore Stop Failed",
+                    ) from exc
+
+            stopped_containers = portainer.get_containers_by_stack_name(app_id, endpoint_id)
+            if (
+                not any(_is_effective_runtime_container(c, app_id) for c in stopped_containers)
+                or any(_container_state(c) not in {"exited", "dead", "created", "stopped"} for c in stopped_containers)
+            ):
+                raise CustomException(500, "Application containers are not quiescent", "Restore Stop Failed")
 
             output = self._run_restic_container(["restore", snapshot_id, "--target", "/"], extra_volumes)
-
-            # Fix volume permissions after Restic restore.
-            # Restic runs as root inside its container, so restored files
-            # may end up root-owned on the host.  Applications running as
-            # non-root (e.g. www-data, mysql) then cannot read their own
-            # files, leading to 403 / permission-denied errors.
-            for host_path in extra_volumes:
-                try:
-                    subprocess.run(
-                        ["chown", "-R", "33:33", host_path],
-                        check=False,
-                        timeout=30,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                except Exception:
-                    pass
-
-            # Start containers after restore.
-            # Use container-level start so we don't change the Portainer
-            # stack status (stop_stack also operates at container level).
-            if endpoint_id:
-                try:
-                    portainer.start_stack(app_id, endpoint_id)
-                    logger.access(f"Started containers for app {app_id} after restore")
-                except Exception as exc:
-                    logger.warning(f"Failed to start containers for app {app_id}: {exc}")
 
             # Parse Restic output to verify success and capture any errors
             restore_error = None
@@ -458,6 +479,33 @@ class BackupManager:
             if not summary_found:
                 raise CustomException(500, f"Restore incomplete — no summary returned for snapshot: {snapshot_id}", "Restore Failed")
 
+            # Restore volume root ownership if Restic reset it to root while it was previously non-root.
+            for host_path, (orig_uid, orig_gid) in pre_restore_owners.items():
+                if (orig_uid, orig_gid) == (0, 0):
+                    continue
+                try:
+                    current_st = os.stat(host_path)
+                    if (current_st.st_uid, current_st.st_gid) == (0, 0):
+                        os.chown(host_path, orig_uid, orig_gid)
+                except OSError:
+                    pass
+
+            # Start containers after restore and surface any restart failure instead of swallowing it.
+            if endpoint_id:
+                try:
+                    portainer.start_stack(app_id, endpoint_id)
+                    logger.access(f"Started containers for app {app_id} after restore")
+                except CustomException:
+                    raise
+                except Exception as exc:
+                    logger.error(f"Failed to start containers for app {app_id} after restore: {exc}")
+                    raise CustomException(
+                        500,
+                        f"Snapshot data was restored, but failed to start containers for app {app_id}: {exc}",
+                        "Restore Restart Failed",
+                    ) from exc
+
+            self._ensure_restored_app_running(portainer, app_id, endpoint_id)
             _invalidate_snapshot_cache()
             logger.access(f"Snapshot {snapshot_id} restored successfully")
         except CustomException:

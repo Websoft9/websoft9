@@ -13,9 +13,10 @@ import subprocess
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterator, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
@@ -211,14 +212,14 @@ class ScheduledTaskService:
             "can_manage_log_cleanup": self.auth_service._is_system_user(operator),
         }
 
-    def _prewarm_summary(self, records: list[dict]) -> dict[str, Any]:
+    def _prewarm_summary(self, records: list[dict], *, readonly: bool = False) -> dict[str, Any]:
         latest = max(records, key=lambda record: record["updated_at"], default={})
         running = sum(record["queue_state"] == "running" for record in records)
         queued = sum(record["queue_state"] == "queued" for record in records)
         latest_run = None
         if records:
             placeholders = ",".join("?" for record in records)
-            with self._db_connect() as connection:
+            with (self._readonly_connect() if readonly else self._db_connect()) as connection:
                 latest_run = connection.execute(
                     f"""SELECT runs.started_at, runs.status FROM scheduled_task_runs runs
                     JOIN scheduled_tasks task ON task.task_id = runs.task_id
@@ -930,18 +931,47 @@ class ScheduledTaskService:
     def list_runs(self, session_token: Optional[str], task_id: str, offset: int = 0, limit: int = 20) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         task = self._get_task(operator["id"], task_id)
+        return self._collect_runs_for_task(task, session_token=session_token, offset=offset, limit=limit)
+
+    def collect_tasks_local(self) -> dict[str, Any]:
+        with self._readonly_connect() as connection:
+            all_rows = connection.execute(
+                "SELECT * FROM scheduled_tasks ORDER BY created_at DESC"
+            ).fetchall()
+        tasks: list[dict[str, Any]] = []
+        prewarm_tasks: list[dict[str, Any]] = []
+        for task in all_rows:
+            if str(task["origin"] or "") == SYSTEM_ORIGIN:
+                continue
+            if task["category"] == "prewarm":
+                prewarm_tasks.append(self._public_task(task))
+                continue
+            tasks.append(self._public_task(task))
+        return {
+            "tasks": tasks,
+            "system_tasks": [self._public_task(task) for task in all_rows if task["origin"] == SYSTEM_ORIGIN]
+            + [self._prewarm_summary(prewarm_tasks, readonly=True)],
+            "prewarm_records": prewarm_tasks,
+        }
+
+    def collect_runs_local(self, task_id: str, offset: int = 0, limit: int = 20) -> dict[str, Any]:
+        task = self._get_task_readonly(task_id)
+        return self._collect_runs_for_task(task, session_token=None, offset=offset, limit=limit, readonly=True)
+
+    def _collect_runs_for_task(self, task: sqlite3.Row, *, session_token: Optional[str], offset: int = 0, limit: int = 20, readonly: bool = False) -> dict[str, Any]:
+        task_id = str(task["task_id"])
         # Read the runner's own records first: without this a run that just finished would still be
         # reported as `running` until the next background sync, which made the run history lag behind
         # the log the operator is reading. Remote tasks are skipped -- they cost an SSH round trip and
         # their sync is handled in the background.
-        if task["target"] == "container":
+        if not readonly and task["target"] == "container":
             try:
                 self._sync_task_runs(session_token, task)
             except Exception:
                 pass
         bounded_offset = max(0, offset)
         bounded_limit = max(1, min(100, limit))
-        with self._db_connect() as connection:
+        with (self._readonly_connect() if readonly else self._db_connect()) as connection:
             total = connection.execute("SELECT COUNT(*) FROM scheduled_task_runs WHERE task_id = ?", (task_id,)).fetchone()[0]
             rows = connection.execute(
                 "SELECT run_id, task_id, started_at, finished_at, status, exit_code, trigger, log_path FROM scheduled_task_runs WHERE task_id = ? ORDER BY started_at DESC LIMIT ? OFFSET ?",
@@ -958,6 +988,16 @@ class ScheduledTaskService:
             raise CustomException(404, "Scheduled Task Run Not Found", "The requested task execution does not exist")
         content = self._read_host_run_log(session_token, task, run["log_path"], before) if task["target"] == "host" else self._read_log_window(Path(run["log_path"]), before)
         return content
+
+    def collect_run_log_local(self, task_id: str, run_id: str, before: Optional[int] = None) -> dict[str, Any]:
+        task = self._get_task_readonly(task_id)
+        with self._readonly_connect() as connection:
+            run = connection.execute("SELECT log_path FROM scheduled_task_runs WHERE task_id = ? AND run_id = ?", (task_id, run_id)).fetchone()
+        if run is None:
+            raise CustomException(404, "Scheduled Task Run Not Found", "The requested task execution does not exist")
+        if task["target"] == "host":
+            raise CustomException(400, "Host Task Session Required", "SSH host task run logs require an authenticated operator session")
+        return self._read_log_window(Path(run["log_path"]), before, max_scan_bytes=self._log_read_byte_limit)
 
     def download_run_log(self, session_token: Optional[str], task_id: str, run_id: str) -> bytes:
         operator = self.auth_service._require_authenticated_operator(session_token)
@@ -1225,14 +1265,36 @@ class ScheduledTaskService:
                 content = self._remote_output(client, f"sed -n '{start_line},{end_line}p' {shlex.quote(log_path)} 2>/dev/null | head -c {self._log_read_byte_limit}")
         return {"content": content, "next_before": start_line - 1 if start_line > 1 else None}
 
-    def _read_log_window(self, path: Path, before: Optional[int]) -> dict[str, Any]:
+    def _read_log_window(self, path: Path, before: Optional[int], *, max_scan_bytes: Optional[int] = None) -> dict[str, Any]:
         if not path.is_file():
+            if max_scan_bytes is not None:
+                raise CustomException(503, "Task Logs Unavailable", "The task execution log file is unavailable")
             return {"content": "", "next_before": None}
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        source_truncated = False
+        if max_scan_bytes is None:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        else:
+            try:
+                with path.open("rb") as handle:
+                    size = handle.seek(0, os.SEEK_END)
+                    start = max(0, size - max_scan_bytes)
+                    source_truncated = start > 0
+                    if source_truncated and before is not None:
+                        raise CustomException(400, "Task Log Pagination Unavailable", "Absolute line pagination is unavailable beyond the 1 MiB scan budget; omit --before to read the bounded tail")
+                    handle.seek(start)
+                    raw = handle.read(max_scan_bytes)
+                if source_truncated:
+                    raw = raw.partition(b"\n")[2]
+                lines = raw.decode("utf-8", errors="replace").splitlines()
+            except OSError as exc:
+                raise CustomException(503, "Task Logs Unavailable", f"Unable to read task execution logs: {exc}") from exc
         end_line = min(len(lines), before) if before is not None else len(lines)
         start_line = max(0, end_line - self._log_read_line_limit)
         content = "\n".join(lines[start_line:end_line]).encode("utf-8")[: self._log_read_byte_limit].decode("utf-8", errors="ignore")
-        return {"content": content, "next_before": start_line if start_line else None}
+        result: dict[str, Any] = {"content": content, "next_before": start_line if start_line and not source_truncated else None}
+        if max_scan_bytes is not None:
+            result["truncated"] = source_truncated
+        return result
 
     def _sync_task_runs(self, session_token: Optional[str], task: sqlite3.Row) -> None:
         records = self._read_host_runs(session_token, task) if task["target"] == "host" else self._read_local_runs(task["task_id"])
@@ -1628,6 +1690,35 @@ class ScheduledTaskService:
         connection = sqlite3.connect(str(self.database_file))
         connection.row_factory = sqlite3.Row
         return connection
+
+    @contextmanager
+    def _readonly_connect(self) -> Iterator[sqlite3.Connection]:
+        if not self.database_file.is_file():
+            raise CustomException(503, "Task Storage Unavailable", f"Scheduled task database does not exist: {self.database_file}")
+        connection = None
+        try:
+            connection = sqlite3.connect(f"{self.database_file.resolve().as_uri()}?mode=ro", uri=True, timeout=10)
+            connection.row_factory = sqlite3.Row
+            connection.execute(
+                "SELECT task_id, name, target, profile_id, schedule, timezone, command, execution_mode, "
+                "script_path, script_name, timeout_seconds, retry_count, enabled, last_run_at, "
+                "last_status, sync_status, created_at, updated_at, origin, category, subject_app, "
+                "subject_version, queue_state FROM scheduled_tasks LIMIT 0"
+            )
+            connection.execute("SELECT run_id, task_id, started_at, finished_at, status, exit_code, trigger, log_path FROM scheduled_task_runs LIMIT 0")
+            yield connection
+        except sqlite3.Error as exc:
+            raise CustomException(503, "Task Storage Unavailable", f"Scheduled task database is unavailable or incompatible: {exc}") from exc
+        finally:
+            if connection is not None:
+                connection.close()
+
+    def _get_task_readonly(self, task_id: str) -> sqlite3.Row:
+        with self._readonly_connect() as connection:
+            task = connection.execute("SELECT * FROM scheduled_tasks WHERE task_id = ?", (task_id,)).fetchone()
+        if task is None:
+            raise CustomException(404, "Scheduled Task Not Found", "The requested task does not exist")
+        return task
 
     def _insert_task(self, task: dict[str, Any]) -> None:
         with self._db_connect() as connection:

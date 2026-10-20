@@ -304,6 +304,17 @@ def dispatch_auto_prepare(request: Request):
 
 
 @router.post(
+    "/settings/internal/upgrade/prepare",
+    status_code=202,
+    include_in_schema=False,
+)
+def dispatch_prepare(request: Request):
+    """Run an explicitly confirmed local CLI request in the long-lived AppHub process."""
+    _require_upgrade_dispatch_secret(request)
+    return UpgradeManager().start_prepare()
+
+
+@router.post(
     "/settings/upgrade/prepare",
     status_code=202,
     summary="Download the next upgrade in the background",

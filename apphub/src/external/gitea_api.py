@@ -1,7 +1,7 @@
 import base64
 import os
 import socket
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from src.core.apiHelper import APIHelper
 from src.core.config import ConfigManager
@@ -72,9 +72,9 @@ class GiteaAPI:
         """
         self.api.headers["Authorization"] = f"Basic {credential}"
 
-    # def get_repos(self):
-    #     return self.api.get(path="user/repos", params={"page": 1, "limit": 1000})
-    
+    def get_repos(self):
+        return self.api.get(path="user/repos", params={"page": 1, "limit": 1000})
+
     def get_repo_by_name(self, repo_name: str):
         """
         Get repository by name
@@ -118,6 +118,39 @@ class GiteaAPI:
             Response: Response from Gitea API
         """
         return self.api.delete(path=f"repos/{self.owner}/{repo_name}")
+
+    def get_repo_tree(self, repo_name: str, ref: str = "main", recursive: bool = True):
+        """
+        Get repository git tree
+
+        Args:
+            repo_name (str): Repository name
+            ref (str): Branch or commit ref
+            recursive (bool): Whether to list recursively
+
+        Returns:
+            Response: Response from Gitea API
+        """
+        return self.api.get(
+            path=f"repos/{self.owner}/{repo_name}/git/trees/{ref}",
+            params={"recursive": "1" if recursive else "0"},
+        )
+
+    def get_repo_directory_contents(self, repo_name: str, dir_path: str = "", ref: str = "main"):
+        """
+        Get directory entries from repository
+
+        Args:
+            repo_name (str): Repository name
+            dir_path (str): Directory path (empty for root)
+            ref (str): Branch or commit ref
+
+        Returns:
+            Response: Response from Gitea API
+        """
+        cleaned = (dir_path or "").strip().strip("/")
+        endpoint = f"repos/{self.owner}/{repo_name}/contents/{cleaned}" if cleaned else f"repos/{self.owner}/{repo_name}/contents"
+        return self.api.get(path=endpoint, params={"ref": ref})
 
     def get_file_content_from_repo(self, repo_name: str, file_path: str):
         """
@@ -192,4 +225,31 @@ class GiteaAPI:
                 "content": content,
                 "message": f"Create {file_path}",
             },
+        )
+
+    def delete_file_content_in_repo(self, repo_name: str, file_path: str, sha: str, message: str | None = None):
+        return self.api.delete(
+            path=f"repos/{self.owner}/{repo_name}/contents/{file_path}",
+            json={
+                "branch": "main",
+                "sha": sha,
+                "message": message or f"Delete {file_path}",
+            },
+        )
+
+    def get_repo_commits(self, repo_name: str, sha: str = "main", limit: int = 20):
+        return self.api.get(
+            path=f"repos/{self.owner}/{repo_name}/commits",
+            params={"sha": sha, "limit": limit},
+        )
+
+    def get_commit_diff(self, repo_name: str, commit_sha: str):
+        return self.api.get(
+            path=f"repos/{self.owner}/{repo_name}/git/commits/{quote(commit_sha, safe='')}.diff",
+            headers={"Accept": "text/plain"},
+        )
+
+    def compare_commits(self, repo_name: str, base_ref: str, head_ref: str):
+        return self.api.get(
+            path=f"repos/{self.owner}/{repo_name}/compare/{base_ref}...{head_ref}",
         )

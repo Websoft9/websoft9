@@ -238,6 +238,54 @@ class AppAccessManager:
             offset += size
         return b"".join(chunks).decode("utf-8", errors="replace")
 
+    @staticmethod
+    def decode_container_log_entries(raw: bytes, *, allow_partial_frame: bool = False) -> list[dict[str, str]]:
+        if not raw:
+            return []
+        stream_names = {1: "stdout", 2: "stderr", 0: "stdout"}
+        if len(raw) < 8 or raw[0] not in (0, 1, 2) or raw[1:4] != b"\x00\x00\x00":
+            text = raw.decode("utf-8", errors="replace")
+            return [
+                {"stream": "unknown", "text": line}
+                for line in text.splitlines()
+                if line.strip() != ""
+            ]
+        entries: list[dict[str, str]] = []
+        offset = 0
+        while offset < len(raw):
+            header = raw[offset:offset + 8]
+            if len(header) < 8:
+                if allow_partial_frame:
+                    break
+                raise ValueError("Invalid Docker log frame")
+            if header[0] not in (0, 1, 2) or header[1:4] != b"\x00\x00\x00":
+                if allow_partial_frame and entries:
+                    break
+                text = raw[offset:].decode("utf-8", errors="replace")
+                entries.extend(
+                    {"stream": "unknown", "text": line}
+                    for line in text.splitlines()
+                    if line.strip() != ""
+                )
+                break
+            stream_name = stream_names.get(header[0], "unknown")
+            size = int.from_bytes(header[4:8], "big")
+            offset += 8
+            available = len(raw) - offset
+            if size > available:
+                if not allow_partial_frame:
+                    raise ValueError("Incomplete Docker log frame")
+                payload = raw[offset:]
+                offset = len(raw)
+            else:
+                payload = raw[offset:offset + size]
+                offset += size
+            decoded = payload.decode("utf-8", errors="replace")
+            for line in decoded.splitlines():
+                if line.strip() != "":
+                    entries.append({"stream": stream_name, "text": line})
+        return entries
+
     def update_profile(
         self,
         app_id: str,

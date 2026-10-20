@@ -3,12 +3,14 @@ from __future__ import annotations
 import configparser
 import json
 import os
+import sqlite3
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
 from src.core.product_catalog import resolve_product_edition_definition
+from src.core.exception import CustomException
 from src.services.app_status import InstallStateStore, _utc_now
 
 
@@ -166,11 +168,20 @@ class ProductRuntimeStateStore(InstallStateStore):
             )
             connection.commit()
 
-    def get_runtime_state_row(self) -> dict[str, Any] | None:
-        with self._state_lock, self._db_connect() as connection:
-            row = connection.execute(
-                "SELECT id, edition_key, max_apps, state_source, updated_by, updated_at, note FROM product_runtime_state WHERE id = 1"
-            ).fetchone()
+    def get_runtime_state_row(self, *, readonly: bool = False) -> dict[str, Any] | None:
+        try:
+            with self._state_lock, (self._readonly_connect() if readonly else self._db_connect()) as connection:
+                row = connection.execute(
+                    "SELECT id, edition_key, max_apps, state_source, updated_by, updated_at, note FROM product_runtime_state WHERE id = 1"
+                ).fetchone()
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            if not readonly:
+                raise
+            raise CustomException(
+                503, "Product state unavailable", f"Cannot read existing product runtime state: {exc}"
+            ) from exc
+        if readonly and row is None:
+            raise CustomException(503, "Product state unavailable", "Product runtime state has not been initialized")
         return dict(row) if row is not None else None
 
     def write_runtime_state(
@@ -202,9 +213,9 @@ class ProductRuntimeStateStore(InstallStateStore):
             connection.commit()
 
 
-def read_product_runtime_state() -> ProductRuntimeState:
-    store = ProductRuntimeStateStore()
-    row = store.get_runtime_state_row()
+def read_product_runtime_state(*, readonly: bool = False) -> ProductRuntimeState:
+    store = ProductRuntimeStateStore(initialize=not readonly)
+    row = store.get_runtime_state_row(readonly=readonly)
     release_version = read_release_version()
 
     if row is None:

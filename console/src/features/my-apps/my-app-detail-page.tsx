@@ -5,10 +5,6 @@ import {
     Checkbox,
     CircularProgress,
     IconButton,
-    Step,
-    StepContent,
-    StepLabel,
-    Stepper,
     Switch,
     SvgIcon,
     Typography,
@@ -24,9 +20,10 @@ import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
 import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { LegacyMyAppLogo } from './my-app-media'
-import { canOpenMyAppsDetailOverlay, clearMyAppsDetailOverlayIntent, consumePendingComposeReturn, hasMyAppsDetailOverlayIntent, markPendingComposeReturn, rememberMyAppsDetailRoute } from './my-app-detail-overlay-intent'
+import { canOpenMyAppsDetailOverlay, clearMyAppsDetailOverlayIntent, hasMyAppsDetailOverlayIntent, markPendingComposeReturn, rememberMyAppsDetailRoute } from './my-app-detail-overlay-intent'
 import { VolumeFileBrowserDialog } from './volume-file-browser-dialog'
 import { AppSftpDialog } from './app-sftp-dialog'
+import { MyAppComposeWorkspace } from './my-app-compose-workspace'
 import { type MyAppDetail, useMyAppDetail } from './use-my-app-detail'
 import { MyAppAccessPanel } from './my-app-access-panel'
 import { useMyAppPhpInfo } from './use-my-app-php-info'
@@ -731,7 +728,6 @@ export function MyAppDetailPage() {
     const [deleteBackupConfirmed, setDeleteBackupConfirmed] = useState(false)
     const [restoreBackupConfirmed, setRestoreBackupConfirmed] = useState(false)
     const [volumeBackupAction, setVolumeBackupAction] = useState<'create' | 'delete' | 'restore' | null>(null)
-    const [composeStep, setComposeStep] = useState(0)
     const [showPhpMigrationForm, setShowPhpMigrationForm] = useState(false)
     const [phpTargetVersion, setPhpTargetVersion] = useState('')
     const [phpMigrationRemarks, setPhpMigrationRemarks] = useState('')
@@ -953,18 +949,6 @@ export function MyAppDetailPage() {
         const volumes = [...(data?.volumes ?? [])]
         return volumes.sort((a, b) => getVolumeLabel(a).localeCompare(getVolumeLabel(b)))
     }, [data?.volumes])
-    const composeSteps = useMemo(() => ([
-        {
-            label: t('myAppsDetailPage.tabs.compose.steps.modify.label'),
-            description: t('myAppsDetailPage.tabs.compose.steps.modify.description'),
-            action: t('myAppsDetailPage.tabs.compose.steps.modify.action'),
-        },
-        {
-            label: t('myAppsDetailPage.tabs.compose.steps.redeploy.label'),
-            description: t('myAppsDetailPage.tabs.compose.steps.redeploy.description'),
-            action: t('myAppsDetailPage.tabs.compose.steps.redeploy.action'),
-        },
-    ]), [t])
 
     useEffect(() => {
         if (!data) return
@@ -1039,20 +1023,6 @@ export function MyAppDetailPage() {
         nextParams.set('tab', selectedTab)
         setSearchParams(nextParams, { replace: true })
     }, [location.pathname, searchParams, selectedTab, setSearchParams])
-
-    useEffect(() => {
-        if (selectedTab !== 'compose') {
-            setComposeStep(0)
-            return
-        }
-
-        if (consumePendingComposeReturn(appId)) {
-            setComposeStep(1)
-            return
-        }
-
-        setComposeStep(0)
-    }, [appId, selectedTab])
 
     useEffect(() => {
         if (!appId) {
@@ -1240,23 +1210,6 @@ export function MyAppDetailPage() {
         } finally {
             setVolumeBackupAction(null)
         }
-    }
-
-    function handleComposeAction(stepIndex: number) {
-        if (!data) return
-
-        if (stepIndex === 0) {
-            const composeRoute = `/myapps/${encodeURIComponent(data.app_id)}?tab=compose`
-            markPendingComposeReturn(data.app_id)
-            rememberMyAppsDetailRoute(composeRoute)
-            openProductPath(getComposeRepositoryTarget(data), navigate, composeRoute, true)
-            setComposeStep(1)
-            return
-        }
-
-        setComposeStep(1)
-        setRedeployLogs([])
-        setRedeployDialogOpen(true)
     }
 
     async function handlePhpMigrationRequest() {
@@ -2143,44 +2096,27 @@ export function MyAppDetailPage() {
                                     ) : null}
 
                                     {/* ── Compose ── */}
-                                    {selectedTab === 'compose' ? (
-                                        <div className="myapps-access-section myapps-compose-section">
-                                            <div className="myapps-access-section-head">
-                                                <div className="myapps-section-label-bar">
-                                                    <span className="myapps-section-label-indicator" />
-                                                    <div className="myapps-section-label-stack">
-                                                        <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.compose.title')}</span>
-                                                        <p className="myapps-section-label-desc">{t('myAppsDetailPage.tabs.compose.description')}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="myapps-php-card-body">
-                                                <div className="myapps-php-runtime-card myapps-compose-runtime-card">
-                                                    <div className="myapps-compose-card-body">
-                                                        <Box sx={{ maxWidth: 520 }}>
-                                                            <Stepper activeStep={composeStep} orientation="vertical">
-                                                                {composeSteps.map((step, index) => (
-                                                                    <Step key={step.label}>
-                                                                        <StepLabel>{step.label}</StepLabel>
-                                                                        <StepContent>
-                                                                            <Typography>{step.description}</Typography>
-                                                                            <Box sx={{ mb: 2, mt: 1 }}>
-                                                                                <button className="myapps-card-header-btn" onClick={() => handleComposeAction(index)}>
-                                                                                    {step.action}
-                                                                                </button>
-                                                                                <button className="myapps-compose-back-btn" disabled={index === 0} onClick={() => setComposeStep((prev) => Math.max(prev - 1, 0))}>
-                                                                                    {t('myAppsDetailPage.tabs.compose.back')}
-                                                                                </button>
-                                                                            </Box>
-                                                                        </StepContent>
-                                                                    </Step>
-                                                                ))}
-                                                            </Stepper>
-                                                        </Box>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    {selectedTab === 'compose' && data ? (
+                                        <MyAppComposeWorkspace
+                                            appId={data.app_id}
+                                            isDarkMode={isDarkMode}
+                                            redeployDisabled={isRedeployDisabled}
+                                            onOpenRepository={(filePath) => {
+                                                const composeRoute = `/myapps/${encodeURIComponent(data.app_id)}?tab=compose`
+                                                markPendingComposeReturn(data.app_id)
+                                                rememberMyAppsDetailRoute(composeRoute)
+                                                const baseTarget = getComposeRepositoryTarget(data).replace(/\/+$/, '')
+                                                const targetUrl = filePath
+                                                    ? `${baseTarget}/src/branch/main/${filePath.split('/').map(encodeURIComponent).join('/')}`
+                                                    : baseTarget
+                                                openProductPath(targetUrl, navigate, composeRoute, true)
+                                            }}
+                                            onRequestRedeploy={() => {
+                                                setRedeployLogs([])
+                                                setRedeployDialogOpen(true)
+                                            }}
+                                            onFeedback={(nextFeedback) => setFeedback(nextFeedback)}
+                                        />
                                     ) : null}
 
                                     {/* ── Uninstall ── */}

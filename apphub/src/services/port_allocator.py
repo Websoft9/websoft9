@@ -9,7 +9,7 @@ import docker
 
 from src.core.logger import logger
 from src.core.runtime_paths import resolve_apphub_config_path
-from src.services.app_status import appInstalling
+from src.services.app_status import appInstalling, list_install_tasks_readonly
 
 
 DEFAULT_PORT_RANGE = (9001, 9099)
@@ -62,7 +62,7 @@ def _installing_port_sources() -> dict[int, str]:
     """Ports reserved by applications that are currently being installed."""
     sources: dict[int, str] = {}
     try:
-        for entry in appInstalling.values():
+        for _, entry in list_install_tasks_readonly((3,)):
             for port in entry.get("reserved_ports") or set():
                 try:
                     sources[int(port)] = "installing"

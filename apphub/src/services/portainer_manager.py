@@ -670,6 +670,17 @@ class PortainerManager:
                 return []
             time.sleep(max(poll_interval, 1))
         
+    def get_container_stats(self, endpoint_id: int, container_id: str) -> dict:
+        response = self.portainer.get_container_stats(endpoint_id, container_id)
+        if response.status_code == 404:
+            raise CustomException(404, "Container Not Found", f"Container '{container_id}' does not exist on endpoint {endpoint_id}")
+        if response.status_code != 200:
+            raise CustomException(503, "Container Stats Unavailable", f"Unable to read container stats (HTTP {response.status_code})")
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise CustomException(503, "Container Stats Unavailable", "Docker returned an invalid stats response")
+        return payload
+
     def get_container_by_id(self, endpoint_id: int, container_id: str):
         """
         Get container by id

@@ -208,6 +208,12 @@ jobs:
       - name: Mypy type check
         run: mypy src/
 
+      - name: CLI compatibility contracts
+        run: python3 -m pytest -q -o addopts='' tests/test_cli_usability.py tests/test_apphub_cli_check_update.py tests/test_cli_contract_regressions.py
+
+      - name: Installation, Compose Git and environment regressions
+        run: python3 -m pytest -q -o addopts='' tests/test_cli_git_regressions.py tests/test_app_compose_install.py tests/test_compose_app_classification.py tests/test_apphub_cli_apps.py
+
       - name: Unit tests + coverage
         run: |
           pytest tests/ -v --cov=src --cov-report=xml --cov-fail-under=60 2>&1 || \

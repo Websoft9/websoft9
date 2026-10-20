@@ -54,6 +54,7 @@ class OverviewService:
         self._tasks_loader = tasks_loader or self._load_recent_tasks
         self._now_provider = now_provider or (lambda: datetime.now(timezone.utc))
         self._uses_default_tasks_loader = tasks_loader is None
+        self._uses_default_product_metadata_loader = product_metadata_loader is None
         self._last_cpu_usage_sample: Optional[tuple[int, int]] = None
         self._last_host_cpu_sample: Optional[tuple[int, int]] = None
         self._cached_host_cpu_percent: Optional[tuple[float, int]] = None
@@ -63,14 +64,25 @@ class OverviewService:
 
     def get_overview(self, session_token: Optional[str], locale: str = "en") -> OverviewResponse:
         self.auth_service._require_authenticated_operator(session_token)
+        return self._build_overview_response(session_token=session_token, locale=locale, local_services=False)
 
+    def collect_overview(self, locale: str = "en") -> OverviewResponse:
+        return self._build_overview_response(session_token=None, locale=locale, local_services=True)
+
+    def _build_overview_response(
+        self,
+        *,
+        session_token: Optional[str],
+        locale: str = "en",
+        local_services: bool = False,
+    ) -> OverviewResponse:
         app_inventory = self._load_apps_inventory()
         apps = self._safe_apps_summary(app_inventory)
-        product = self._safe_product_summary(apps, locale)
+        product = self._safe_product_summary(apps, locale, readonly=local_services)
         host = self._safe_host_summary()
         runtime = self._safe_runtime_summary()
         host_runtime = self._safe_host_runtime_summary()
-        services = self._safe_services_summary(session_token)
+        services = self._safe_services_summary(session_token, local_services=local_services)
         tasks = self._safe_tasks_summary(app_inventory)
 
         return OverviewResponse(
@@ -85,9 +97,13 @@ class OverviewService:
             alerts=self._build_alerts(apps=apps, services=services, tasks=tasks),
         )
 
-    def _safe_product_summary(self, apps: OverviewAppsSummary, locale: str = "en") -> OverviewProductSummary:
+    def _safe_product_summary(self, apps: OverviewAppsSummary, locale: str = "en", *, readonly: bool = False) -> OverviewProductSummary:
         try:
-            payload = self._product_metadata_loader() or {}
+            payload = (
+                self._load_product_metadata(readonly=True)
+                if readonly and self._uses_default_product_metadata_loader
+                else self._product_metadata_loader()
+            ) or {}
             catalog_app_count: Optional[int] = None
             try:
                 catalog_app_count = self._available_catalog_count_loader(locale)
@@ -150,9 +166,12 @@ class OverviewService:
             error_count=error_count,
         )
 
-    def _safe_services_summary(self, session_token: Optional[str]) -> OverviewServicesSummary:
+    def _safe_services_summary(self, session_token: Optional[str], *, local_services: bool = False) -> OverviewServicesSummary:
         try:
-            services = list(self._services_loader(session_token) or [])
+            if local_services:
+                services = list(CoreServicesService().collect_services() or [])
+            else:
+                services = list(self._services_loader(session_token) or [])
         except Exception as exc:
             return OverviewServicesSummary(available=False, unavailable_reason=str(exc))
 
@@ -258,9 +277,9 @@ class OverviewService:
                 )
         return alerts
 
-    def _load_product_metadata(self) -> dict:
-        metadata = read_product_metadata()
-        edition = read_product_edition()
+    def _load_product_metadata(self, *, readonly: bool = False) -> dict:
+        metadata = read_product_metadata(readonly=True) if readonly else read_product_metadata()
+        edition = read_product_edition(readonly=True) if readonly else read_product_edition()
         return {
             "version": metadata.get("version") or None,
             "edition_key": edition.key,
@@ -800,7 +819,7 @@ class OverviewService:
         return self._now_provider().astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
     def _load_overview_apps(self) -> Sequence[object]:
-        from src.services.app_status import appInstalling, appInstallingError
+        from src.services.app_status import list_install_tasks_readonly
         from src.services.portainer_manager import PortainerManager
 
         portainer_manager = PortainerManager()
@@ -840,7 +859,7 @@ class OverviewService:
             if isinstance(app.get("app_id"), str) and app.get("app_id")
         }
 
-        for app_uuid, app in appInstalling.items():
+        for app_uuid, app in list_install_tasks_readonly((3,)):
             app_id = app.get("app_id")
             if not isinstance(app_id, str) or not app_id:
                 continue
@@ -853,7 +872,7 @@ class OverviewService:
                 "error": app.get("error"),
             }
 
-        for app_uuid, app in appInstallingError.items():
+        for app_uuid, app in list_install_tasks_readonly((4,)):
             app_id = app.get("app_id")
             if not isinstance(app_id, str) or not app_id or app_id in apps_by_id:
                 continue

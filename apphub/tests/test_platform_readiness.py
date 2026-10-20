@@ -17,6 +17,25 @@ def _write_sqlite(database_file: Path, table_name: str) -> None:
         connection.close()
 
 
+def test_sqlite_probe_uses_readonly_uri(monkeypatch, tmp_path):
+    database = tmp_path / "fixture #1?.sqlite"
+    _write_sqlite(database, "operators")
+    connect = sqlite3.connect
+    opened = []
+
+    def readonly_connect(target, *args, **kwargs):
+        assert target == database.resolve().as_uri() + "?mode=ro"
+        assert kwargs.get("uri") is True
+        opened.append(target)
+        return connect(target, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", readonly_connect)
+    assert PlatformReadinessService._check_sqlite(database, "operators") is True
+    assert opened
+    assert PlatformReadinessService._check_sqlite(tmp_path / "missing.sqlite", "operators") is False
+    assert not (tmp_path / "missing.sqlite").exists()
+
+
 def _write_manifest(manifest_file: Path, locale: str) -> None:
     manifest_file.parent.mkdir(parents=True, exist_ok=True)
     manifest_file.write_text(

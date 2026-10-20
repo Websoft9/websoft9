@@ -53,8 +53,10 @@ class RuntimeLogsService:
 
     def get_runtime_logs(self, session_token: Optional[str], query: RuntimeLogsQuery) -> list[RuntimeLogEntry]:
         self.auth_service._require_authenticated_operator(session_token)
-        entries = self._read_entries(limit=query.limit)
+        return self.collect_runtime_logs(query)
 
+    def collect_runtime_logs(self, query: RuntimeLogsQuery) -> list[RuntimeLogEntry]:
+        entries = self._read_entries(limit=query.limit)
         return self._filter_entries(entries, query)
 
     def open_runtime_logs_stream(self, session_token: Optional[str], query: RuntimeLogsQuery) -> tuple[list[RuntimeLogEntry], RuntimeLogsStreamCursor]:
@@ -110,13 +112,18 @@ class RuntimeLogsService:
         cursor.entries = next_entries
         return RuntimeLogsStreamDelta(entries=[], snapshot=None)
 
-    def _read_entries(self, limit: int) -> list[RuntimeLogEntry]:
+    def _read_entries(self, limit: int, *, max_scan_bytes: int = 1024 * 1024) -> list[RuntimeLogEntry]:
         if not self.log_path.exists():
             raise CustomException(503, "Runtime Logs Unavailable", f"Platform runtime log source {self.log_path} is not available")
 
         tail = max(limit * 10, 400)
         try:
-            with self.log_path.open("r", encoding="utf-8") as handle:
+            size = self.log_path.stat().st_size
+            start_offset = max(size - max_scan_bytes, 0) if max_scan_bytes > 0 else 0
+            with self.log_path.open("r", encoding="utf-8", errors="replace") as handle:
+                if start_offset > 0:
+                    handle.seek(start_offset)
+                    handle.readline()
                 lines = deque(maxlen=tail)
                 while True:
                     offset = handle.tell()

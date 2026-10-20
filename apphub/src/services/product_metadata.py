@@ -12,8 +12,8 @@ from src.services.product_runtime_state import (
 )
 
 
-def read_product_metadata() -> dict:
-    state = read_product_runtime_state()
+def read_product_metadata(*, readonly: bool = False) -> dict:
+    state = read_product_runtime_state(readonly=True) if readonly else read_product_runtime_state()
     return {
         "version": state.version,
         "edition_key": state.edition_key,
@@ -92,5 +92,5 @@ def migrate_product_metadata(*, version=None, source_metadata_file=None, legacy_
     )
 
 
-def read_product_edition() -> ProductEditionMetadata:
-    return read_product_runtime_state()
+def read_product_edition(*, readonly: bool = False) -> ProductEditionMetadata:
+    return read_product_runtime_state(readonly=True) if readonly else read_product_runtime_state()

@@ -433,6 +433,36 @@ class PortainerAPI:
                 content.extend(chunk)
             return bytes(content)
 
+    def read_container_logs_bounded(
+        self,
+        endpoint_id: int,
+        container_id: str,
+        params: dict,
+        max_bytes: int = 1024 * 1024,
+        timeout_seconds: int = 20,
+    ) -> tuple[bytes | None, bool]:
+        deadline = time.monotonic() + max(timeout_seconds, 1)
+        with self._container_output_response(endpoint_id, container_id, "logs", params) as response:
+            if response.status_code == 404:
+                return None, False
+            if response.status_code != 200:
+                raise RuntimeError(f"Container logs unavailable (HTTP {response.status_code})")
+            content = bytearray()
+            truncated = False
+            for chunk in response.iter_content(chunk_size=8192):
+                if time.monotonic() > deadline:
+                    raise TimeoutError("Container log read timed out")
+                if not chunk:
+                    continue
+                remaining = max_bytes - len(content)
+                if len(chunk) > remaining:
+                    if remaining > 0:
+                        content.extend(chunk[:remaining])
+                    truncated = True
+                    break
+                content.extend(chunk)
+            return bytes(content), truncated
+
     @auto_refresh_token
     def create_container_exec(self, endpoint_id: int, container_id: str, command: list[str]):
         return self.api.post(
@@ -478,6 +508,13 @@ class PortainerAPI:
         finally:
             socket.close()
         return output.decode("utf-8", errors="replace")
+
+    @auto_refresh_token
+    def get_container_stats(self, endpoint_id: int, container_id: str):
+        return self.api.get(
+            path=f"endpoints/{endpoint_id}/docker/containers/{container_id}/stats",
+            params={"stream": "false"},
+        )
 
     @auto_refresh_token
     def stop_container(self, endpointId: int, container_id: str):

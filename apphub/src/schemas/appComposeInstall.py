@@ -32,7 +32,7 @@ class ComposeEnvironmentEntry(BaseModel):
     @field_validator("value", mode="before")
     @classmethod
     def validate_value(cls, value: Optional[str]) -> str:
-        return _normalize_optional_text(value)
+        return "" if value is None else str(value)
 
 
 class ComposeMountEntry(BaseModel):
