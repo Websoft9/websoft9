@@ -5,6 +5,33 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.3] - 2026-10-20
+
+### Added
+- **Operational CLI** — Expand the `websoft9` CLI with application, app store, backup, database, service, log and settings commands, including JSON output for scripts and automation.
+- **Compose Workspace** — Manage container stacks through the platform API and CLI alongside application deployments.
+- **Image Accelerators** — Configure Docker registry accelerators and mirrors from Platform Settings, with an ordered fallback when a registry is unavailable.
+- **App Image Prewarm** — Prewarm application images from the App Store and cancel a running installation.
+- **Scheduled Maintenance** — Run platform maintenance jobs, including image prewarm tasks, as managed scheduled tasks.
+- **Scheduled Log Cleanup** — Clean platform logs on a schedule with a structured execution log and run history.
+- **Installation Secrets** — Generate installation secrets for application templates and stage them with the install task.
+- **SMTP and Password Recovery** — Configure SMTP delivery in Platform Settings and recover a password with an email verification code.
+
+### Changed
+- **Application SFTP** — Improve application file sessions and the host connection lifecycle, including reconnect and cleanup behaviour.
+- **App Credentials** — Refine application credential handling and the access details shown in My Apps.
+- **Scheduled Tasks** — Improve task editing, run history and manual execution.
+- **Mirror Settings** — Improve Docker mirror and accelerator management, including validation and status feedback.
+- **HTTPS Provisioning** — Support `defaultScheme` HTTPS provisioning for application domains.
+- **App Store Sync** — Keep store metadata consistent during runtime synchronization and catalog rebuilds.
+
+### Fixed
+- **Image Prewarm** — Refine prewarm dispatch, retries and failure reporting.
+- **Image Pull Errors** — Explain every failed image pull source instead of reporting a generic failure.
+- **App Store Counts** — Count the catalogue the store actually serves.
+- **Install Dialogs** — Align installation dialogs with the current prewarm flow.
+- **My Apps** — Support non-root application SFTP and refine the detail page layout.
+
 ## [2.4.2] - 2026-09-23
 
 ### Added

@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import posixpath
 from io import BytesIO
 from typing import Optional
 
@@ -35,6 +36,7 @@ from src.schemas.hostAccess import (
 from src.services.host_access import HostAccessService
 from src.services.app_sftp import AppSftpService
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
+from src.services.sftp_path_authorization import PLATFORM_ACCOUNT_PROFILE_ID
 
 router = APIRouter()
 _host_access_service = HostAccessService()
@@ -47,20 +49,52 @@ class AppSftpSessionRequest(BaseModel):
     profile_id: Optional[str] = None
 
 
-def _run_app_file_operation(handler):
-    try:
+def _is_permission_denied(error: Exception) -> bool:
+    if isinstance(error, PermissionError):
+        return True
+    text = f"{getattr(error, 'details', '')} {getattr(error, 'message', '')} {error}".lower()
+    return 'permission denied' in text or 'errno 13' in text or 'eacces' in text
+
+
+def _run_app_file_operation(session_id: str, handler, grant_targets=()):
+    def execute():
         return handler()
-    except PermissionError:
-        raise HTTPException(403, 'The SSH account does not have permission for this file operation')
-    except OSError as exc:
-        raise HTTPException(400, f'Application SFTP operation failed: {exc}')
-    except (ValueError, TypeError):
-        raise HTTPException(400, 'Invalid application SFTP payload')
+
+    try:
+        return execute()
+    except Exception as error:
+        if not _is_permission_denied(error):
+            if isinstance(error, OSError):
+                raise HTTPException(400, f'Application SFTP operation failed: {error}')
+            if isinstance(error, (ValueError, TypeError)):
+                raise HTTPException(400, 'Invalid application SFTP payload')
+            raise
+    for target in grant_targets or ():
+        if not target:
+            continue
+        if not _app_sftp_service.grant_path(session_id, target):
+            continue
+        try:
+            return execute()
+        except Exception as error:
+            if not _is_permission_denied(error):
+                raise
+    raise HTTPException(403, 'The platform SFTP account does not have permission for this file operation')
 
 
 @router.post('/host-access/app-files/sessions')
 def create_app_sftp_session(payload: AppSftpSessionRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     return _app_sftp_service.create(session_token, payload.app_id, payload.volume_id, payload.profile_id)
+
+
+@router.get('/host-access/app-files/account')
+def get_app_sftp_account(session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    return _app_sftp_service.account_status(session_token)
+
+
+@router.post('/host-access/app-files/account/prepare')
+def prepare_app_sftp_account(session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    return _app_sftp_service.account_prepare(session_token)
 
 
 @router.api_route('/host-access/app-files/{file_session_id}/{operation}', methods=['GET', 'POST', 'PUT', 'DELETE'])
@@ -72,40 +106,41 @@ def app_sftp_file_operation(
     payload: Optional[dict] = Body(None),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    service = _app_sftp_service.access(session_token, file_session_id)
     if request.method == 'DELETE' and operation == 'session':
-        with _app_sftp_service.lock:
-            _app_sftp_service.sessions.pop(file_session_id, None)
+        _app_sftp_service.host_service.auth_service._require_authenticated_operator(session_token)
+        _app_sftp_service.release(file_session_id)
         return {'operation': 'close'}
+    service = _app_sftp_service.access(session_token, file_session_id)
     if request.method == 'GET' and operation == 'tree':
-        return _run_app_file_operation(lambda: service.list_directory(session_token, path or service.root))
+        target = path or service.root
+        return _run_app_file_operation(file_session_id, lambda: service.list_directory(session_token, target), (target,))
     if request.method == 'GET' and operation == 'content':
-        return _run_app_file_operation(lambda: service.read_text_file(session_token, path))
+        return _run_app_file_operation(file_session_id, lambda: service.read_text_file(session_token, path), (posixpath.dirname(path),))
     if request.method == 'GET' and operation == 'download':
-        result = _run_app_file_operation(lambda: service.download_file(session_token, path))
+        result = _run_app_file_operation(file_session_id, lambda: service.download_file(session_token, path), (posixpath.dirname(path),))
         from urllib.parse import quote
 
         return StreamingResponse(BytesIO(result['content']), media_type=result['media_type'], headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quote(result['file_name'], safe='')}"})
     operations = {
-        ('PUT', 'content'): (HostAccessWriteTextRequest, lambda value: service.write_text_file(session_token, value.path, value.content)),
-        ('POST', 'folders'): (HostAccessCreateFolderRequest, lambda value: service.create_directory(session_token, value.parent_path, value.name)),
-        ('POST', 'items'): (HostAccessCreateFileRequest, lambda value: service.create_empty_file(session_token, value.parent_path, value.name)),
-        ('POST', 'rename'): (HostAccessRenameItemRequest, lambda value: service.rename_item(session_token, value.source_path, value.target_name)),
-        ('DELETE', 'item'): (HostAccessDeleteItemRequest, lambda value: service.delete_item(session_token, value.path)),
-        ('POST', 'copy'): (HostAccessCopyItemRequest, lambda value: service.copy_item(session_token, value.source_path, value.destination_path)),
-        ('POST', 'move'): (HostAccessCopyItemRequest, lambda value: service.move_item(session_token, value.source_path, value.destination_path)),
-        ('PUT', 'attributes'): (HostAccessUpdateAttributesRequest, lambda value: service.update_item_attributes(session_token, value.model_dump())),
-        ('POST', 'upload'): (HostAccessUploadRequest, lambda value: service.upload_file(session_token, value.parent_path, value.file_name, base64.b64decode(value.content_base64, validate=True))),
+        ('PUT', 'content'): (HostAccessWriteTextRequest, lambda value: service.write_text_file(session_token, value.path, value.content), lambda value: (posixpath.dirname(value.path),)),
+        ('POST', 'folders'): (HostAccessCreateFolderRequest, lambda value: service.create_directory(session_token, value.parent_path, value.name), lambda value: (value.parent_path,)),
+        ('POST', 'items'): (HostAccessCreateFileRequest, lambda value: service.create_empty_file(session_token, value.parent_path, value.name), lambda value: (value.parent_path,)),
+        ('POST', 'rename'): (HostAccessRenameItemRequest, lambda value: service.rename_item(session_token, value.source_path, value.target_name), lambda value: (posixpath.dirname(value.source_path),)),
+        ('DELETE', 'item'): (HostAccessDeleteItemRequest, lambda value: service.delete_item(session_token, value.path), lambda value: (posixpath.dirname(value.path),)),
+        ('POST', 'copy'): (HostAccessCopyItemRequest, lambda value: service.copy_item(session_token, value.source_path, value.destination_path), lambda value: (posixpath.dirname(value.source_path), value.destination_path)),
+        ('POST', 'move'): (HostAccessCopyItemRequest, lambda value: service.move_item(session_token, value.source_path, value.destination_path), lambda value: (posixpath.dirname(value.source_path), value.destination_path)),
+        ('PUT', 'attributes'): (HostAccessUpdateAttributesRequest, lambda value: service.update_item_attributes(session_token, value.model_dump()), lambda value: (posixpath.dirname(value.source_path),)),
+        ('POST', 'upload'): (HostAccessUploadRequest, lambda value: service.upload_file(session_token, value.parent_path, value.file_name, base64.b64decode(value.content_base64, validate=True)), lambda value: (value.parent_path,)),
     }
     specification = operations.get((request.method, operation))
     if not specification:
         raise HTTPException(405, 'Unsupported application SFTP operation')
-    model, handler = specification
+    model, handler, targets = specification
     try:
         parsed = model.model_validate(payload or {})
     except ValidationError:
         raise HTTPException(422, 'Invalid application SFTP request')
-    return _run_app_file_operation(lambda: handler(parsed))
+    return _run_app_file_operation(file_session_id, lambda: handler(parsed), targets(parsed))
 
 
 def _get_host_access_service() -> HostAccessService:
@@ -207,6 +242,9 @@ def set_default_host_access_profile(profile_id: str, session_token: Optional[str
 def delete_host_access_profile(profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     service = _get_host_access_service()
     operator = service.auth_service._require_authenticated_operator(session_token)
+    if profile_id == PLATFORM_ACCOUNT_PROFILE_ID:
+        _app_sftp_service.revoke_account(session_token)
+        return service.get_profile(session_token=session_token)
     response = service.delete_saved_profile(session_token=session_token, profile_id=profile_id)
     _app_sftp_service.invalidate_profile(operator['id'], profile_id)
     return response

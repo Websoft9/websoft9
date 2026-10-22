@@ -28,6 +28,7 @@ except ModuleNotFoundError:
 
 from src.core.exception import CustomException
 from src.services.product_auth import ProductAuthService
+from src.services.sftp_path_authorization import PLATFORM_ACCOUNT_PROFILE_ID
 
 logger = logging.getLogger(__name__)
 
@@ -754,11 +755,42 @@ with os.fdopen(descriptor, 'r+b') as handle:
         return profile
 
     def _get_profile_for_operator(self, operator_id: str) -> dict[str, Any]:
-        saved_profiles = self._list_operator_profiles(operator_id)
+        saved_profiles = self._with_platform_profile(self._list_operator_profiles(operator_id))
         active_profile = self._resolve_active_profile(operator_id, saved_profiles=saved_profiles)
         default_profile_id = next((item["profile_id"] for item in saved_profiles if item.get("is_default")), None)
         file_preferences = self._load_file_preferences(operator_id)
         return self._build_profile_response(active_profile, saved_profiles, default_profile_id, file_preferences)
+
+    def _with_platform_profile(self, profiles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Expose the platform application-file account in the host list.
+
+        It is service-owned: shown for transparency and removable by the
+        operator, but it cannot be edited, tested or connected to.
+        """
+        state_file = self.data_dir / "app-sftp-account.json"
+        key_file = self.data_dir / "sftp.key"
+        if not state_file.is_file() or not key_file.is_file(): return profiles
+        try:
+            state = json.loads(state_file.read_text())
+        except (OSError, ValueError):
+            return profiles
+        entry = {
+            "profile_id": PLATFORM_ACCOUNT_PROFILE_ID,
+            "name": str(state.get("username") or "websoft9-sftp"),
+            "description": "",
+            "host": HOST_ACCESS_HOST,
+            "username": str(state.get("username") or "websoft9-sftp"),
+            "auth_method": "key",
+            "port": int(state.get("port") or HOST_ACCESS_PORT),
+            "shell": "/usr/sbin/nologin",
+            "is_default": False,
+            "is_local": True,
+            "updated_at": None,
+            "has_password": False,
+            "has_private_key": True,
+            "managed": True,
+        }
+        return [entry] + [item for item in profiles if item.get("profile_id") != PLATFORM_ACCOUNT_PROFILE_ID]
 
     def _build_profile_response(
         self,

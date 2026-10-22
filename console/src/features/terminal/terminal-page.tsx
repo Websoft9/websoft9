@@ -27,7 +27,7 @@ import {
 import type { SnackbarCloseReason } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import type { CSSProperties, ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FitAddon } from '@xterm/addon-fit'
@@ -36,12 +36,14 @@ import { Terminal as XTerm } from 'xterm'
 
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
-import { acquireAppFileSession, closeAppFileSession, getAppFileErrorKey, getAppFileRoute, getAppFileTitle, getNextWorkspaceTabId, getWorkspaceConnectionCount, HOST_PROFILE_DELETED_EVENT, MAX_WORKSPACE_CONNECTIONS, readAppFileSessions, reconcileWorkspaceTabOrder, rememberAppFileSession, restoreTerminalSessions, synchronizeAppFileProfiles, TERMINAL_WORKSPACE_STORAGE_KEY, useAppFileSessions, type AppFileSession } from './app-file-sessions'
+import { acquireAppFileSession, closeAppFileSession, getAppFileErrorKey, getAppFileRoute, getAppFileTitle, getNextWorkspaceTabId, getWorkspaceConnectionCount, HOST_PROFILE_DELETED_EVENT, MAX_WORKSPACE_CONNECTIONS, PLATFORM_SFTP_PROFILE_ID, readAppFileSessions, reconcileWorkspaceTabOrder, rememberAppFileSession, restoreTerminalSessions, synchronizeAppFileProfiles, TERMINAL_WORKSPACE_STORAGE_KEY, useAppFileSessions, type AppFileSession } from './app-file-sessions'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import 'xterm/css/xterm.css'
 import './terminal-page.css'
+
+const FileCodeEditor = lazy(() => import('./file-code-editor'))
 
 type SessionStatus = 'connected' | 'idle' | 'ended'
 type WorkspaceView = 'terminal' | 'files'
@@ -129,6 +131,7 @@ type HostAccessSavedProfileSummary = {
     is_local: boolean
     has_password: boolean
     has_private_key: boolean
+    managed?: boolean
     created_at?: string | null
     text_editable: boolean
     working_directory?: string | null
@@ -1404,6 +1407,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                     searchConnectionsPlaceholder: '搜索主机或用户名',
                     actionsLabel: '操作',
                     localLabel: 'Local',
+                    platformLabel: '平台专用',
                     noSavedProfilesResults: '没有匹配的连接。',
                     updatedAtLabel: '更新时间',
                     savedLogin: '连接',
@@ -1578,6 +1582,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                     searchConnectionsPlaceholder: 'Search host or username',
                     actionsLabel: 'Actions',
                     localLabel: 'Local',
+                    platformLabel: 'Platform',
                     noSavedProfilesResults: 'No connections match the search.',
                     updatedAtLabel: 'Updated',
                     savedLogin: 'Connect',
@@ -1645,6 +1650,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false)
     const [accessDialogMode, setAccessDialogMode] = useState<'new-connection' | 'add-host' | 'edit'>('add-host')
     const [localHostIp, setLocalHostIp] = useState('172.17.0.1')
+    const [localHostLocked, setLocalHostLocked] = useState(false)
     const [isHostSelectorOpen, setIsHostSelectorOpen] = useState(false)
     const [createSessionAnchorEl, setCreateSessionAnchorEl] = useState<HTMLElement | null>(null)
     const [profileSearchValue, setProfileSearchValue] = useState('')
@@ -1729,6 +1735,17 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             handledNewConnectionRef.current = true
             openAddHostDialog('new-connection')
             pendingFileConnectionRef.current = pendingFileConnection ?? null
+            if (pendingFileConnection) {
+                // This entry always targets the local host, so pre-select it and
+                // give the new connection a friendly name.
+                setLocalHostLocked(true)
+                setAccessForm(current => ({
+                    ...current,
+                    isLocal: true,
+                    host: localHostIp || '127.0.0.1',
+                    name: 'websoft9-local',
+                }))
+            }
             navigate('/terminal', { replace: true })
             return
         }
@@ -1879,33 +1896,6 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             },
         }),
         [palette],
-    )
-    const editorTextareaSx = useMemo(
-        () => ({
-            '& .MuiOutlinedInput-root': {
-                alignItems: 'stretch',
-                borderRadius: '2px',
-                backgroundColor: isDarkMode ? alpha(palette.terminalBg, 0.72) : palette.cardBg,
-                color: palette.text,
-                '& fieldset': {
-                    borderColor: palette.border,
-                },
-                '&:hover fieldset': {
-                    borderColor: alpha(palette.accent, 0.38),
-                },
-                '&.Mui-focused fieldset': {
-                    borderColor: palette.accent,
-                },
-            },
-            '& .MuiInputBase-inputMultiline': {
-                color: palette.text,
-                fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace",
-                fontSize: 13.5,
-                lineHeight: 1.55,
-                WebkitTextFillColor: palette.text,
-            },
-        }),
-        [isDarkMode, palette],
     )
     const terminalFilesThemeVars = useMemo(
         () => ({
@@ -2114,6 +2104,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
 
     function openAddHostDialog(mode: 'new-connection' | 'add-host' = 'add-host') {
         pendingFileConnectionRef.current = null
+        setLocalHostLocked(false)
         resetAccessForm()
         setAccessDialogMode(mode)
         setFeedback(null)
@@ -2123,6 +2114,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     }
 
     function openEditHostDialog(profile: HostAccessSavedProfileSummary) {
+        if (profile.managed) return
         setAccessForm(savedProfileToAccessForm(profile))
         setAccessDialogMode('edit')
         setAccessErrors({})
@@ -2267,7 +2259,9 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         const known = readAppFileSessions().find((session) => session.app_id === appFileAppId && session.volume_id === appFileVolumeId)
         if (known && known.status !== 'ended') rememberAppFileSession({ ...known, status: 'ended' })
         appFileRequestRef.current += 1
-        setAppFileSession(known ? { ...known, status: 'ended' } : null)
+        setAppFileSession((current) => current
+            ? { ...current, status: 'ended' }
+            : known ? { ...known, status: 'ended' } : null)
         setAccessReady(false)
         invalidateFileBrowserRequests()
         setWorkspaceView('files')
@@ -2664,6 +2658,28 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     const reportFileBootstrapError = useEffectEvent((error: unknown) => markAppFilesUnavailable(error instanceof Error ? error.message : copy.browserErrorTitle))
 
     const endDeletedProfileSessions = useEffectEvent((profileId: string) => {
+        if (profileId === PLATFORM_SFTP_PROFILE_ID) {
+            // The platform account was revoked: keep every tab (title stays visible)
+            // but mark the sessions as ended and stop all requests.
+            for (const session of readAppFileSessions()) {
+                rememberAppFileSession({ ...session, status: 'ended' })
+            }
+            invalidateFileBrowserRequests()
+            setBrowserLoading(false)
+            setIsEditorLoading(false)
+            setAccessReady(false)
+            setWorkspaceView('files')
+            setBrowserEntries([])
+            setBrowserMetadata(null)
+            setSelectedEntryPath(null)
+            setBrowserContextMenu(null)
+            setBrowserDialogState(null)
+            setBrowserPropertiesForm(null)
+            setBrowserClipboard(null)
+            setBrowserError(`${copy.browserErrorTitle}: ${t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable')}`)
+            setAppFileSession(current => current ? { ...current, status: 'ended' } : current)
+            return
+        }
         setSavedProfiles(current => current.filter(profile => profile.profile_id !== profileId))
         sessions.filter(session => session.profileId === profileId).forEach(session => closeSocket(session.id, { mode: 'remote' }))
         setSessions(current => current.map(session => session.profileId === profileId ? { ...session, status: 'ended', profileAvailable: false, transportDisconnected: false } : session))
@@ -4057,7 +4073,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                             control={
                                 <Checkbox
                                     checked={accessForm.isLocal === true}
-                                    disabled={formBusy}
+                                    disabled={formBusy || localHostLocked}
                                     onChange={(event) => {
                                         const checked = event.target.checked
                                         setAccessForm((current) => ({
@@ -4075,7 +4091,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                         />
                     </Box>
                     <TextField
-                        disabled={formBusy}
+                        disabled={formBusy || localHostLocked}
                         error={Boolean(accessErrors.host)}
                         inputRef={(element) => {
                             accessFieldRefs.current.host = element
@@ -4330,6 +4346,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                                 <Typography sx={{ fontSize: 14, fontWeight: 600, color: palette.text, wordBreak: 'break-all' }}>{profile.name || profile.host}</Typography>
                                 {profile.is_local ? <Chip color="success" label={copy.localLabel} size="small" sx={{ height: 18, fontWeight: 700, '& .MuiChip-label': { px: 0.75, fontSize: 11, lineHeight: 1.2 } }} /> : null}
+                                {profile.managed ? <Chip color="info" label={copy.platformLabel} size="small" sx={{ height: 18, fontWeight: 700, '& .MuiChip-label': { px: 0.75, fontSize: 11, lineHeight: 1.2 } }} /> : null}
                             </Stack>
                             {profile.name ? (
                                 <Typography sx={{ fontSize: 12.5, color: palette.subtleText, wordBreak: 'break-all' }}>{profile.host}</Typography>
@@ -4345,27 +4362,27 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                         <Typography sx={{ minWidth: 0, fontSize: 13.5, color: palette.subtleText }}>{profile.port}</Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <Box className="terminal-connections-row-actions">
-                                <Tooltip title={copy.connectionTestTitle}>
+                                {!profile.managed ? <Tooltip title={copy.connectionTestTitle}>
                                     <span>
                                         <IconButton aria-label={copy.connectionTestTitle} className="terminal-connections-row-action-button terminal-connections-row-action-button-info" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null || testingProfileId === profile.profile_id} onClick={() => void handleTestSavedProfile(profile.profile_id)} size="small">
                                             {testingProfileId === profile.profile_id ? <CircularProgress size={14} color="inherit" /> : <TestActionIcon />}
                                         </IconButton>
                                     </span>
-                                </Tooltip>
-                                <Tooltip title={copy.editAction}>
+                                </Tooltip> : null}
+                                {!profile.managed ? <Tooltip title={copy.editAction}>
                                     <span>
                                         <IconButton aria-label={copy.editAction} className="terminal-connections-row-action-button" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null} onClick={() => openEditHostDialog(profile)} size="small">
                                             <EditActionIcon />
                                         </IconButton>
                                     </span>
-                                </Tooltip>
-                                <Tooltip title={copy.savedLogin}>
+                                </Tooltip> : null}
+                                {!profile.managed ? <Tooltip title={copy.savedLogin}>
                                     <span>
                                         <IconButton aria-label={copy.savedLogin} className="terminal-connections-row-action-button terminal-connections-row-action-button-primary" disabled={formBusy || isRefreshingProfiles || isDisconnecting || (activatingProfileId !== null && activatingProfileId !== profile.profile_id)} onClick={() => void handleActivateSavedProfile(profile.profile_id)} size="small">
                                             {activatingProfileId === profile.profile_id ? <CircularProgress size={14} color="inherit" /> : <ConnectActionIcon />}
                                         </IconButton>
                                     </span>
-                                </Tooltip>
+                                </Tooltip> : null}
                                 <Tooltip title={copy.deleteProfile}>
                                     <span>
                                         <IconButton aria-label={copy.deleteProfile} className="terminal-connections-row-action-button terminal-connections-row-action-button-danger" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null} onClick={() => setPendingDeleteProfile(profile)} size="small">
@@ -4381,13 +4398,15 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         </Box>
     )
 
-    const quickConnectProfiles = filteredSavedProfiles.slice(0, 6)
+    const connectableSavedProfiles = savedProfiles.filter(profile => !profile.managed)
+    const filteredConnectableProfiles = filteredSavedProfiles.filter(profile => !profile.managed)
+    const quickConnectProfiles = filteredConnectableProfiles.slice(0, 6)
 
-    const quickConnectList = savedProfiles.length === 0 ? (
+    const quickConnectList = connectableSavedProfiles.length === 0 ? (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
             <Typography sx={{ fontSize: 14, fontWeight: 600, color: palette.subtleText }}>{copy.savedProfilesEmpty}</Typography>
         </Box>
-    ) : filteredSavedProfiles.length === 0 ? (
+    ) : filteredConnectableProfiles.length === 0 ? (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
             <Typography sx={{ fontSize: 14, fontWeight: 600, color: palette.subtleText }}>{copy.noSavedProfilesResults}</Typography>
         </Box>
@@ -4752,7 +4771,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
 
                                                             <div className="terminal-files-layout">
                                                                 <div className="terminal-files-browser-panel" onClick={(event) => handleBrowserBackgroundClick(event, '.terminal-files-list-row, .terminal-files-grid-card')} onContextMenu={(event) => handleBrowserBackgroundContextMenu(event, '.terminal-files-list-row, .terminal-files-grid-card')}>
-                                                                    {browserLoading ? <div className="terminal-files-progress" /> : null}
+                                                                    {browserLoading && activeSession?.status !== 'ended' ? <div className="terminal-files-progress" /> : null}
                                                                     {isEditorLoading ? (
                                                                         <div className="terminal-files-empty">
                                                                             <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.editorLoading}</Typography>
@@ -4773,7 +4792,9 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                                                                                 </div>
                                                                             </div>
                                                                             <div className="terminal-files-browser-editor-body">
-                                                                                <TextField className="terminal-files-editor-textarea" fullWidth multiline onChange={(event) => setEditorContent(event.target.value)} slotProps={{ htmlInput: { wrap: 'off', spellCheck: false } }} sx={editorTextareaSx} value={editorContent} />
+                                                                                <Suspense fallback={<div className="terminal-files-empty"><Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.editorLoading}</Typography></div>}>
+                                                                                    <FileCodeEditor isDarkMode={isDarkMode} onChange={setEditorContent} onSave={() => void handleSaveEditor()} path={editorPath} value={editorContent} />
+                                                                                </Suspense>
                                                                             </div>
                                                                         </div>
                                                                     ) : filteredBrowserEntries.length ? (
@@ -4831,7 +4852,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                                                                                 </div>
                                                                             )}
                                                                         </div>
-                                                                    ) : browserLoading ? (
+                                                                    ) : browserLoading && activeSession?.status !== 'ended' ? (
                                                                         <div className="terminal-files-list-view">
                                                                             <div className="terminal-files-list-header terminal-files-list-row-frame">
                                                                                 <div>{copy.nameLabel}</div>
@@ -4858,6 +4879,10 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                                                                                     </div>
                                                                                 ))}
                                                                             </div>
+                                                                        </div>
+                                                                    ) : activeSession?.status === 'ended' ? (
+                                                                        <div className="terminal-files-empty">
+                                                                            <Typography sx={{ fontSize: 13.5, color: '#dc2626' }}>{`${copy.browserErrorTitle}：${t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable')}`}</Typography>
                                                                         </div>
                                                                     ) : browserError ? (
                                                                         <div className="terminal-files-empty">

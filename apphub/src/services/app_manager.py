@@ -1904,6 +1904,17 @@ class AppManger:
             # down stack
             portainerManager.down_stack(stack_id,endpointId)
             logger.access(f"Uninstalled app: [{app_id}] and keep data")
+        self._revoke_sftp_grants(app_id)
+
+    @staticmethod
+    def _revoke_sftp_grants(app_id: str) -> None:
+        """Drop host ACL grants created for application file access."""
+        try:
+            from src.services.sftp_path_authorization import revoke_application_grants
+
+            revoke_application_grants(app_id)
+        except Exception as exc:
+            logger.warning(f"Unable to revoke application SFTP grants for {app_id}: {exc}")
 
     def remove_app(self,app_id:str,endpointId:int = None):
         """
@@ -1962,6 +1973,7 @@ class AppManger:
         # remove stack and volumes
         portainerManager.remove_stack_and_volumes(stack_id,endpointId)
         forget_install_secrets(app_id)
+        self._revoke_sftp_grants(app_id)
 
         logger.access(f"Removed app: [{app_id}]")
 
@@ -1989,6 +2001,7 @@ class AppManger:
                 )
             self._cleanup_error_app_resources(app_id)
             forget_install_secrets(app_id)
+            self._revoke_sftp_grants(app_id)
             # remove app from appInstallingError
             remove_app_from_errors_by_app_id(app_id)
         except CustomException as e:

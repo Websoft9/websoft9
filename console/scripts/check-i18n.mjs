@@ -72,6 +72,11 @@ function scanFileForChinese(relativePath) {
 const shellResources = normalizeLocaleNamespaces(loadShellResources())
 const guardedResourcePairs = [
     {
+        label: 'servicesPage.descriptions',
+        enPath: 'shell.servicesPage.descriptions',
+        zhPath: 'shell.servicesPage.descriptions',
+    },
+    {
         label: 'myAppsDetailPage.accessPanel',
         enPath: 'shell.myAppsDetailPage.accessPanel',
         zhPath: 'shell.myAppsDetailPage.accessPanel',

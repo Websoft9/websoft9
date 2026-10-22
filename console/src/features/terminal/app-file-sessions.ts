@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react'
 
-export type AppFileSession = { session_id: string; root_path: string; app_id: string; volume_id: string; profile_id: string | null; profile_available?: boolean; host?: string; username?: string; port?: number; expires_at?: number; path?: string; status?: 'connected' | 'ended' }
+export type AppFileSession = { session_id: string; root_path: string; app_id: string; volume_id: string; profile_id: string | null; profile_available?: boolean; host?: string; username?: string; port?: number; expires_at?: number; path?: string; status?: 'connected' | 'ended'; verified_at?: number }
 export const MAX_WORKSPACE_CONNECTIONS = 10
+export const PLATFORM_SFTP_PROFILE_ID = 'platform-sftp'
 export const TERMINAL_WORKSPACE_STORAGE_KEY = 'websoft9:terminal-workspace-v1'
 export const HOST_PROFILE_DELETED_EVENT = 'websoft9:host-profile-deleted'
 const SESSIONS_KEY = 'websoft9:app-files-sessions'
@@ -128,6 +129,9 @@ export function getAppFileErrorKey(error: unknown) {
     if (code === 'Local SSH Setup Revoked') return 'sftpAuthorizationRevoked'
     if (code === 'Host Access Profile Not Found' || message.includes('The requested host profile is unavailable for file operations')) return 'sftpConnectionUnavailable'
     if (code === 'SFTP Scope Denied') return 'sftpScopeDenied'
+    if (code === 'SFTP Account Unavailable') return 'sftpAuthorizationMissing'
+    if (code === 'SFTP Path Unsupported' || code === 'SFTP Authorization Failed') return 'sftpDirectoryPermissionDenied'
+    if (code === 'SFTP Container Not Running') return 'sftpConnectionUnavailable'
     if (code === 'Local SSH Setup Unavailable' || /authorization has not been prepared|prepared local ssh credentials|no local ssh credentials/i.test(message)) return 'sftpAuthorizationMissing'
     if (/connection refused|timed out|timeout|no route to host|network is unreachable|unable to connect to port|connection reset|error reading ssh protocol banner/i.test(message)) return 'sftpHostUnreachable'
     if (code === 'SSH Authentication Failed' || /authentication failed|authentication rejected|authenticationexception|rejected the prepared key|invalid private key/i.test(message)) return 'sftpAuthenticationFailed'
@@ -161,9 +165,12 @@ export function acquireAppFileSession(appId: string, volumeId: string, profileId
             throw new FileSessionError('The requested host profile is unavailable for file operations', 400, 'Host Access Profile Not Found')
         }
         if (saved && (!profileId || saved.profile_id === profileId)) {
+            if (saved.status !== 'ended' && typeof saved.verified_at === 'number' && Date.now() - saved.verified_at < 60000) {
+                return { ...saved, status: 'connected' as const }
+            }
             try {
                 await request(`/api/host-access/app-files/${saved.session_id}/tree?${new URLSearchParams({ path: saved.root_path })}`)
-                const verified = { ...saved, status: 'connected' as const }
+                const verified = { ...saved, status: 'connected' as const, verified_at: Date.now() }
                 rememberAppFileSession(verified)
                 return verified
             } catch (error) {
@@ -180,7 +187,7 @@ export function acquireAppFileSession(appId: string, volumeId: string, profileId
                 method: 'POST', body: JSON.stringify({ app_id: appId, volume_id: volumeId, profile_id: profileId || null }),
             })
             creating.delete(key)
-            const connected = { ...session, status: 'connected' as const }
+            const connected = { ...session, status: 'connected' as const, verified_at: Date.now() }
             rememberAppFileSession(connected)
             return connected
         } finally {

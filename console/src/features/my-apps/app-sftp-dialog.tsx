@@ -11,6 +11,7 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
     const [failureKey, setFailureKey] = useState(initialError ? getAppFileErrorKey(initialError) : null)
     const [error, setError] = useState(initialError && getAppFileErrorKey(initialError) !== 'sftpConnectionRequired' ? t(`myAppsDetailPage.tabs.volumes.fileManager.${getAppFileErrorKey(initialError)}`) : '')
     const [visible, setVisible] = useState(Boolean(initialError))
+    const [booting, setBooting] = useState(true)
     const [limitReached, setLimitReached] = useState(false)
     const [busy, setBusy] = useState(false)
 
@@ -19,10 +20,10 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
         setBusy(true)
         setError('')
         try {
-            const response = await fetch('/api/host-access/profile/local', { method: 'POST', credentials: 'include' })
+            const response = await fetch('/api/host-access/app-files/account/prepare', { method: 'POST', credentials: 'include' })
             const body = await response.json()
             if (!response.ok) throw new FileSessionError(body.details || body.detail || body.message || response.statusText, response.status, body.code || body.message)
-            const session = await acquireAppFileSession(appId, volumeId, body.active_profile_id)
+            const session = await acquireAppFileSession(appId, volumeId)
             onClose()
             navigate(getAppFileRoute(session))
         } catch (failure) {
@@ -36,17 +37,22 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
     }
 
     const prepareConnection = useEffectEvent(async (isCancelled: () => boolean) => {
-        if (initialError) return
+        if (initialError) {
+            setBooting(false)
+            setVisible(true)
+            return
+        }
         try {
             const session = await acquireAppFileSession(appId, volumeId)
             if (!isCancelled()) navigate(getAppFileRoute(session))
         } catch (failure) {
             if (!isCancelled()) {
+                setBooting(false)
                 const atLimit = failure instanceof ConnectionLimitError
                 const key = getAppFileErrorKey(failure)
                 setFailureKey(key)
                 setLimitReached(atLimit)
-                setError(key === 'sftpConnectionRequired' ? '' : t(`myAppsDetailPage.tabs.volumes.fileManager.${key}`, { count: MAX_WORKSPACE_CONNECTIONS }))
+                setError(key === 'sftpConnectionRequired' || key === 'sftpAuthorizationMissing' ? '' : t(`myAppsDetailPage.tabs.volumes.fileManager.${key}`, { count: MAX_WORKSPACE_CONNECTIONS }))
                 setVisible(true)
             }
         }
@@ -59,5 +65,6 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
     }, [appId, volumeId])
 
     if (limitReached) return <SurfaceFeedbackToast open severity="info" message={error} onClose={onClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} />
+    if (booting && !visible) return <SurfaceFeedbackToast open severity="info" message={t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnecting')} onClose={onClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} />
     return visible ? <AppFileConnectionPrompt error={error} blocked={failureKey === 'sftpDirectoryPermissionDenied' || failureKey === 'sftpScopeDenied'} darkMode={darkMode} scopeRect={scopeRect} busy={busy} onAutomatic={() => void createLocalConnection()} onClose={onClose} onConfirm={() => { onClose(); navigate(`/terminal?${new URLSearchParams({ new_connection: '1', app_file_app: appId, app_file_volume: volumeId })}`) }} /> : null
 }

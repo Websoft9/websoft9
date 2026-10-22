@@ -689,35 +689,68 @@ def test_app_sftp_symlink_and_root_operations_are_blocked(scoped_files):
         service.read_text_file('valid-session', str(root / 'escape/outside.txt'))
 
 
-def test_app_sftp_volume_ownership_and_connection_binding(scoped_files):
+class FakeSftpAccount:
+    def ensure(self, force: bool = False):
+        return {'state': 'ready'}
+
+    def status(self):
+        return {'state': 'ready'}
+
+    def credentials(self):
+        return {'profile_id': 'platform-sftp', 'host': '127.0.0.1', 'port': 22, 'username': 'websoft9-sftp', 'auth_method': 'key', 'private_key': '', 'passphrase': ''}
+
+
+class FakeSftpAuthority:
+    def __init__(self, root):
+        self.root = root
+        self.authorized: dict[str, dict] = {}
+        self.released: list[str] = []
+        self.counter = 0
+        self.store = SimpleNamespace(touch=lambda identifier: None)
+
+    def new_session_id(self):
+        self.counter += 1
+        return f'session-{self.counter}'
+
+    def resolve(self, app_id, volume_id):
+        if app_id != 'example':
+            raise CustomException(403, 'Volume Access Denied', 'The volume does not belong to this application')
+        return {'source_path': self.root, 'container_uid': 0, 'container_name': 'app-1'}
+
+    def authorize(self, *, session_id, operator_id, app_id, volume_id, target):
+        self.authorized[session_id] = {'operator_id': operator_id, 'app_id': app_id, 'volume_id': volume_id}
+        return {'path': target['source_path']}
+
+    def grant(self, session_id, path):
+        return {'path': path}
+
+    def release(self, session_id):
+        self.released.append(session_id)
+        self.authorized.pop(session_id, None)
+
+    def reconcile(self):
+        return None
+
+
+def test_app_sftp_creates_platform_account_sessions(scoped_files):
     scoped, root = scoped_files
     host = scoped.host_service
-    profile = {'profile_id': 'local', 'host': '127.0.0.1', 'port': 22, 'username': 'operator'}
-    profile_available = True
-
-    def get_profile(token, profile_id=None):
-        if not profile_available:
-            raise CustomException(400, 'Host Access Profile Not Found', 'The requested host profile is unavailable for file operations')
-        return profile
-
-    host.get_connection_profile = get_profile
-    volume = {'Driver': 'local', 'Options': {}, 'Mountpoint': str(root), 'Labels': {'com.docker.compose.project': 'example'}}
-    client = SimpleNamespace(volumes=SimpleNamespace(get=lambda identifier: SimpleNamespace(attrs=volume)))
-    service = AppSftpService(host, docker_client_factory=lambda: client)
+    authority = FakeSftpAuthority(str(root))
+    service = AppSftpService(host, account_service=FakeSftpAccount(), authority=authority)
     with pytest.raises(CustomException):
-        service.create('valid-session', 'other-app', 'data', 'local')
-    session = service.create('valid-session', 'example', 'data', 'local')
-    assert service.access('valid-session', session['session_id']).root == str(root)
-    profile_available = False
-    with pytest.raises(CustomException, match='unavailable for file operations'):
-        service.access('valid-session', session['session_id'])
-    profile_available = True
-    profile['username'] = 'another-account'
+        service.create('valid-session', 'other-app', 'data')
+    session = service.create('valid-session', 'example', 'data')
+    assert session['root_path'] == str(root)
+    assert session['account'] == 'websoft9-sftp'
+    assert session['profile_id'] is None
+    assert authority.authorized[session['session_id']]['operator_id'] == 'operator-1'
+    scoped_session = service.access('valid-session', session['session_id'])
+    assert isinstance(scoped_session, ScopedHostAccess)
+    assert scoped_session.root == str(root)
+    service.release(session['session_id'])
+    assert authority.released == [session['session_id']]
     with pytest.raises(CustomException):
         service.access('valid-session', session['session_id'])
-    profile['host'] = 'remote.example'
-    with pytest.raises(CustomException):
-        service.create('valid-session', 'example', 'data', 'local')
 
 
 def test_app_sftp_invalidate_profile_only_removes_matching_sessions():
@@ -740,11 +773,8 @@ def test_app_sftp_http_endpoints_enforce_scope(scoped_files, monkeypatch):
 
     scoped, root = scoped_files
     host = scoped.host_service
-    profile = {'profile_id': 'local', 'host': '127.0.0.1', 'port': 22, 'username': 'operator'}
-    host.get_connection_profile = lambda token, profile_id=None: profile
-    volume = {'Driver': 'local', 'Options': {}, 'Mountpoint': str(root), 'Labels': {'com.docker.compose.project': 'example'}}
-    docker_client = SimpleNamespace(volumes=SimpleNamespace(get=lambda identifier: SimpleNamespace(attrs=volume)))
-    service = AppSftpService(host, docker_client_factory=lambda: docker_client)
+    authority = FakeSftpAuthority(str(root))
+    service = AppSftpService(host, account_service=FakeSftpAccount(), authority=authority)
     monkeypatch.setattr(host_access, '_app_sftp_service', service)
     app = FastAPI()
     app.include_router(host_access.router)
@@ -754,7 +784,7 @@ def test_app_sftp_http_endpoints_enforce_scope(scoped_files, monkeypatch):
         return JSONResponse(status_code=error.status_code, content={'detail': str(error)})
 
     with TestClient(app) as client:
-        payload = {'app_id': 'example', 'volume_id': 'data', 'profile_id': 'local'}
+        payload = {'app_id': 'example', 'volume_id': 'data'}
         assert client.post('/host-access/app-files/sessions', json=payload).status_code == 401
         client.cookies.set(PRODUCT_AUTH_COOKIE_NAME, 'valid-session')
         assert client.post('/host-access/app-files/sessions', json={**payload, 'app_id': 'other'}).status_code == 403
@@ -1080,78 +1110,22 @@ def test_host_ssh_preparation_configures_and_rolls_back_sftp_sudoers_for_non_roo
     assert f"ubuntu ALL=(root) NOPASSWD: {sftp_binary}" in sudoers_file.read_text()
 
 
-def test_app_sftp_elevates_non_root_sftp_and_auto_prepares_on_permission_error(tmp_path, monkeypatch):
-    import paramiko
+def test_app_sftp_never_elevates_sftp(tmp_path):
+    from src.services.app_sftp import open_host_sftp
 
     root = tmp_path / "volume"
     root.mkdir()
     host = HostAccessService(data_dir=str(tmp_path / "host-access"), auth_service=FakeAuthService())
-    profile = {"profile_id": "auto-local-1", "host": "127.0.0.1", "port": 22, "username": "ubuntu", "auth_method": "key", "private_key": "KEY"}
-    monkeypatch.setattr(host, "get_connection_profile", lambda token, profile_id=None: profile)
-
-    exec_commands = []
-    sudo_ready = False
-
-    class DeniedSftp(LocalTestSftp):
-        def lstat(self, path):
-            if not sudo_ready:
-                raise PermissionError(13, "Permission denied", path)
-            return super().lstat(path)
-
-        def close(self):
-            pass
-
-        def get_channel(self):
-            return SimpleNamespace(closed=False)
-
-    class ElevatedSftp(LocalTestSftp):
-        def close(self):
-            pass
-
-        def get_channel(self):
-            return SimpleNamespace(closed=False)
-
-    class FakeChannel:
-        closed = False
-
-        def exec_command(self, cmd):
-            exec_commands.append(cmd)
-            if not sudo_ready:
-                raise RuntimeError("sudo password required")
-
-        def close(self):
-            self.closed = True
-
-    fake_client = SimpleNamespace(
-        get_transport=lambda: SimpleNamespace(is_active=lambda: True, open_session=lambda: FakeChannel()),
-        open_sftp=lambda: DeniedSftp(root),
-        close=lambda: None,
-    )
+    captured = {}
 
     @contextmanager
-    def fake_open_file_client(_profile):
-        yield fake_client
+    def open_sftp(profile, **kwargs):
+        captured["profile"] = profile
+        captured["kwargs"] = kwargs
+        yield LocalTestSftp(root)
 
-    monkeypatch.setattr(host, "_open_file_client", fake_open_file_client)
-    monkeypatch.setattr(paramiko, "SFTPClient", lambda channel: ElevatedSftp(root))
-    prepared_users = []
-
-    def fake_prepare(username=""):
-        nonlocal sudo_ready
-        prepared_users.append(username)
-        sudo_ready = True
-
-    monkeypatch.setattr(host, "_prepare_local_ssh_credentials", fake_prepare)
-    volume = {"Driver": "local", "Options": {}, "Mountpoint": str(root), "Labels": {"com.docker.compose.project": "example"}}
-    docker_client = SimpleNamespace(volumes=SimpleNamespace(get=lambda identifier: SimpleNamespace(attrs=volume)))
-    service = AppSftpService(host, docker_client_factory=lambda: docker_client)
-
-    session = service.create("valid-session", "example", "data", "auto-local-1")
-    assert session["username"] == "ubuntu"
-    assert prepared_users == ["ubuntu"]
-    assert len(exec_commands) == 2
-    assert "exec sudo -n" in exec_commands[0]
-
-    scoped = service.access("valid-session", session["session_id"])
-    scoped.create_empty_file("valid-session", str(root), "hello.txt")
-    assert (root / "hello.txt").is_file()
+    host._open_sftp = open_sftp
+    with open_host_sftp(host, {"username": "websoft9-sftp", "auth_method": "key"}) as sftp:
+        assert isinstance(sftp, LocalTestSftp)
+    assert captured["profile"]["username"] == "websoft9-sftp"
+    assert captured["kwargs"] == {}
