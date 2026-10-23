@@ -1129,3 +1129,22 @@ def test_app_sftp_never_elevates_sftp(tmp_path):
         assert isinstance(sftp, LocalTestSftp)
     assert captured["profile"]["username"] == "websoft9-sftp"
     assert captured["kwargs"] == {}
+
+
+def test_app_sftp_elevation_is_explicit_opt_in(tmp_path):
+    from src.services.app_sftp import open_host_sftp
+
+    root = tmp_path / "volume"
+    root.mkdir()
+    host = HostAccessService(data_dir=str(tmp_path / "host-access"), auth_service=FakeAuthService())
+    captured = {}
+
+    @contextmanager
+    def open_sftp(profile, **kwargs):
+        captured["kwargs"] = kwargs
+        yield LocalTestSftp(root)
+
+    host._open_sftp = open_sftp
+    with open_host_sftp(host, {"username": "ubuntu", "auth_method": "key"}, elevated=True):
+        pass
+    assert captured["kwargs"] == {"elevated": True}

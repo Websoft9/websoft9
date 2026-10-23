@@ -102,7 +102,7 @@ class SmtpService:
             username=str(raw.get("username") or "").strip(),
             password=str(raw.get("password") or ""),
             from_email=str(raw.get("from_email") or "").strip(),
-            from_name=str(raw.get("from_name") or DEFAULT_SENDER_NAME).strip() or DEFAULT_SENDER_NAME,
+            from_name=str(raw.get("from_name") or "").strip(),
         )
 
     def get_masked_settings(self) -> dict[str, Any]:
@@ -144,7 +144,7 @@ class SmtpService:
         normalized_from_email = str(from_email or "").strip()
         if normalized_from_email:
             normalized_from_email = _validate_email_address(normalized_from_email, "Sender email")
-        normalized_from_name = _validate_no_header_injection(from_name or DEFAULT_SENDER_NAME, "Sender name") or DEFAULT_SENDER_NAME
+        normalized_from_name = _validate_no_header_injection(from_name or "", "Sender name")
 
         should_require_fields = bool(
             enabled

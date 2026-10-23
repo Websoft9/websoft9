@@ -88,17 +88,22 @@ class ScopedSftp:
 
 
 @contextmanager
-def open_host_sftp(host_service, profile):
-    with host_service._open_sftp(profile) as sftp:
-        yield sftp
+def open_host_sftp(host_service, profile, elevated=False):
+    if elevated:
+        with host_service._open_sftp(profile, elevated=True) as sftp:
+            yield sftp
+    else:
+        with host_service._open_sftp(profile) as sftp:
+            yield sftp
 
 
 class ScopedHostAccess(HostAccessService):
-    def __init__(self, host_service, profile, root):
+    def __init__(self, host_service, profile, root, elevated=False):
         super().__init__(data_dir=str(host_service.data_dir), auth_service=host_service.auth_service)
         self.host_service = host_service
         self.profile = profile
         self.root = root
+        self.elevated = elevated
         self._identity_label_cache = {}
         self._identity_source_cache = {}
 
@@ -107,7 +112,7 @@ class ScopedHostAccess(HostAccessService):
 
     @contextmanager
     def _open_sftp(self, profile):
-        with open_host_sftp(self.host_service, profile) as sftp:
+        with open_host_sftp(self.host_service, profile, elevated=self.elevated) as sftp:
             yield ScopedSftp(sftp, self.root)
 
     def _load_identity_labels(self, sftp, owner_ids, group_ids):
@@ -212,16 +217,21 @@ class AppSftpService:
         self.authority.release_all()
         return self.account.revoke()
 
-    def create(self, session_token, app_id, volume_id, profile_id=None):
+    def create(self, session_token, app_id, volume_id, profile_id=None, elevate=False):
         operator = self.host_service.auth_service._require_authenticated_operator(session_token)
         self._ensure_reconciled()
         target = self.authority.resolve(app_id, volume_id)
 
         local_profile = self._usable_local_profile(operator['id'], profile_id)
         if local_profile is not None:
-            # A usable local connection exists: use it directly, never create a
-            # platform account behind the operator's back.
-            self._verify_volume_access(local_profile, target['source_path'])
+            elevated = False
+            try:
+                self._verify_volume_access(local_profile, target['source_path'])
+            except CustomException:
+                if not elevate:
+                    raise
+                self._verify_volume_access(local_profile, target['source_path'], elevated=True)
+                elevated = True
             identifier = self.authority.new_session_id()
             now = time.time()
             with self.lock:
@@ -235,6 +245,7 @@ class AppSftpService:
                     'profile': local_profile,
                     'container_uid': int(target.get('container_uid') or 0),
                     'mode': 'profile',
+                    'elevated': elevated,
                 }
             self._warm_connection(local_profile)
             return {
@@ -249,6 +260,7 @@ class AppSftpService:
                 'host': local_profile.get('host'),
                 'username': local_profile.get('username'),
                 'port': local_profile.get('port'),
+                'elevated': elevated,
             }
 
         if self.account.status().get('state') != 'ready':
@@ -348,9 +360,9 @@ class AppSftpService:
 
         threading.Thread(target=warm, daemon=True).start()
 
-    def _verify_volume_access(self, profile, root):
+    def _verify_volume_access(self, profile, root, elevated=False):
         try:
-            with open_host_sftp(self.host_service, profile) as sftp:
+            with open_host_sftp(self.host_service, profile, elevated=elevated) as sftp:
                 try:
                     guarded = ScopedSftp(sftp, root)
                     guarded.stat(root)
@@ -396,7 +408,7 @@ class AppSftpService:
             self.authority.store.touch(identifier)
         except Exception:
             pass
-        return ScopedHostAccess(self.host_service, session['profile'], session['root'])
+        return ScopedHostAccess(self.host_service, session['profile'], session['root'], elevated=bool(session.get('elevated')))
 
     def invalidate_profile(self, operator_id, profile_id):
         # Application file sessions are not bound to saved host profiles, but the

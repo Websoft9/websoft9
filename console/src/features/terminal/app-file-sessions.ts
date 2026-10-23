@@ -155,12 +155,13 @@ export async function closeAppFileSession(identifier: string) {
     forgetAppFileSession(identifier)
 }
 
-export function acquireAppFileSession(appId: string, volumeId: string, profileId?: string): Promise<AppFileSession> {
-    const key = JSON.stringify([appId, volumeId, profileId || null])
+export function acquireAppFileSession(appId: string, volumeId: string, profileId?: string, options?: { elevate?: boolean }): Promise<AppFileSession> {
+    const elevate = Boolean(options?.elevate)
+    const key = JSON.stringify([appId, volumeId, profileId || null, elevate])
     const existing = pending.get(key)
     if (existing) return existing
     const operation = (async () => {
-        const saved = readAppFileSessions().find((session) => session.app_id === appId && session.volume_id === volumeId)
+        const saved = elevate ? undefined : readAppFileSessions().find((session) => session.app_id === appId && session.volume_id === volumeId)
         if (saved?.profile_available === false && (!profileId || saved.profile_id === profileId)) {
             throw new FileSessionError('The requested host profile is unavailable for file operations', 400, 'Host Access Profile Not Found')
         }
@@ -184,7 +185,7 @@ export function acquireAppFileSession(appId: string, volumeId: string, profileId
         creating.add(key)
         try {
             const session = await request<AppFileSession>('/api/host-access/app-files/sessions', {
-                method: 'POST', body: JSON.stringify({ app_id: appId, volume_id: volumeId, profile_id: profileId || null }),
+                method: 'POST', body: JSON.stringify({ app_id: appId, volume_id: volumeId, profile_id: profileId || null, elevate }),
             })
             creating.delete(key)
             const connected = { ...session, status: 'connected' as const, verified_at: Date.now() }

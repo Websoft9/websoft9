@@ -1195,7 +1195,7 @@ export function TerminalConnectionDialog(props: ConnectionDialogRequest) {
     return <TerminalWorkspace visible sessionTabs={[]} onSelectTab={() => undefined} connectionDialog={props} />
 }
 
-export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, onConfirm, onAutomatic, busy = false, blocked = false }: { error?: string; darkMode: boolean; scopeRect?: ConnectionDialogRequest['scopeRect']; onClose: () => void; onConfirm: () => void; onAutomatic: () => void; busy?: boolean; blocked?: boolean }) {
+export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, onConfirm, onAutomatic, onElevate, busy = false, blocked = false }: { error?: string; darkMode: boolean; scopeRect?: ConnectionDialogRequest['scopeRect']; onClose: () => void; onConfirm: () => void; onAutomatic: () => void; onElevate?: () => void; busy?: boolean; blocked?: boolean }) {
     const { t } = useTranslation('shell')
     const [confirmAutomatic, setConfirmAutomatic] = useState(false)
     const [automaticAcknowledged, setAutomaticAcknowledged] = useState(false)
@@ -1217,6 +1217,7 @@ export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, o
                 </Box>
             </> : <>
                 {error ? <Alert severity={blocked ? 'error' : 'warning'} sx={{ mb: blocked ? 0 : 1.5, overflowWrap: 'anywhere' }}>{error}</Alert> : null}
+                {blocked ? <Typography sx={{ mt: 1.5, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}sftpElevateNotice`)}</Typography> : null}
                 {!blocked ? <Typography sx={{ fontSize: 14, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}${busy ? 'sftpConnecting' : 'sftpCreateConnectionPrompt'}`)}</Typography> : null}
                 {!blocked && !busy ? <Box component="ul" sx={{ mb: 0, mt: 1.5, pl: 2.25, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>
                     <li>{t(`${prefix}sftpConnectionMethods`)}</li>
@@ -1231,7 +1232,13 @@ export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, o
                 <Button disabled={busy || !automaticAcknowledged} variant="contained" onClick={() => { if (!automaticAcknowledged) return; setAutomaticAcknowledged(false); setConfirmAutomatic(false); onAutomatic() }}>{t(`${prefix}sftpAutomaticConfirmAction`)}</Button>
             </> : <>
                 <Button disabled={busy} onClick={onClose}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
-                {!blocked ? <><Button disabled={busy} onClick={onConfirm}>{t(`${prefix}sftpCreateConnectionAction`)}</Button><Button loading={busy} variant="contained" onClick={() => { setAutomaticAcknowledged(false); setConfirmAutomatic(true) }}>{t(`${prefix}sftpAutomaticConnectionAction`)}</Button></> : null}
+                {blocked ? <>
+                    {onElevate ? <Button disabled={busy} onClick={onElevate}>{t(`${prefix}sftpElevateAction`)}</Button> : null}
+                    <Button loading={busy} variant="contained" onClick={() => { setAutomaticAcknowledged(false); setConfirmAutomatic(true) }}>{t(`${prefix}sftpPlatformAccountAction`)}</Button>
+                </> : <>
+                    <Button disabled={busy} onClick={onConfirm}>{t(`${prefix}sftpCreateConnectionAction`)}</Button>
+                    <Button loading={busy} variant="contained" onClick={() => { setAutomaticAcknowledged(false); setConfirmAutomatic(true) }}>{t(`${prefix}sftpAutomaticConnectionAction`)}</Button>
+                </>}
             </>}
         </DialogActions>
     </SurfaceDialog>
@@ -3184,7 +3191,11 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             setForceSaveDialogOpen(false)
             applyProfileResponse(profile, nextAccess, { appendSession: sessions.length > 0, autoConnect: !isEdit })
         } catch (error) {
-            if (!connectionDialog && !isEdit && accessForm.remember && error instanceof HostAccessRequestError) {
+            const duplicate = error instanceof HostAccessRequestError && error.code === 'Duplicate Host Access Profile'
+            if (duplicate) {
+                // A duplicate is not a failed connection test: saving again cannot succeed.
+                showFeedback('error', copy.duplicateUsername)
+            } else if (!connectionDialog && !isEdit && accessForm.remember && error instanceof HostAccessRequestError) {
                 setForceSaveError(connectionErrorMessage(error))
                 setForceSaveDialogOpen(true)
             } else {

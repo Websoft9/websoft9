@@ -43,6 +43,24 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
         }
     }
 
+    async function createElevatedConnection() {
+        if (busy) return
+        setBusy(true)
+        setError('')
+        try {
+            const session = await acquireAppFileSession(appId, volumeId, undefined, { elevate: true })
+            onClose()
+            navigate(getAppFileRoute(session))
+        } catch (failure) {
+            const key = getAppFileErrorKey(failure)
+            setFailureKey(key)
+            setLimitReached(failure instanceof ConnectionLimitError)
+            setError(t(`myAppsDetailPage.tabs.volumes.fileManager.${key}`, { count: MAX_WORKSPACE_CONNECTIONS }))
+        } finally {
+            setBusy(false)
+        }
+    }
+
     const prepareConnection = useEffectEvent(async () => {
         if (initialError) {
             setBooting(false)
@@ -71,5 +89,5 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
 
     if (limitReached) return <SurfaceFeedbackToast open severity="info" message={error} onClose={handleClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} />
     if (booting && !visible) return <SurfaceFeedbackToast open severity="info" message={t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnecting')} onClose={handleClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} />
-    return visible ? <AppFileConnectionPrompt error={error} blocked={failureKey === 'sftpDirectoryPermissionDenied' || failureKey === 'sftpScopeDenied'} darkMode={darkMode} scopeRect={scopeRect} busy={busy} onAutomatic={() => void createLocalConnection()} onClose={handleClose} onConfirm={() => { onClose(); navigate(`/terminal?${new URLSearchParams({ new_connection: '1', app_file_app: appId, app_file_volume: volumeId })}`) }} /> : null
+    return visible ? <AppFileConnectionPrompt error={error} blocked={failureKey === 'sftpDirectoryPermissionDenied' || failureKey === 'sftpScopeDenied'} darkMode={darkMode} scopeRect={scopeRect} busy={busy} onAutomatic={() => void createLocalConnection()} onElevate={() => void createElevatedConnection()} onClose={handleClose} onConfirm={() => { onClose(); navigate(`/terminal?${new URLSearchParams({ new_connection: '1', app_file_app: appId, app_file_volume: volumeId })}`) }} /> : null
 }

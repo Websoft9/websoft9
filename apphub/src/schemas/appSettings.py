@@ -69,7 +69,7 @@ class SmtpSettingsPayload(BaseModel):
     username: str = Field('', title="SMTP authentication username")
     password: Optional[str] = Field(None, title="SMTP password; null keeps the stored password")
     from_email: str = Field('', title="Sender email address")
-    from_name: str = Field('Websoft9', title="Sender display name")
+    from_name: str = Field('', title="Sender display name")
 
 
 class SmtpTestEmailRequest(SmtpSettingsPayload):

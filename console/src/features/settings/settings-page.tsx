@@ -1803,7 +1803,7 @@ export function SettingsPage() {
         const usernameValue = drafts[SMTP_USERNAME_DRAFT_KEY] ?? smtpConfig?.username ?? ''
         const passwordValue = drafts[SMTP_PASSWORD_DRAFT_KEY] ?? ''
         const fromEmailValue = drafts[SMTP_FROM_EMAIL_DRAFT_KEY] ?? smtpConfig?.from_email ?? ''
-        const fromNameValue = drafts[SMTP_FROM_NAME_DRAFT_KEY] ?? smtpConfig?.from_name ?? 'Websoft9'
+        const fromNameValue = drafts[SMTP_FROM_NAME_DRAFT_KEY] ?? smtpConfig?.from_name ?? ''
         const effectiveTestEmail = smtpTestEmail || authStatus?.current_user?.email || ''
 
         const trimmedHost = hostValue.trim()
@@ -2016,7 +2016,7 @@ export function SettingsPage() {
                                     type="email"
                                     error={testEmailInvalid}
                                     helperText={testEmailInvalid ? t('settingsPage.smtp.testEmailRequired') : undefined}
-                                    value={effectiveTestEmail}
+                                    value={smtpTestEmail}
                                     onChange={(event) => setSmtpTestEmail(event.target.value)}
                                     placeholder={t('settingsPage.smtp.testEmailPlaceholder')}
                                     sx={settingsFieldSx}
