@@ -5,11 +5,13 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.3] - 2026-10-20
+## [2.4.3] - 2026-10-23
 
 ### Added
 - **Operational CLI** — Expand the `websoft9` CLI with application, app store, backup, database, service, log and settings commands, including JSON output for scripts and automation.
 - **Compose Workspace** — Manage container stacks through the platform API and CLI alongside application deployments.
+- **Platform SFTP Account** — Provision a platform-managed SSH account for an application and authorize it for that application's directories only.
+- **Application File Access Choices** — Choose how to open application files — the platform account or an existing local SSH connection — and reuse the last choice.
 - **Image Accelerators** — Configure Docker registry accelerators and mirrors from Platform Settings, with an ordered fallback when a registry is unavailable.
 - **App Image Prewarm** — Prewarm application images from the App Store and cancel a running installation.
 - **Scheduled Maintenance** — Run platform maintenance jobs, including image prewarm tasks, as managed scheduled tasks.
@@ -18,7 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SMTP and Password Recovery** — Configure SMTP delivery in Platform Settings and recover a password with an email verification code.
 
 ### Changed
-- **Application SFTP** — Improve application file sessions and the host connection lifecycle, including reconnect and cleanup behaviour.
+- **Application SFTP** — Improve application file sessions and the host connection lifecycle, including reconnects, non-root accounts and cleanup behaviour.
+- **Access Denied Handling** — Offer sudo elevation or the platform account when a local connection cannot read the application directory, with clearer guidance on what each option does.
+- **Terminal Workspace** — Open the terminal workspace only after the application SFTP session is ready.
+- **Permission Helper** — Run the ACL helper inside the product image instead of relying on tools installed on the host.
 - **App Credentials** — Refine application credential handling and the access details shown in My Apps.
 - **Scheduled Tasks** — Improve task editing, run history and manual execution.
 - **Mirror Settings** — Improve Docker mirror and accelerator management, including validation and status feedback.
