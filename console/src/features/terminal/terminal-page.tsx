@@ -1195,7 +1195,7 @@ export function TerminalConnectionDialog(props: ConnectionDialogRequest) {
     return <TerminalWorkspace visible sessionTabs={[]} onSelectTab={() => undefined} connectionDialog={props} />
 }
 
-export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, onConfirm, onAutomatic, onElevate, busy = false, blocked = false }: { error?: string; darkMode: boolean; scopeRect?: ConnectionDialogRequest['scopeRect']; onClose: () => void; onConfirm: () => void; onAutomatic: () => void; onElevate?: () => void; busy?: boolean; blocked?: boolean }) {
+export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, onConfirm, onAutomatic, onElevate, busy = false, blocked = false, suppressError = false }: { error?: string; darkMode: boolean; scopeRect?: ConnectionDialogRequest['scopeRect']; onClose: () => void; onConfirm: () => void; onAutomatic: () => void; onElevate?: () => void; busy?: boolean; blocked?: boolean; suppressError?: boolean }) {
     const { t } = useTranslation('shell')
     const [confirmAutomatic, setConfirmAutomatic] = useState(false)
     const [automaticAcknowledged, setAutomaticAcknowledged] = useState(false)
@@ -1216,8 +1216,11 @@ export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, o
                     <FormControlLabel sx={{ m: 0, alignItems: 'flex-start', gap: 1 }} control={<Checkbox checked={automaticAcknowledged} onChange={event => setAutomaticAcknowledged(event.target.checked)} sx={{ p: 0.25, color: palette.subtleText }} />} label={<Typography sx={{ fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}sftpAutomaticAcknowledgement`)}</Typography>} />
                 </Box>
             </> : <>
-                {error ? <Alert severity={blocked ? 'error' : 'warning'} sx={{ mb: blocked ? 0 : 1.5, overflowWrap: 'anywhere' }}>{error}</Alert> : null}
-                {blocked ? <Typography sx={{ mt: 1.5, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}sftpElevateNotice`)}</Typography> : null}
+                {error && !suppressError ? <Alert severity={blocked ? 'error' : 'warning'} sx={{ mb: blocked ? 0 : 1.5, overflowWrap: 'anywhere' }}>{error}</Alert> : null}
+                {blocked ? <>
+                    <Typography sx={{ fontSize: 14, lineHeight: 1.7, color: palette.text }}>{t(`${prefix}sftpDirectoryAccessPrompt`)}</Typography>
+                    <Typography sx={{ mt: 1, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}sftpElevateNotice`)}</Typography>
+                </> : null}
                 {!blocked ? <Typography sx={{ fontSize: 14, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}${busy ? 'sftpConnecting' : 'sftpCreateConnectionPrompt'}`)}</Typography> : null}
                 {!blocked && !busy ? <Box component="ul" sx={{ mb: 0, mt: 1.5, pl: 2.25, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>
                     <li>{t(`${prefix}sftpConnectionMethods`)}</li>

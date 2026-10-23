@@ -48,6 +48,7 @@ class AppSftpSessionRequest(BaseModel):
     volume_id: str
     profile_id: Optional[str] = None
     elevate: bool = False
+    use_platform: bool = False
 
 
 def _is_permission_denied(error: Exception) -> bool:
@@ -85,7 +86,7 @@ def _run_app_file_operation(session_id: str, handler, grant_targets=()):
 
 @router.post('/host-access/app-files/sessions')
 def create_app_sftp_session(payload: AppSftpSessionRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
-    return _app_sftp_service.create(session_token, payload.app_id, payload.volume_id, payload.profile_id, elevate=payload.elevate)
+    return _app_sftp_service.create(session_token, payload.app_id, payload.volume_id, payload.profile_id, elevate=payload.elevate, use_platform=payload.use_platform)
 
 
 @router.get('/host-access/app-files/account')

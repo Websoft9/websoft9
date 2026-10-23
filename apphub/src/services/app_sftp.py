@@ -217,12 +217,12 @@ class AppSftpService:
         self.authority.release_all()
         return self.account.revoke()
 
-    def create(self, session_token, app_id, volume_id, profile_id=None, elevate=False):
+    def create(self, session_token, app_id, volume_id, profile_id=None, elevate=False, use_platform=False):
         operator = self.host_service.auth_service._require_authenticated_operator(session_token)
         self._ensure_reconciled()
         target = self.authority.resolve(app_id, volume_id)
 
-        local_profile = self._usable_local_profile(operator['id'], profile_id)
+        local_profile = None if use_platform else self._usable_local_profile(operator['id'], profile_id)
         if local_profile is not None:
             elevated = False
             try:

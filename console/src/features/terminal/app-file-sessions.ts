@@ -155,9 +155,10 @@ export async function closeAppFileSession(identifier: string) {
     forgetAppFileSession(identifier)
 }
 
-export function acquireAppFileSession(appId: string, volumeId: string, profileId?: string, options?: { elevate?: boolean }): Promise<AppFileSession> {
+export function acquireAppFileSession(appId: string, volumeId: string, profileId?: string, options?: { elevate?: boolean; platform?: boolean }): Promise<AppFileSession> {
     const elevate = Boolean(options?.elevate)
-    const key = JSON.stringify([appId, volumeId, profileId || null, elevate])
+    const usePlatform = Boolean(options?.platform)
+    const key = JSON.stringify([appId, volumeId, profileId || null, elevate, usePlatform])
     const existing = pending.get(key)
     if (existing) return existing
     const operation = (async () => {
@@ -185,7 +186,7 @@ export function acquireAppFileSession(appId: string, volumeId: string, profileId
         creating.add(key)
         try {
             const session = await request<AppFileSession>('/api/host-access/app-files/sessions', {
-                method: 'POST', body: JSON.stringify({ app_id: appId, volume_id: volumeId, profile_id: profileId || null, elevate }),
+                method: 'POST', body: JSON.stringify({ app_id: appId, volume_id: volumeId, profile_id: profileId || null, elevate, use_platform: usePlatform }),
             })
             creating.delete(key)
             const connected = { ...session, status: 'connected' as const, verified_at: Date.now() }
