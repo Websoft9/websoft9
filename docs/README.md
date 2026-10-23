@@ -17,6 +17,7 @@ Welcome to the Websoft9 documentation. Websoft9 is a web-based PaaS/Linux Panel 
 | [Deployment](deployment.md) | Production deployment, cloud marketplace, and operations |
 | [AWS CloudFormation WordPress + RDS](aws-cloudformation-websoft9-wordpress-rds.md) | AWS deployment architecture for Websoft9, WordPress, and RDS |
 | [FAQ](faq.md) | Frequently asked questions |
+| [应用数据库信息问题与优化建议](my-apps-database-info-issue.md) | 「数据 → 数据库」展示问题的核实结论、优化方案与分期计划 |
 
 ## Project Resources
 

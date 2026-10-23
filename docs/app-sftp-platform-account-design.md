@@ -119,7 +119,7 @@ client.containers.run(
 
 ### 4.5 依赖与 SELinux
 
-- **ACL**：`setfacl` 不可用或文件系统不支持（`setfacl` 返回 `Operation not supported`）→ 失败关闭，返回 409 `SFTP ACL Unsupported`，提示该数据目录所在文件系统不支持 ACL。宿主需预装 `acl` 包（Debian/Ubuntu `apt-get install acl`），helper 不会自动联网安装。
+- **ACL**：`getfacl`/`setfacl` 随产品镜像交付（Dockerfile 安装 `acl`），helper 通过 `-v /:/host:rslave` 挂载宿主根后使用容器内工具，**宿主无需安装 `acl`**，不依赖安装脚本。文件系统不支持 ACL（`setfacl` 返回 `Operation not supported`）时失败关闭，返回 409 `SFTP ACL Unsupported`。
 - **SELinux**：`getenforce` 为 `Enforcing` 时，先用 `ausearch -m avc -ts recent` 检查 `sshd_t` 对目标路径的拒绝。若被拒绝且无法通过 `semanage fcontext` 归入允许类型，则本功能对该应用返回 409，并在提示中说明“需关闭 SELinux 或改用容器内文件浏览”，不做 `setenforce 0`、不做 `semanage permissive`。
 - 该验证在实现前作为 Phase 0 spike 在 Anolis/CentOS 上先行确认（见 §12）。
 
@@ -146,21 +146,23 @@ client.containers.run(
 
 ### 5.3 ACL 授权与还原
 
-在宿主执行（helper 容器，nsenter）：
+在 helper 容器内执行，宿主根挂载到 `/host`（不依赖宿主安装 `acl`）：
 
 ```bash
-# 1) 快照（root 路径，非递归）
-getfacl -p --absolute-names "$PATH" > /tmp/w9sftp-$SESSION.acl
+# 1) 快照（root 路径，非递归）；helper 内实际路径为 /host$PATH
+getfacl -p --absolute-names "/host$PATH" > /tmp/w9sftp-$SESSION.acl
 
 # 2) 授权：账号读写 + 双向默认 ACL（新文件对应用容器仍有权限）
-setfacl -m u:websoft9-sftp:rwX \
-       -m d:u:websoft9-sftp:rwX \
+setfacl -m u:<account_uid>:rwX \
+       -m d:u:<account_uid>:rwX \
        -m d:u:<container_uid>:rwX \
-       -m d:m:rwX "$PATH"
+       -m d:m:rwX "/host$PATH"
 ```
 
+- `getfacl`/`setfacl` 来自产品镜像（Dockerfile 安装 `acl`），helper 以 `-v /:/host:rslave` 启动后用容器内工具操作宿主文件，宿主无需预装 `acl`。
+- ACL 条目使用**数字 UID**：helper 不共享宿主账号库，名称无法解析。
 - 记录**实际新增**的条目（`getfacl` 解析判断原本是否存在）与原 mask 值，写入 `host_sftp_acl_grants`；释放时只删除“本次新增”的条目并还原被修改的 mask。
-- 根目录快照保存 ACL 文本，异常/超时可用 `setfacl --restore=<file>` 精确还原。
+- 根目录快照保存 ACL 文本，异常/超时可用 `setfacl --restore=<file>` 精确还原（还原前把快照里的 `# file:` 行改写为 `/host` 前缀）。
 - 存量文件若因属主/权限不可写：在该路径上按需做**最小递归**授权（仅当操作返回 `EACCES` 时触发），限制 `find` 数量（默认 20000）与超时（60s），记录被授权的子路径清单，释放时逐项还原。避免“打开即全量 `-R`”拖垮大卷。
 
 ### 5.4 属主与 chmod

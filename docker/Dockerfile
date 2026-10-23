@@ -71,6 +71,7 @@ WORKDIR /websoft9
 # this expensive apt cache layer on every build.
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
+    acl \
     bash \
     bzip2 \
     ca-certificates \

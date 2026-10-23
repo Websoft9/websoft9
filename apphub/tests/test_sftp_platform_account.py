@@ -125,6 +125,30 @@ def test_sshd_config_uses_a_shared_group_umask():
     assert "ForceCommand internal-sftp -u 0002" in app_sftp_prepare.SSHD_BLOCK
 
 
+def test_acl_helper_maps_host_paths_through_the_mount(monkeypatch, tmp_path):
+    root = tmp_path / "host"
+    root.mkdir()
+    monkeypatch.setenv("WEBSOFT9_HOST_ROOT", str(root))
+    mounted = str(root / "var/lib/example")
+    assert app_sftp_acl.fs_path("/var/lib/example") == mounted
+    assert app_sftp_acl.fs_path(mounted) == mounted
+    assert app_sftp_acl.host_view(mounted) == "/var/lib/example"
+    assert app_sftp_acl.host_view("/var/lib/example") == "/var/lib/example"
+
+
+def test_acl_helper_without_host_mount_keeps_plain_paths(monkeypatch):
+    monkeypatch.setenv("WEBSOFT9_HOST_ROOT", "/nonexistent-host-root")
+    assert app_sftp_acl.fs_path("/var/lib/example") == "/var/lib/example"
+    assert app_sftp_acl.host_view("/var/lib/example") == "/var/lib/example"
+
+
+def test_acl_validate_target_resolves_through_the_host_mount(monkeypatch, tmp_path):
+    root = tmp_path / "host"
+    (root / "srv/app").mkdir(parents=True)
+    monkeypatch.setenv("WEBSOFT9_HOST_ROOT", str(root))
+    assert app_sftp_acl.validate_target("/srv/app") == "/srv/app"
+
+
 def test_acl_helpers_detect_traverse_and_ancestors(tmp_path):
     access, default = app_sftp_acl.parse_acl(
         "user::rwx\nuser:websoft9-sftp:rwx\nmask::rwx\nother::---\n"

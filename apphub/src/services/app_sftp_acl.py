@@ -48,8 +48,54 @@ def run(command, timeout=30):
     return subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
 
 
+def host_root():
+    """Return the host root mount point when the helper runs with the host tree mounted."""
+    candidate = os.getenv("WEBSOFT9_HOST_ROOT", "/host")
+    return candidate if os.path.isdir(candidate) else ""
+
+
+def fs_path(path):
+    """Map a host path to the path visible inside the helper container (idempotent)."""
+    root = host_root()
+    text = str(path)
+    if not root or not text.startswith("/") or text == root or text.startswith(root + "/"):
+        return text
+    return os.path.join(root, text.lstrip("/"))
+
+
+def host_view(path):
+    """Map a helper-container path back to the host path recorded in manifests."""
+    root = host_root()
+    text = str(path)
+    if root and (text == root or text.startswith(root + "/")):
+        return text[len(root):] or "/"
+    return text
+
+
 def getfacl(path):
-    return run(["getfacl", "-p", "--absolute-names", str(path)], timeout=15).stdout
+    return run(["getfacl", "-p", "--absolute-names", fs_path(path)], timeout=15).stdout
+
+
+def account_uid(account):
+    """Resolve the account to a numeric UID using the host passwd database.
+
+    The helper container does not share the host account database, so ACL entries
+    must use UIDs instead of names.
+    """
+    text = str(account or "").strip()
+    if text.isdigit():
+        return text
+    passwd = Path(fs_path("/etc/passwd"))
+    try:
+        for line in passwd.read_text().splitlines():
+            parts = line.split(":")
+            if len(parts) >= 3 and parts[0] == text:
+                return parts[2]
+    except OSError:
+        pass
+    import pwd
+
+    return str(pwd.getpwnam(text).pw_uid)
 
 
 def parse_acl(text):
@@ -91,19 +137,21 @@ def is_docker_volume_data(path):
 
 
 def validate_target(path):
-    if not path.startswith("/") or path.rstrip("/") in ("", "/"):
+    target = fs_path(path)
+    if not str(path).startswith("/") or str(path).rstrip("/") in ("", "/"):
         raise ValueError("The application directory cannot be the filesystem root")
-    resolved = os.path.realpath(path)
-    if os.path.normpath(resolved) != os.path.normpath(path):
+    resolved = os.path.realpath(target)
+    if os.path.normpath(resolved) != os.path.normpath(target):
         raise ValueError("Symbolic links are not supported for application directories")
-    if not is_docker_volume_data(resolved):
+    host_resolved = host_view(resolved)
+    if not is_docker_volume_data(host_resolved):
         for prefix in DENY_PREFIXES:
-            if resolved == prefix or resolved.startswith(prefix + "/"):
+            if host_resolved == prefix or host_resolved.startswith(prefix + "/"):
                 raise ValueError(f"The application directory is inside a protected system path: {prefix}")
-    attributes = os.lstat(path)
+    attributes = os.lstat(target)
     if not stat.S_ISDIR(attributes.st_mode):
         raise ValueError("The application directory is not a directory")
-    return resolved
+    return host_resolved
 
 
 def setfacl(arguments, timeout=30):
@@ -135,14 +183,14 @@ def apply_entries(path, account, container_uid, recursive=False):
     entries = [f"u:{account}:rwX", f"d:u:{account}:rwX", "d:m:rwX"]
     if container_uid > 0:
         entries.append(f"d:u:{container_uid}:rwX")
-    setfacl(["-m", ",".join(entries), path])
+    setfacl(["-m", ",".join(entries), fs_path(path)])
 
     recorded = []
     truncated = False
     if recursive:
         deadline = time.time() + RECURSIVE_DEADLINE_SECONDS
         count = 0
-        for directory, subdirectories, files in os.walk(path, followlinks=False):
+        for directory, subdirectories, files in os.walk(fs_path(path), followlinks=False):
             if time.time() > deadline or count >= MAX_RECURSIVE_ENTRIES:
                 truncated = True
                 break
@@ -170,7 +218,7 @@ def apply_entries(path, account, container_uid, recursive=False):
                         entries.append(f"d:u:{container_uid}:rwX")
                 setfacl(["-m", ",".join(entries), candidate])
                 recorded.append({
-                    "path": candidate,
+                    "path": host_view(candidate),
                     "is_directory": is_directory,
                     "mask_before": access.get(("mask", "")),
                     "default_mask_before": default.get(("mask", "")),
@@ -191,7 +239,7 @@ def grant_directory_entries(path, account, container_uid):
     truncated = False
     count = 0
     try:
-        iterator = os.scandir(path)
+        iterator = os.scandir(fs_path(path))
     except OSError:
         return recorded, False
     with iterator as entries:
@@ -218,7 +266,7 @@ def grant_directory_entries(path, account, container_uid):
                     entries_to_add.append(f"d:u:{container_uid}:rwX")
             setfacl(["-m", ",".join(entries_to_add), candidate])
             recorded.append({
-                "path": candidate,
+                "path": host_view(candidate),
                 "is_directory": is_directory,
                 "mask_before": access.get(("mask", "")),
                 "default_mask_before": default.get(("mask", "")),
@@ -228,13 +276,14 @@ def grant_directory_entries(path, account, container_uid):
 
 
 def apply(data_root, session_id, path, account, container_uid, recursive=False):
-    manifest_dir = Path(data_root) / "config/host-access/sftp-acl"
+    manifest_dir = Path(fs_path(data_root)) / "config/host-access/sftp-acl"
     manifest_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     manifest_file = manifest_dir / f"{session_id}.json"
     if manifest_file.exists():
         release(data_root, session_id)
 
     target = validate_target(path)
+    uid = account_uid(account)
     snapshots = []
     for ancestor in ancestor_paths(target):
         try:
@@ -242,19 +291,20 @@ def apply(data_root, session_id, path, account, container_uid, recursive=False):
         except OSError:
             continue
         access, _ = parse_acl(text)
-        if has_traverse(access, account):
+        if has_traverse(access, uid):
             continue
-        setfacl(["-m", f"u:{account}:x", ancestor])
+        setfacl(["-m", f"u:{uid}:x", fs_path(ancestor)])
         snapshots.append({"path": ancestor, "acl": text})
 
     root_acl = snapshot_path(target)
-    recorded, truncated = apply_entries(target, account, container_uid, recursive=recursive)
+    recorded, truncated = apply_entries(target, uid, container_uid, recursive=recursive)
 
     manifest = {
         "version": MANIFEST_VERSION,
         "session_id": session_id,
         "root": target,
         "account": account,
+        "account_uid": uid,
         "container_uid": container_uid,
         "snapshots": snapshots,
         "root_acl": root_acl,
@@ -276,21 +326,21 @@ def apply(data_root, session_id, path, account, container_uid, recursive=False):
 
 
 def grant(data_root, session_id, subpath):
-    manifest_file = Path(data_root) / "config/host-access/sftp-acl" / f"{session_id}.json"
+    manifest_file = Path(fs_path(data_root)) / "config/host-access/sftp-acl" / f"{session_id}.json"
     if not manifest_file.is_file():
         raise ValueError("The application SFTP authorization is no longer active")
     manifest = json.loads(manifest_file.read_text())
-    target = os.path.realpath(subpath)
+    target = host_view(os.path.realpath(fs_path(subpath)))
     root = manifest["root"]
     if not (target == root or target.startswith(root + "/")):
         raise ValueError("The requested path is outside the authorized application directory")
     known = {item.get("path") for item in manifest.get("snapshots") or []}
-    account = manifest["account"]
+    uid = str(manifest.get("account_uid") or account_uid(manifest["account"]))
     if target not in known:
         # Remember the exact previous state so ``release`` can restore it.
         manifest.setdefault("snapshots", []).append({"path": target, "acl": snapshot_path(target)})
-    apply_entries(target, account, int(manifest["container_uid"]), recursive=False)
-    recorded, truncated = grant_directory_entries(target, account, int(manifest["container_uid"]))
+    apply_entries(target, uid, int(manifest["container_uid"]), recursive=False)
+    recorded, truncated = grant_directory_entries(target, uid, int(manifest["container_uid"]))
     manifest["recursive"].extend(recorded)
     manifest["truncated"] = bool(manifest.get("truncated")) or truncated
     descriptor, temporary = tempfile.mkstemp(dir=str(manifest_file.parent))
@@ -307,13 +357,16 @@ def grant(data_root, session_id, subpath):
 
 
 def restore_acl(path, text):
+    mapped = fs_path(path)
+    if mapped != str(path):
+        text = text.replace(f"# file: {path}", f"# file: {mapped}", 1)
     with tempfile.NamedTemporaryFile(mode="w", delete=False, dir="/tmp") as handle:
         handle.write(text)
         handle.flush()
         temporary = handle.name
     try:
         try:
-            setfacl(["-b", path], timeout=20)
+            setfacl(["-b", mapped], timeout=20)
         except ValueError:
             pass
         run(["setfacl", f"--restore={temporary}"], timeout=30)
@@ -325,18 +378,22 @@ def restore_acl(path, text):
 
 
 def release(data_root, session_id):
-    manifest_file = Path(data_root) / "config/host-access/sftp-acl" / f"{session_id}.json"
+    manifest_file = Path(fs_path(data_root)) / "config/host-access/sftp-acl" / f"{session_id}.json"
     if not manifest_file.is_file():
         return {"released": False}
     manifest = json.loads(manifest_file.read_text())
-    account = manifest.get("account") or "websoft9-sftp"
+    try:
+        account = str(manifest.get("account_uid") or account_uid(manifest.get("account") or "websoft9-sftp"))
+    except (KeyError, OSError):
+        account = "2001"
     container_uid = int(manifest.get("container_uid") or 0)
     for record in reversed(manifest.get("recursive") or []):
         path = record.get("path")
-        if not path or not os.path.exists(path):
+        if not path or not os.path.exists(fs_path(path)):
             continue
+        target = fs_path(path)
         try:
-            setfacl(["-x", f"u:{account}", path], timeout=15)
+            setfacl(["-x", f"u:{account}", target], timeout=15)
         except ValueError:
             pass
         if record.get("is_directory"):
@@ -344,17 +401,17 @@ def release(data_root, session_id):
             if record.get("uid_entry_added"):
                 targets.append(f"d:u:{container_uid}")
             try:
-                setfacl(["-x", ",".join(targets), path], timeout=15)
+                setfacl(["-x", ",".join(targets), target], timeout=15)
             except ValueError:
                 pass
         if record.get("mask_before"):
             try:
-                setfacl(["-m", f"m::{record['mask_before']}", path], timeout=15)
+                setfacl(["-m", f"m::{record['mask_before']}", target], timeout=15)
             except ValueError:
                 pass
         if record.get("default_mask_before"):
             try:
-                setfacl(["-m", f"d:m::{record['default_mask_before']}", path], timeout=15)
+                setfacl(["-m", f"d:m::{record['default_mask_before']}", target], timeout=15)
             except ValueError:
                 pass
 

@@ -242,7 +242,7 @@ class SftpAclAuthorizer:
 
     def _run(self, arguments: list[str], timeout: int = 120) -> dict[str, Any]:
         script = Path(__file__).with_name("app_sftp_acl.py").read_text()
-        command = ["python3", "-c", script, *arguments]
+        command = ["-c", script, *arguments]
         container = None
         client = None
         try:
@@ -250,10 +250,9 @@ class SftpAclAuthorizer:
             image = client.containers.get(os.environ["HOSTNAME"]).image.id
             container = client.containers.run(
                 image=image,
+                entrypoint=["python3"],
                 command=command,
-                entrypoint=["nsenter", "--target", "1", "--mount", "--net", "--pid", "--root", "--wd", "--"],
-                pid_mode="host",
-                network_mode="host",
+                volumes={"/": {"bind": "/host", "mode": "rslave"}},
                 privileged=True,
                 user="0",
                 detach=True,
