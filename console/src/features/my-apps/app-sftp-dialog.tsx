@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
@@ -14,6 +14,13 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
     const [booting, setBooting] = useState(true)
     const [limitReached, setLimitReached] = useState(false)
     const [busy, setBusy] = useState(false)
+    const dismissedRef = useRef(false)
+
+    function handleClose() {
+        // Only an explicit user action should suppress the workspace navigation.
+        dismissedRef.current = true
+        onClose()
+    }
 
     async function createLocalConnection() {
         if (busy) return
@@ -36,7 +43,7 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
         }
     }
 
-    const prepareConnection = useEffectEvent(async (isCancelled: () => boolean) => {
+    const prepareConnection = useEffectEvent(async () => {
         if (initialError) {
             setBooting(false)
             setVisible(true)
@@ -44,27 +51,25 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
         }
         try {
             const session = await acquireAppFileSession(appId, volumeId)
-            if (!isCancelled()) navigate(getAppFileRoute(session))
+            if (dismissedRef.current) return
+            navigate(getAppFileRoute(session))
         } catch (failure) {
-            if (!isCancelled()) {
-                setBooting(false)
-                const atLimit = failure instanceof ConnectionLimitError
-                const key = getAppFileErrorKey(failure)
-                setFailureKey(key)
-                setLimitReached(atLimit)
-                setError(key === 'sftpConnectionRequired' || key === 'sftpAuthorizationMissing' ? '' : t(`myAppsDetailPage.tabs.volumes.fileManager.${key}`, { count: MAX_WORKSPACE_CONNECTIONS }))
-                setVisible(true)
-            }
+            if (dismissedRef.current) return
+            setBooting(false)
+            const atLimit = failure instanceof ConnectionLimitError
+            const key = getAppFileErrorKey(failure)
+            setFailureKey(key)
+            setLimitReached(atLimit)
+            setError(key === 'sftpConnectionRequired' || key === 'sftpAuthorizationMissing' ? '' : t(`myAppsDetailPage.tabs.volumes.fileManager.${key}`, { count: MAX_WORKSPACE_CONNECTIONS }))
+            setVisible(true)
         }
     })
 
     useEffect(() => {
-        let cancelled = false
-        void prepareConnection(() => cancelled)
-        return () => { cancelled = true }
+        void prepareConnection()
     }, [appId, volumeId])
 
-    if (limitReached) return <SurfaceFeedbackToast open severity="info" message={error} onClose={onClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} />
-    if (booting && !visible) return <SurfaceFeedbackToast open severity="info" message={t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnecting')} onClose={onClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} />
-    return visible ? <AppFileConnectionPrompt error={error} blocked={failureKey === 'sftpDirectoryPermissionDenied' || failureKey === 'sftpScopeDenied'} darkMode={darkMode} scopeRect={scopeRect} busy={busy} onAutomatic={() => void createLocalConnection()} onClose={onClose} onConfirm={() => { onClose(); navigate(`/terminal?${new URLSearchParams({ new_connection: '1', app_file_app: appId, app_file_volume: volumeId })}`) }} /> : null
+    if (limitReached) return <SurfaceFeedbackToast open severity="info" message={error} onClose={handleClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} />
+    if (booting && !visible) return <SurfaceFeedbackToast open severity="info" message={t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnecting')} onClose={handleClose} darkMode={darkMode} scope="content" scopeRect={scopeRect} />
+    return visible ? <AppFileConnectionPrompt error={error} blocked={failureKey === 'sftpDirectoryPermissionDenied' || failureKey === 'sftpScopeDenied'} darkMode={darkMode} scopeRect={scopeRect} busy={busy} onAutomatic={() => void createLocalConnection()} onClose={handleClose} onConfirm={() => { onClose(); navigate(`/terminal?${new URLSearchParams({ new_connection: '1', app_file_app: appId, app_file_volume: volumeId })}`) }} /> : null
 }
