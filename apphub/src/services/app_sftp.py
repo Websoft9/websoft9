@@ -88,22 +88,20 @@ class ScopedSftp:
 
 
 @contextmanager
-def open_host_sftp(host_service, profile, elevated=False):
-    if elevated:
-        with host_service._open_sftp(profile, elevated=True) as sftp:
-            yield sftp
-    else:
-        with host_service._open_sftp(profile) as sftp:
-            yield sftp
+def open_host_sftp(host_service, profile):
+    with host_service._open_sftp(profile) as sftp:
+        yield sftp
 
 
 class ScopedHostAccess(HostAccessService):
-    def __init__(self, host_service, profile, root, elevated=False):
+    def __init__(self, host_service, profile, root, app_id=None, volume_id=None):
+        self.elevation_key = host_service._elevation_key(profile, 'app', app_id, volume_id)
         super().__init__(data_dir=str(host_service.data_dir), auth_service=host_service.auth_service)
         self.host_service = host_service
-        self.profile = profile
+        # The elevation scope travels with the profile so the host service opens
+        # this application's own administrator-mode channel, not the terminal one.
+        self.profile = {**profile, '_elevation_key': self.elevation_key}
         self.root = root
-        self.elevated = elevated
         self._identity_label_cache = {}
         self._identity_source_cache = {}
 
@@ -112,7 +110,7 @@ class ScopedHostAccess(HostAccessService):
 
     @contextmanager
     def _open_sftp(self, profile):
-        with open_host_sftp(self.host_service, profile, elevated=self.elevated) as sftp:
+        with open_host_sftp(self.host_service, profile) as sftp:
             yield ScopedSftp(sftp, self.root)
 
     def _load_identity_labels(self, sftp, owner_ids, group_ids):
@@ -217,21 +215,27 @@ class AppSftpService:
         self.authority.release_all()
         return self.account.revoke()
 
-    def create(self, session_token, app_id, volume_id, profile_id=None, elevate=False, use_platform=False):
+    def create(self, session_token, app_id, volume_id, profile_id=None, use_platform=False):
         operator = self.host_service.auth_service._require_authenticated_operator(session_token)
         self._ensure_reconciled()
         target = self.authority.resolve(app_id, volume_id)
 
         local_profile = None if use_platform else self._usable_local_profile(operator['id'], profile_id)
+        requested_profile_id = str(profile_id or '').strip()
+        if not use_platform and requested_profile_id and local_profile is None:
+            # Never silently fall back to another account: the operator picked this
+            # connection and must see why it cannot be used.
+            raise CustomException(400, 'Host Access Profile Not Found', 'The requested host profile is unavailable for file operations')
         if local_profile is not None:
-            elevated = False
             try:
-                self._verify_volume_access(local_profile, target['source_path'])
-            except CustomException:
-                if not elevate:
+                self._verify_volume_access(local_profile, target['source_path'], app_id, volume_id)
+            except CustomException as exc:
+                if exc.message != 'SFTP Directory Permission Denied':
                     raise
-                self._verify_volume_access(local_profile, target['source_path'], elevated=True)
-                elevated = True
+                # The connection itself works but the account lacks permission:
+                # open the session anyway so the browser can report it and offer
+                # to switch connections or elevate from "Terminal → Files".
+                logger.info(f"Application SFTP opened without directory permission: {exc.details}")
             identifier = self.authority.new_session_id()
             now = time.time()
             with self.lock:
@@ -245,7 +249,6 @@ class AppSftpService:
                     'profile': local_profile,
                     'container_uid': int(target.get('container_uid') or 0),
                     'mode': 'profile',
-                    'elevated': elevated,
                 }
             self._warm_connection(local_profile)
             return {
@@ -260,7 +263,6 @@ class AppSftpService:
                 'host': local_profile.get('host'),
                 'username': local_profile.get('username'),
                 'port': local_profile.get('port'),
-                'elevated': elevated,
             }
 
         if self.account.status().get('state') != 'ready':
@@ -324,9 +326,15 @@ class AppSftpService:
         }
         if not usable:
             return None
+        if profile_id:
+            requested = str(profile_id).strip()
+            if requested not in usable:
+                return None
+            profile = self.host_service._load_saved_profile(str(operator_id), requested)
+            if profile is None or not self.host_service._is_local_host_value(profile.get('host')):
+                return None
+            return profile
         order: list[str] = []
-        if profile_id and str(profile_id) in usable:
-            order.append(str(profile_id))
         try:
             active = self.host_service._get_active_profile_id(str(operator_id))
         except Exception:
@@ -360,17 +368,27 @@ class AppSftpService:
 
         threading.Thread(target=warm, daemon=True).start()
 
-    def _verify_volume_access(self, profile, root, elevated=False):
+    def _verify_volume_access(self, profile, root, app_id=None, volume_id=None):
+        elevation_key = self.host_service._elevation_key(profile, 'app', app_id, volume_id)
+        scoped_profile = {**profile, '_elevation_key': elevation_key}
         try:
-            with open_host_sftp(self.host_service, profile, elevated=elevated) as sftp:
+            with open_host_sftp(self.host_service, scoped_profile) as sftp:
                 try:
                     guarded = ScopedSftp(sftp, root)
                     guarded.stat(root)
                     guarded.listdir_attr(root)
                 except OSError as exc:
-                    raise CustomException(403, 'SFTP Directory Unavailable', f'The connection cannot access the application directory: {exc}') from exc
+                    raise self._volume_access_error(exc) from exc
         except OSError as exc:
-            raise CustomException(403, 'SFTP Directory Unavailable', f'The connection cannot access the application directory: {exc}') from exc
+            raise self._volume_access_error(exc) from exc
+
+    @staticmethod
+    def _volume_access_error(error: Exception) -> CustomException:
+        text = str(error).lower()
+        if isinstance(error, PermissionError) or 'permission denied' in text or 'errno 13' in text:
+            # Reported by the file browser instead of blocking the session.
+            return CustomException(403, 'SFTP Directory Permission Denied', f'The connection cannot access the application directory: {error}')
+        return CustomException(403, 'SFTP Directory Unavailable', f'The connection cannot access the application directory: {error}')
 
     def grant_path(self, session_id, path):
         with self.lock:
@@ -408,7 +426,15 @@ class AppSftpService:
             self.authority.store.touch(identifier)
         except Exception:
             pass
-        return ScopedHostAccess(self.host_service, session['profile'], session['root'], elevated=bool(session.get('elevated')))
+        return ScopedHostAccess(self.host_service, session['profile'], session['root'], session.get('app_id'), session.get('volume_id'))
+
+    def close_operator_sessions(self, operator_id):
+        """Release every application file session owned by the operator (logout)."""
+        with self.lock:
+            identifiers = [sid for sid, session in self.sessions.items() if session.get('operator_id') == operator_id]
+        for identifier in identifiers:
+            self.release(identifier)
+        return len(identifiers)
 
     def invalidate_profile(self, operator_id, profile_id):
         # Application file sessions are not bound to saved host profiles, but the

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { i18n, normalizeSupportedLocale } from '../../shared/i18n/i18n'
+import { resetSessionStorageSnapshots } from '../terminal/app-file-sessions'
 
 const PRODUCT_AUTH_STATUS_STORAGE_KEY = 'websoft9:product-auth-status'
 export const PRODUCT_AUTH_UNAUTHORIZED_EVENT = 'websoft9:product-auth-unauthorized'
@@ -247,6 +248,8 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
                 method: 'POST',
                 body: JSON.stringify(payload),
             })
+            // A fresh sign-in never inherits connections from the previous session.
+            resetSessionStorageSnapshots()
             applyStatus(nextStatus)
             setErrorMessage(null)
             return nextStatus
@@ -263,8 +266,15 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
         setIsSubmitting(true)
         try {
             await requestJson<ProductAuthStatus>('/api/auth/logout', { method: 'POST' })
-            await refresh()
+        } catch {
+            // The browser must drop its snapshots even when the API call fails.
         } finally {
+            resetSessionStorageSnapshots()
+            try {
+                await refresh()
+            } catch {
+                // Keep the local signed-out state when the status request fails.
+            }
             setIsSubmitting(false)
         }
     }, [refresh])

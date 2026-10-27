@@ -22,6 +22,7 @@ from src.schemas.hostAccess import (
     HostAccessCreateFolderRequest,
     HostAccessDirectoryResponse,
     HostAccessDeleteItemRequest,
+    HostAccessFileElevationRequest,
     HostAccessFilePreferences,
     HostAccessFilePreferencesUpdateRequest,
     HostAccessMutationResponse,
@@ -47,7 +48,6 @@ class AppSftpSessionRequest(BaseModel):
     app_id: str
     volume_id: str
     profile_id: Optional[str] = None
-    elevate: bool = False
     use_platform: bool = False
 
 
@@ -86,7 +86,7 @@ def _run_app_file_operation(session_id: str, handler, grant_targets=()):
 
 @router.post('/host-access/app-files/sessions')
 def create_app_sftp_session(payload: AppSftpSessionRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
-    return _app_sftp_service.create(session_token, payload.app_id, payload.volume_id, payload.profile_id, elevate=payload.elevate, use_platform=payload.use_platform)
+    return _app_sftp_service.create(session_token, payload.app_id, payload.volume_id, payload.profile_id, use_platform=payload.use_platform)
 
 
 @router.get('/host-access/app-files/account')
@@ -263,6 +263,37 @@ def update_host_access_preferences(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
     return _get_host_access_service().update_file_preferences(session_token=session_token, payload=payload.model_dump())
+
+
+@router.get(
+    "/host-access/files/elevation",
+    summary="Read host file administrator mode",
+    description="Report whether the saved SSH connection can run host file browsing as root",
+    responses={200: {"model": dict}, 401: {"model": ErrorResponse}},
+)
+def read_host_access_file_elevation(
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
+    scope: str = Query('host', description="Elevation scope: host or app"),
+    app_id: Optional[str] = Query(None, description="Application identifier for scope=app"),
+    volume_id: Optional[str] = Query(None, description="Volume identifier for scope=app"),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    return _get_host_access_service().file_elevation_status(
+        session_token=session_token, profile_id=profile_id, scope=scope, app_id=app_id, volume_id=volume_id,
+    )
+
+
+@router.post(
+    "/host-access/files/elevation",
+    summary="Toggle host file administrator mode",
+    description="Enable administrator mode for host file browsing; the sudo password stays in server memory",
+    responses={200: {"model": dict}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+def update_host_access_file_elevation(
+    payload: HostAccessFileElevationRequest,
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    return _get_host_access_service().set_file_elevation(session_token=session_token, payload=payload.model_dump())
 
 
 @router.get(

@@ -20,10 +20,14 @@ from src.schemas.productAuth import (
     ProductAuthUsersResponse,
 )
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, SESSION_TTL_HOURS, ProductAuthService
+from src.services.host_access import HostAccessService
+from src.services.app_sftp import AppSftpService
 from src.services.platform_readiness import PlatformReadinessService
 from src.services.setup_wizard import SetupWizardService
 
 router = APIRouter()
+_host_access_service = HostAccessService()
+_app_sftp_service = AppSftpService(_host_access_service)
 
 
 def _set_session_cookie(request: Request, response: Response, session_token: str) -> None:
@@ -408,11 +412,27 @@ def logout_operator(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
     user_agent: Optional[str] = Header(default=None),
 ):
-    status_payload = ProductAuthService().logout(
+    auth_service = ProductAuthService()
+    operator_id = None
+    try:
+        operator_id = auth_service._require_authenticated_operator(session_token)["id"]
+    except CustomException:
+        operator_id = None
+    status_payload = auth_service.logout(
         session_token=session_token,
         client_host=request.client.host if request.client else None,
         user_agent=user_agent,
     )
+    if operator_id:
+        # Interactive sessions and administrator mode never survive a logout.
+        for cleanup in (
+            lambda: _app_sftp_service.close_operator_sessions(operator_id),
+            lambda: _host_access_service.close_operator_sessions(operator_id),
+        ):
+            try:
+                cleanup()
+            except Exception:
+                pass
     response.delete_cookie(key=PRODUCT_AUTH_COOKIE_NAME, path="/", samesite="lax")
     return status_payload
 

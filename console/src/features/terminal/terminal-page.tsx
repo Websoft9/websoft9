@@ -27,7 +27,7 @@ import {
 import type { SnackbarCloseReason } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import type { CSSProperties, ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { lazy, Suspense, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FitAddon } from '@xterm/addon-fit'
@@ -36,7 +36,8 @@ import { Terminal as XTerm } from 'xterm'
 
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
-import { acquireAppFileSession, closeAppFileSession, getAppFileErrorKey, getAppFileRoute, getAppFileTitle, getNextWorkspaceTabId, getWorkspaceConnectionCount, HOST_PROFILE_DELETED_EVENT, MAX_WORKSPACE_CONNECTIONS, PLATFORM_SFTP_PROFILE_ID, readAppFileSessions, reconcileWorkspaceTabOrder, rememberAppFileSession, restoreTerminalSessions, synchronizeAppFileProfiles, TERMINAL_WORKSPACE_STORAGE_KEY, useAppFileSessions, type AppFileSession } from './app-file-sessions'
+import { acquireAppFileSession, closeAppFileSession, getAppFileErrorKey, getAppFileRoute, getAppFileTitle, getNextWorkspaceTabId, getWorkspaceConnectionCount, HOST_PROFILE_DELETED_EVENT, MAX_WORKSPACE_CONNECTIONS, PLATFORM_SFTP_PROFILE_ID, readAppFileSessions, reconcileWorkspaceTabOrder, rememberAppFileSession, rememberSftpAccessChoice, restoreTerminalSessions, SESSION_RESET_EVENT, synchronizeAppFileProfiles, verifyStoredAppFileSessions, TERMINAL_WORKSPACE_STORAGE_KEY, useAppFileSessions, type AppFileSession } from './app-file-sessions'
+import { AppSftpDialog } from '../my-apps/app-sftp-dialog'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { useProductAuth } from '../product-auth/product-auth-provider'
@@ -246,6 +247,7 @@ type PersistedTerminalWorkspace = {
     sessions: TerminalSession[]
     activeSessionId: string | null
     workspaceView: WorkspaceView
+    sessionViews?: Record<string, WorkspaceView>
     browserPath: string
     selectedEntryPath: string | null
     profileScope: string | null
@@ -1101,6 +1103,7 @@ export function TerminalPage() {
     const [searchParams] = useSearchParams()
     const navigate = useNavigate()
     const fileSessions = useAppFileSessions()
+    const { status: pageAuthStatus } = useProductAuth()
     const appId = searchParams.get('app_file_app') || ''
     const volumeId = searchParams.get('app_file_volume') || ''
     const wantsNewConnection = searchParams.get('new_connection') === '1'
@@ -1108,6 +1111,28 @@ export function TerminalPage() {
     const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(() => loadPersistedTerminalWorkspace()?.sessions || [])
     const [requestedTerminal, setRequestedTerminal] = useState<{ id: string; create?: boolean; profile?: HostAccessProfileResponse; access?: AccessForm } | null>(null)
     const [visitedContexts, setVisitedContexts] = useState<AppFileContext[]>([])
+    useEffect(() => {
+        // Signing out ends every connection: never keep tabs from a previous login.
+        if (!pageAuthStatus || pageAuthStatus.authenticated) return
+        setTerminalSessions([])
+        setRequestedTerminal(null)
+        setVisitedContexts([])
+    }, [pageAuthStatus])
+    useEffect(() => {
+        const listener = () => {
+            setTerminalSessions([])
+            setRequestedTerminal(null)
+            setVisitedContexts([])
+        }
+        window.addEventListener(SESSION_RESET_EVENT, listener)
+        return () => window.removeEventListener(SESSION_RESET_EVENT, listener)
+    }, [])
+    useEffect(() => {
+        // A restarted AppHub loses every session; re-check stored application file
+        // sessions so their tabs report "ended" instead of a stale "connected".
+        if (!pageAuthStatus?.authenticated) return
+        void verifyStoredAppFileSessions()
+    }, [pageAuthStatus?.authenticated])
     useEffect(() => {
         if (!isAppFiles) return
         setVisitedContexts((current) => current.some((context) => context.app_id === appId && context.volume_id === volumeId) ? current : [...current, { app_id: appId, volume_id: volumeId }])
@@ -1195,7 +1220,7 @@ export function TerminalConnectionDialog(props: ConnectionDialogRequest) {
     return <TerminalWorkspace visible sessionTabs={[]} onSelectTab={() => undefined} connectionDialog={props} />
 }
 
-export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, onConfirm, onAutomatic, onElevate, busy = false, blocked = false, suppressError = false }: { error?: string; darkMode: boolean; scopeRect?: ConnectionDialogRequest['scopeRect']; onClose: () => void; onConfirm: () => void; onAutomatic: () => void; onElevate?: () => void; busy?: boolean; blocked?: boolean; suppressError?: boolean }) {
+export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, onConfirm, onAutomatic, busy = false, blocked = false, suppressError = false }: { error?: string; darkMode: boolean; scopeRect?: ConnectionDialogRequest['scopeRect']; onClose: () => void; onConfirm: () => void; onAutomatic: () => void; busy?: boolean; blocked?: boolean; suppressError?: boolean }) {
     const { t } = useTranslation('shell')
     const [confirmAutomatic, setConfirmAutomatic] = useState(false)
     const [automaticAcknowledged, setAutomaticAcknowledged] = useState(false)
@@ -1219,7 +1244,6 @@ export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, o
                 {error && !suppressError ? <Alert severity={blocked ? 'error' : 'warning'} sx={{ mb: blocked ? 0 : 1.5, overflowWrap: 'anywhere' }}>{error}</Alert> : null}
                 {blocked ? <>
                     <Typography sx={{ fontSize: 14, lineHeight: 1.7, color: palette.text }}>{t(`${prefix}sftpDirectoryAccessPrompt`)}</Typography>
-                    <Typography sx={{ mt: 1, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}sftpElevateNotice`)}</Typography>
                 </> : null}
                 {!blocked ? <Typography sx={{ fontSize: 14, lineHeight: 1.7, color: palette.subtleText }}>{t(`${prefix}${busy ? 'sftpConnecting' : 'sftpCreateConnectionPrompt'}`)}</Typography> : null}
                 {!blocked && !busy ? <Box component="ul" sx={{ mb: 0, mt: 1.5, pl: 2.25, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>
@@ -1236,7 +1260,6 @@ export function AppFileConnectionPrompt({ error, darkMode, scopeRect, onClose, o
             </> : <>
                 <Button disabled={busy} onClick={onClose}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
                 {blocked ? <>
-                    {onElevate ? <Button disabled={busy} onClick={onElevate}>{t(`${prefix}sftpElevateAction`)}</Button> : null}
                     <Button loading={busy} variant="contained" onClick={() => { setAutomaticAcknowledged(false); setConfirmAutomatic(true) }}>{t(`${prefix}sftpPlatformAccountAction`)}</Button>
                 </> : <>
                     <Button disabled={busy} onClick={onConfirm}>{t(`${prefix}sftpCreateConnectionAction`)}</Button>
@@ -1261,6 +1284,8 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     const pendingFileConnectionRef = useRef<AppFileContext | null>(null)
     const visibleRef = useRef(visible)
     useEffect(() => { visibleRef.current = visible }, [visible])
+    const [workspaceSearchParams] = useSearchParams()
+    const wantsFilesView = !isAppFiles && workspaceSearchParams.get('view') === 'files'
     const [terminalActivated, setTerminalActivated] = useState(visible)
     useEffect(() => { if (visible) setTerminalActivated(true) }, [visible])
     useEffect(() => {
@@ -1286,6 +1311,25 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                     localServerTitle: '本地主机',
                     disconnect: '关闭当前会话',
                     hostSelectorTitle: '主机列表',
+                    changeConnection: '更换连接',
+                    openTerminalFiles: '前往终端 → 文件',
+                    permissionDenied: '权限不足：当前连接账号无法访问该目录。',
+                    adminMode: '管理员模式',
+                    adminModeExit: '退出管理员模式',
+                    adminModeTitle: '启用管理员模式？',
+                    adminModeSubtitle: '当前账号没有访问权限',
+                    adminModeReason: '当前账号（{{account}}）无法读取该目录。',
+                    adminModeReasonPassword: '当前账号（{{account}}）无法读取该目录，需要通过 sudo 密码提权。',
+                    adminModeEffect: '可启用管理员模式（root 权限）访问，仅本次有效，关闭后自动退出。',
+                    adminModePasswordLabel: 'sudo 密码',
+                    adminModePasswordNote: '仅本次有效，不保存；关闭后自动退出。',
+                    adminModeConfirm: '启用管理员模式',
+                    adminModeBadge: '已开启',
+                    adminModeHint: '· root 权限',
+                    adminModeRetry: '以管理员模式重试',
+                    adminModeUnavailable: '当前账号无管理员权限，管理员模式不可用。',
+                    adminModePasswordInvalid: '密码不正确，还可尝试 {count} 次。',
+                    adminModeFailed: '无法启用管理员模式。',
                     newConnectionTitle: '新建连接',
                     quickConnectNewHost: '新建连接',
                     emptyTerminalTitle: '暂无终端连接',
@@ -1429,6 +1473,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                     profileDeleted: '连接已删除',
                     profileInUse: '该 SSH 主机仍被计划任务使用，请先删除相关计划任务，或将其迁移到其他 SSH 主机。',
                     deleteProfileFailed: '删除 SSH 主机失败。',
+                    profileDeleting: '正在删除连接…',
                     disconnectingAction: '关闭会话中…',
                     connectingAction: '连接中…',
                     deleteProfileTitle: '删除连接',
@@ -1461,6 +1506,25 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                     localServerTitle: 'Local host',
                     disconnect: 'Close current session',
                     hostSelectorTitle: 'Host list',
+                    changeConnection: 'Change connection',
+                    openTerminalFiles: 'Open Terminal → Files',
+                    permissionDenied: 'Permission denied: the connection account cannot access this directory.',
+                    adminMode: 'Administrator mode',
+                    adminModeExit: 'Exit administrator mode',
+                    adminModeTitle: 'Enable administrator mode?',
+                    adminModeSubtitle: 'This account has no access',
+                    adminModeReason: 'The account {{account}} cannot read this directory.',
+                    adminModeReasonPassword: 'The account {{account}} cannot read this directory and needs a sudo password.',
+                    adminModeEffect: 'Administrator mode grants temporary root access, and ends when you close the session.',
+                    adminModePasswordLabel: 'sudo password',
+                    adminModePasswordNote: 'Valid for this session only; never stored. Ends when the session closes.',
+                    adminModeConfirm: 'Enable administrator mode',
+                    adminModeBadge: 'On',
+                    adminModeHint: '· root access',
+                    adminModeRetry: 'Retry as administrator',
+                    adminModeUnavailable: 'This account cannot use administrator mode.',
+                    adminModePasswordInvalid: 'Incorrect password, {count} attempts left.',
+                    adminModeFailed: 'Administrator mode could not be enabled.',
                     newConnectionTitle: 'New connection',
                     quickConnectNewHost: 'New connection',
                     emptyTerminalTitle: 'No terminal connection',
@@ -1604,6 +1668,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                     profileDeleted: 'Connection deleted',
                     profileInUse: 'This SSH host is still used by scheduled tasks. Delete those tasks or move them to another SSH host first.',
                     deleteProfileFailed: 'Failed to delete the SSH host.',
+                    profileDeleting: 'Deleting the connection…',
                     disconnectingAction: 'Closing session…',
                     connectingAction: 'Connecting…',
                     deleteProfileTitle: 'Delete connection',
@@ -1640,7 +1705,16 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     const [currentProfileScope, setCurrentProfileScope] = useState<string | null>(null)
     const [sessions, setSessions] = useState<TerminalSession[]>([])
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-    const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('terminal')
+    // Each connection keeps its own Terminal/Files selection.
+    const sessionViewsRef = useRef<Record<string, WorkspaceView>>({})
+    const workspaceViewRef = useRef<WorkspaceView>('terminal')
+    const [workspaceView, setWorkspaceViewState] = useState<WorkspaceView>('terminal')
+    const setWorkspaceView = useCallback((view: WorkspaceView) => {
+        workspaceViewRef.current = view
+        setWorkspaceViewState(view)
+        const sessionId = activeSessionRef.current?.id
+        if (sessionId) sessionViewsRef.current[sessionId] = view
+    }, [])
     const [browserPath, setBrowserPath] = useState('/')
     const [browserRefreshNonce, setBrowserRefreshNonce] = useState(0)
     const [browserHistory, setBrowserHistory] = useState<string[]>(['/'])
@@ -1686,6 +1760,14 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     const [passwordVisible, setPasswordVisible] = useState(false)
     const [browserLoading, setBrowserLoading] = useState(false)
     const [browserError, setBrowserError] = useState<string | null>(null)
+    type FileElevation = { profile_id?: string; can_elevate: boolean; requires_password: boolean; enabled: boolean; reason?: string }
+    const [fileElevation, setFileElevation] = useState<FileElevation | null>(null)
+    const [elevationDialogOpen, setElevationDialogOpen] = useState(false)
+    const [switchDialogOpen, setSwitchDialogOpen] = useState(false)
+    const [elevationPassword, setElevationPassword] = useState('')
+    const [elevationError, setElevationError] = useState('')
+    const [elevationBusy, setElevationBusy] = useState(false)
+    const [elevationAttempts, setElevationAttempts] = useState(0)
     const [isEditorLoading, setIsEditorLoading] = useState(false)
     const [isFileActionSubmitting, setIsFileActionSubmitting] = useState(false)
     const [browserEntries, setBrowserEntries] = useState<HostAccessFileItem[]>([])
@@ -1781,11 +1863,64 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         if (!isAppFiles && selectedTabId && sessions.some(session => session.id === selectedTabId)) onActiveSessionChange?.(selectedTabId)
     })
     useEffect(() => { reportActiveTerminal() }, [isAppFiles, selectedTabId])
+
+    // Restore the view that belongs to the connection being activated. This runs
+    // before paint so switching tabs never flashes an empty/wrong pane.
+    useLayoutEffect(() => {
+        if (isAppFiles) {
+            // Application files always open in the file view, never the terminal.
+            if (!accessReady || workspaceViewRef.current === 'files') return
+            workspaceViewRef.current = 'files'
+            setWorkspaceViewState('files')
+            return
+        }
+        const sessionId = activeSession?.id
+        if (!sessionId) return
+        const savedView = sessionViewsRef.current[sessionId] ?? 'terminal'
+        if (workspaceViewRef.current === savedView) return
+        workspaceViewRef.current = savedView
+        setWorkspaceViewState(savedView)
+    }, [isAppFiles, accessReady, activeSession?.id])
     useEffect(() => {
         if (selectedTabId) sessionTabsRef.current?.querySelector('.terminal-session-tab-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }, [selectedTabId, sessionTabs.length])
     const activeFileProfileId = activeSession?.profileId ?? null
     const filesViewEnabled = accessReady && activeSession !== null && activeSession.status !== 'ended'
+    const elevationProfileId = isAppFiles ? (appFileSession?.profile_id ?? null) : activeFileProfileId
+
+    // Administrator mode applies to the host file browser and to application files.
+    useEffect(() => {
+        const ready = isAppFiles
+            ? Boolean(appFileSession?.profile_id) && appFileSession?.status !== 'ended'
+            : filesViewEnabled && workspaceView === 'files'
+        if (!elevationProfileId || !ready) {
+            setFileElevation(null)
+            setElevationDialogOpen(false)
+            return
+        }
+        let cancelled = false
+        void (async () => {
+            try {
+                const params = new URLSearchParams({ profile_id: elevationProfileId })
+                if (isAppFiles) {
+                    params.set('scope', 'app')
+                    params.set('app_id', appFileAppId)
+                    params.set('volume_id', appFileVolumeId)
+                }
+                const response = await requestJson<FileElevation>(`/api/host-access/files/elevation?${params}`, { method: 'GET' })
+                if (!cancelled) setFileElevation(response)
+            } catch {
+                if (!cancelled) setFileElevation(null)
+            }
+        })()
+        return () => { cancelled = true }
+    }, [isAppFiles, appFileAppId, appFileVolumeId, appFileSession?.profile_id, appFileSession?.status, filesViewEnabled, workspaceView, activeSession?.id, activeFileProfileId, browserRefreshNonce])
+
+    // Deep link used by the application SFTP dialog: open the host file view.
+    useEffect(() => {
+        if (!wantsFilesView || !filesViewEnabled) return
+        setWorkspaceView('files')
+    }, [wantsFilesView, filesViewEnabled])
     const filteredSavedProfiles = useMemo(() => {
         const keyword = profileSearchValue.trim().toLowerCase()
         const filtered = keyword
@@ -1796,6 +1931,12 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             return (a.name || a.host).localeCompare(b.name || b.host)
         })
     }, [profileSearchValue, savedProfiles])
+    const elevationProfile = useMemo(() => savedProfiles.find((item) => item.profile_id === elevationProfileId), [savedProfiles, elevationProfileId])
+    const elevationAccount = elevationProfile?.username || accessForm.username || ''
+    const elevationTarget = useMemo(() => {
+        const host = `${elevationProfile?.username || ''}@${elevationProfile?.host || ''}:${elevationProfile?.port || 22}`
+        return elevationProfile?.name ? `${elevationProfile.name} · ${host}` : host
+    }, [elevationProfile])
     const visibleBrowserEntries = useMemo(() => {
         if (showHiddenFiles) {
             return browserEntries
@@ -2068,6 +2209,11 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         if (isConnectionDialog || isAppFiles || !accessBootstrapped) {
             return
         }
+        // Never persist a workspace for a signed-out operator: the server already
+        // closed those sessions and restoring them would only show "disconnected".
+        if (!status?.authenticated) {
+            return
+        }
 
         if (sessions.length === 0) {
             clearPersistedTerminalWorkspace()
@@ -2079,11 +2225,46 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             sessions,
             activeSessionId,
             workspaceView,
+            sessionViews: sessionViewsRef.current,
             browserPath,
             selectedEntryPath,
             profileScope: currentProfileScope ?? '',
         })
-    }, [isAppFiles, isConnectionDialog, accessBootstrapped, accessReady, sessions, activeSessionId, workspaceView, browserPath, selectedEntryPath, currentProfileScope])
+    }, [isAppFiles, isConnectionDialog, accessBootstrapped, accessReady, sessions, activeSessionId, workspaceView, browserPath, selectedEntryPath, currentProfileScope, status?.authenticated])
+
+    // Signing out ends every connection: drop local state instead of showing them as disconnected.
+    useEffect(() => {
+        if (!status || status.authenticated) return
+        setSessions([])
+        setActiveSessionId(null)
+        setCurrentProfileScope(null)
+        setAccessReady(false)
+        setWorkspaceView('terminal')
+        clearPersistedTerminalWorkspace()
+    }, [status])
+
+    useEffect(() => {
+        const listener = () => {
+            setSessions([])
+            setActiveSessionId(null)
+            setCurrentProfileScope(null)
+            setAccessReady(false)
+            setWorkspaceView('terminal')
+            setAppFileSession(null)
+            setBrowserError(null)
+            setBrowserEntries([])
+            setBrowserMetadata(null)
+            setSelectedEntryPath(null)
+            setEditorPath(null)
+            setEditorContent('')
+            setEditorInitialContent('')
+            setFileElevation(null)
+            setElevationDialogOpen(false)
+            setSwitchDialogOpen(false)
+        }
+        window.addEventListener(SESSION_RESET_EVENT, listener)
+        return () => window.removeEventListener(SESSION_RESET_EVENT, listener)
+    }, [])
 
     function updateAccessForm<K extends keyof AccessForm>(key: K, value: AccessForm[K]) {
         if (key === 'authMethod') {
@@ -2263,7 +2444,8 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
 
     function markAppFilesUnavailable(message: string) {
         sessionStorage.removeItem('websoft9:app-files-route')
-        setIsHostSelectorOpen(false)
+        // The host list is an independent management surface: keep it open when the
+        // file session ends (for example because a connection was just deleted).
         setIsAccessDialogOpen(false)
         setCreateSessionAnchorEl(null)
         const known = readAppFileSessions().find((session) => session.app_id === appFileAppId && session.volume_id === appFileVolumeId)
@@ -2291,11 +2473,22 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         setBrowserError(`${copy.browserErrorTitle}: ${localizedMessage}`)
     }
 
-    async function openAppFiles(profileId?: string) {
+    function switchAppFileConnection() {
+        // Reuse the application access dialog in place; the operator confirms a
+        // connection and the dialog itself closes the previous session.
+        setSwitchDialogOpen(true)
+    }
+
+    async function openAppFiles(profileId?: string, platform = false) {
         const requestId = ++appFileRequestRef.current
         const previous = readAppFileSessions().find((session) => session.app_id === appFileAppId && session.volume_id === appFileVolumeId)
+        // Reuse the connection that owns this tab. Passing a different (or missing)
+        // profile would close and recreate the session, making the tab disappear
+        // and come back while switching.
+        const targetProfileId = profileId ?? previous?.profile_id ?? undefined
+        const targetPlatform = profileId ? platform : previous ? !previous.profile_id : platform
         try {
-            const session = await acquireAppFileSession(appFileAppId, appFileVolumeId, profileId)
+            const session = await acquireAppFileSession(appFileAppId, appFileVolumeId, targetProfileId, targetPlatform ? { platform: true } : undefined)
             if (requestId !== appFileRequestRef.current) return
             if (appFileSession?.session_id === session.session_id) return
             let restoredPath = session.root_path
@@ -2326,6 +2519,51 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     })
     useEffect(() => { activateFileContext() }, [visible])
 
+    function elevationMessage(error: unknown, attempts: number) {
+        if (error instanceof HostAccessRequestError) {
+            if (error.code === 'SFTP Elevation Password Invalid') return copy.adminModePasswordInvalid.replace('{count}', String(Math.max(0, 3 - attempts)))
+            if (error.code === 'SFTP Elevation Password Required') return copy.adminModePasswordLabel
+            if (error.code === 'SFTP Elevation Unavailable') return copy.adminModeUnavailable
+        }
+        return error instanceof Error ? error.message : copy.adminModeFailed
+    }
+
+    function openElevationDialog() {
+        setElevationPassword('')
+        setElevationError('')
+        setElevationAttempts(0)
+        setElevationDialogOpen(true)
+    }
+
+    async function applyFileElevation(enabled: boolean) {
+        if (elevationBusy) return
+        setElevationBusy(true)
+        setElevationError('')
+        try {
+            const response = await requestJson<FileElevation>('/api/host-access/files/elevation', {
+                method: 'POST',
+                body: JSON.stringify({
+                    enabled,
+                    profile_id: elevationProfileId,
+                    password: enabled ? elevationPassword : '',
+                    ...(isAppFiles ? { scope: 'app', app_id: appFileAppId, volume_id: appFileVolumeId } : {}),
+                }),
+            })
+            setFileElevation(response)
+            setElevationDialogOpen(false)
+            setElevationPassword('')
+            setElevationAttempts(0)
+            setBrowserError(null)
+            setBrowserRefreshNonce((current) => current + 1)
+        } catch (error) {
+            const attempts = elevationAttempts + 1
+            setElevationAttempts(attempts)
+            setElevationError(elevationMessage(error, attempts))
+        } finally {
+            setElevationBusy(false)
+        }
+    }
+
     function applyProfileResponse(response: HostAccessProfileResponse, fallbackAccess?: AccessForm, options?: { autoConnect?: boolean; appendSession?: boolean }) {
         const autoConnect = options?.autoConnect ?? true
         const appendSession = options?.appendSession ?? false
@@ -2347,6 +2585,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         if (!autoConnect) {
             const persisted = loadPersistedTerminalWorkspace()
             if (persisted?.sessions.length && persisted.profileScope?.startsWith(`${status?.current_user?.id}:`)) {
+                sessionViewsRef.current = { ...(persisted.sessionViews ?? {}) }
                 const restored = restoreTerminalSessions(persisted.sessions, (response.saved_profiles ?? []).map(profile => profile.profile_id))
                 setSessions(restored)
                 setActiveSessionId(restored.some(session => session.id === persisted.activeSessionId) ? persisted.activeSessionId : restored[0].id)
@@ -2381,6 +2620,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                     persistedWorkspace.profileScope === nextProfileScope ||
                     (persistedWorkspace.profileScope?.startsWith(`${status?.current_user?.id}:`) && persistedWorkspace.sessions.every((session) => session.profileId && response.saved_profiles?.some((profile) => profile.profile_id === session.profileId)))
                 )) {
+                    sessionViewsRef.current = { ...(persistedWorkspace.sessionViews ?? {}) }
                     const restoredSessions = persistedWorkspace.sessions.map((session) => ({
                         ...session,
                         title: session.title || buildSessionBaseTitle({ host: session.host, username: session.user }),
@@ -2941,7 +3181,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             .catch((error) => {
                 const currentSession = activeSessionRef.current
                 if (!cancelled && browserRequestIdRef.current === requestId && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
-                    setBrowserError(`${copy.browserErrorTitle}: ${error instanceof Error ? error.message : copy.browserErrorTitle}`)
+                    setBrowserError(`${copy.browserErrorTitle}: ${error instanceof HostAccessRequestError && error.status === 403 ? copy.permissionDenied : error instanceof Error ? error.message : copy.browserErrorTitle}`)
                     setBrowserEntries([])
                     setBrowserMetadata(null)
                 }
@@ -3178,6 +3418,8 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                 const target = pendingFileConnectionRef.current
                 const session = await acquireAppFileSession(target.app_id, target.volume_id, profile.active_profile_id ?? undefined)
                 pendingFileConnectionRef.current = null
+                // A connection created from the SFTP dialog is the new access choice.
+                rememberSftpAccessChoice(profile.active_profile_id)
                 setSavedProfiles(profile.saved_profiles ?? [])
                 setIsAccessDialogOpen(false)
                 navigate(getAppFileRoute(session))
@@ -3484,9 +3726,14 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     }
 
     async function handleDeleteSavedProfile(profileId: string) {
+        const snapshot = savedProfiles
+        // Update the list right away: revoking a platform account can take a few
+        // seconds on the host, and the operator needs immediate feedback.
+        setSavedProfiles(current => current.filter((profile) => profile.profile_id !== profileId))
+        window.dispatchEvent(new CustomEvent(HOST_PROFILE_DELETED_EVENT, { detail: profileId }))
+        showFeedback('info', copy.profileDeleting)
         try {
             const response = await requestJson<HostAccessProfileResponse>(`/api/host-access/profiles/${encodeURIComponent(profileId)}`, { method: 'DELETE' })
-            window.dispatchEvent(new CustomEvent(HOST_PROFILE_DELETED_EVENT, { detail: profileId }))
             if (response.saved_profiles) synchronizeAppFileProfiles(response.saved_profiles.map((entry) => entry.profile_id))
             setSavedProfiles(response.saved_profiles ?? [])
             setActiveProfileId(response.active_profile_id ?? null)
@@ -3497,6 +3744,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             )
             showFeedback('success', copy.profileDeleted)
         } catch (error) {
+            setSavedProfiles(snapshot)
             const message = error instanceof HostAccessRequestError
                 && error.status === 409
                 && error.code === 'Host Access Profile In Use'
@@ -4637,6 +4885,33 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                                         )
                                     })}
                                 </div>
+                                {fileElevation?.can_elevate && !fileElevation.enabled ? (
+                                    <Button
+                                        className="terminal-workspace-host-button"
+                                        disabled={elevationBusy || isDisconnecting}
+                                        onClick={openElevationDialog}
+                                        sx={{ borderRadius: 0 }}
+                                        variant="outlined"
+                                    >
+                                        {copy.adminMode}
+                                    </Button>
+                                ) : null}
+                                {fileElevation?.enabled ? (
+                                    <Button
+                                        className="terminal-workspace-host-button"
+                                        disabled={elevationBusy || isDisconnecting}
+                                        onClick={() => void applyFileElevation(false)}
+                                        sx={{ borderRadius: 0 }}
+                                        variant="outlined"
+                                    >
+                                        {copy.adminModeExit}
+                                    </Button>
+                                ) : null}
+                                {isAppFiles ? (
+                                    <Button className="terminal-workspace-host-button" disabled={isDisconnecting} onClick={switchAppFileConnection} sx={{ borderRadius: 0 }} variant="outlined">
+                                        {copy.changeConnection}
+                                    </Button>
+                                ) : null}
                                 <Button className="terminal-workspace-host-button" disabled={isDisconnecting} onClick={() => {
                                     openHostSelector()
                                 }} variant="contained">
@@ -4648,7 +4923,12 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                 />
 
                 {!accessBootstrapped ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} /></Box>
+                    // Keep the tab strip visible while the profile bootstraps: hiding it
+                    // makes tabs disappear for a moment when switching workspaces.
+                    <Stack spacing={0.75} sx={{ minHeight: 0 }}>
+                        {sessionStrip}
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} /></Box>
+                    </Stack>
                 ) : !accessReady && !isAppFiles && sessions.length === 0 ? (
                     <Card
                         elevation={0}
@@ -4900,7 +5180,23 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                                                                         </div>
                                                                     ) : browserError ? (
                                                                         <div className="terminal-files-empty">
-                                                                            <Typography sx={{ fontSize: 13.5, color: '#dc2626', wordBreak: 'break-all' }}>{browserError}</Typography>
+                                                                            <Stack spacing={1} sx={{ alignItems: 'center', px: 2 }}>
+                                                                                <Typography sx={{ fontSize: 13.5, color: '#dc2626', wordBreak: 'break-all' }}>{browserError}</Typography>
+                                                                                {isAppFiles ? (
+                                                                                    <Stack direction="row" spacing={1}>
+                                                                                        <Button onClick={switchAppFileConnection} size="small" sx={{ borderRadius: 0, textTransform: 'none' }} variant="outlined">{copy.changeConnection}</Button>
+                                                                                        {fileElevation?.can_elevate && !fileElevation.enabled ? (
+                                                                                            <Button onClick={openElevationDialog} size="small" sx={{ borderRadius: 0, textTransform: 'none' }} variant="outlined">{copy.adminModeRetry}</Button>
+                                                                                        ) : null}
+                                                                                    </Stack>
+                                                                                ) : null}
+                                                                                {!isAppFiles && fileElevation?.can_elevate && !fileElevation.enabled ? (
+                                                                                    <Button onClick={openElevationDialog} size="small" sx={{ borderRadius: 0, textTransform: 'none' }} variant="outlined">{copy.adminModeRetry}</Button>
+                                                                                ) : null}
+                                                                                {!isAppFiles && fileElevation && !fileElevation.can_elevate ? (
+                                                                                    <Typography sx={{ fontSize: 12.5, color: palette.subtleText }}>{copy.adminModeUnavailable}</Typography>
+                                                                                ) : null}
+                                                                            </Stack>
                                                                         </div>
                                                                     ) : (
                                                                         <div className="terminal-files-empty">
@@ -5277,6 +5573,71 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                         </Box>
                     </Box>
                 </Menu>
+
+                {isAppFiles && switchDialogOpen ? (
+                    <AppSftpDialog
+                        appId={appFileAppId}
+                        volumeId={appFileVolumeId}
+                        currentProfileId={appFileSession?.profile_id ?? null}
+                        darkMode={isDarkMode}
+                        onClose={() => setSwitchDialogOpen(false)}
+                        onSwitched={(profileId, platform) => {
+                            setSwitchDialogOpen(false)
+                            void openAppFiles(profileId || undefined, platform)
+                        }}
+                        scopeRect={null}
+                        switchMode
+                    />
+                ) : null}
+
+                <TerminalScopedOverlay open={elevationDialogOpen} onClose={() => { if (!elevationBusy) setElevationDialogOpen(false) }}>
+                    <Card elevation={0} sx={{ ...surfaceCardSx, width: { xs: 'min(92vw, 440px)', sm: 440 }, mx: 'auto' }}>
+                        <DialogTitle sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>{copy.adminModeTitle}</Typography>
+                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" disabled={elevationBusy} onClick={() => setElevationDialogOpen(false)} size="small">
+                                    <CloseActionIcon />
+                                </IconButton>
+                            </Box>
+                            <Typography sx={{ mt: 0.25, fontSize: 12.5, color: palette.subtleText }}>{copy.adminModeSubtitle}</Typography>
+                        </DialogTitle>
+                        <DialogContent dividers sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
+                            <Typography sx={{ fontSize: 13.5, lineHeight: 1.7, color: palette.text }}>
+                                {(fileElevation?.requires_password ? copy.adminModeReasonPassword : copy.adminModeReason).replace('{{account}}', elevationAccount)}
+                            </Typography>
+                            {!fileElevation?.requires_password ? <Typography sx={{ mt: 1, fontSize: 13, lineHeight: 1.7, color: palette.subtleText }}>{copy.adminModeEffect}</Typography> : null}
+                            {elevationError ? <Alert severity="error" sx={{ mt: 1.5, overflowWrap: 'anywhere' }}>{elevationError}</Alert> : null}
+                            {fileElevation?.requires_password ? (
+                                <Box sx={{ mt: 1.5 }}>
+                                    <Typography sx={{ mb: 0.5, fontSize: 12.5, fontWeight: 600, color: palette.subtleText }}>{copy.adminModePasswordLabel}</Typography>
+                                    <TextField
+                                        autoFocus
+                                        disabled={elevationBusy || elevationAttempts >= 3}
+                                        fullWidth
+                                        onChange={(event) => setElevationPassword(event.target.value)}
+                                        size="small"
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+                                        type="password"
+                                        value={elevationPassword}
+                                    />
+                                    <Typography sx={{ mt: 0.75, fontSize: 12, color: palette.subtleText }}>{copy.adminModePasswordNote}</Typography>
+                                </Box>
+                            ) : null}
+                            <Typography sx={{ mt: 1.5, fontSize: 12.5, fontWeight: 700, color: palette.subtleText }}>{elevationTarget}</Typography>
+                        </DialogContent>
+                        <DialogActions sx={{ px: 2.5, py: 1.5, gap: 0.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg }}>
+                            <Button disabled={elevationBusy} onClick={() => setElevationDialogOpen(false)}>{copy.cancel}</Button>
+                            <Button
+                                disabled={elevationBusy || elevationAttempts >= 3 || (Boolean(fileElevation?.requires_password) && !elevationPassword)}
+                                onClick={() => void applyFileElevation(true)}
+                                sx={{ borderRadius: 0 }}
+                                variant="contained"
+                            >
+                                {copy.adminModeConfirm}
+                            </Button>
+                        </DialogActions>
+                    </Card>
+                </TerminalScopedOverlay>
 
                 <TerminalScopedOverlay open={isHostSelectorOpen} onClose={() => setIsHostSelectorOpen(false)}>
                     <Card elevation={0} sx={{ ...surfaceCardSx, width: 'min(960px, calc(100vw - 32px))', maxHeight: 'min(calc(100dvh - 72px), 820px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', mx: 'auto', my: 'auto' }}>

@@ -285,10 +285,21 @@ class SftpAclAuthorizer:
                     pass
 
     def apply(self, session_id: str, path: str, container_uid: int, recursive: bool = True) -> dict[str, Any]:
-        arguments = ["apply", self.data_root, session_id, path, ACCOUNT_NAME, str(int(container_uid))]
+        arguments = ["apply", self.data_root, session_id, path, self._account_name(), str(int(container_uid))]
         if recursive:
             arguments.append("--recursive")
         return self._run(arguments)
+
+    def _account_name(self) -> str:
+        """Return the prepared platform account name (may carry a random suffix)."""
+        state_file = self.data_dir / "app-sftp-account.json"
+        try:
+            username = str(json.loads(state_file.read_text()).get("username") or "")
+            if username.startswith("websoft9-"):
+                return username
+        except (OSError, ValueError):
+            pass
+        return ACCOUNT_NAME
 
     def grant(self, session_id: str, path: str) -> dict[str, Any]:
         return self._run(["grant", self.data_root, session_id, path])

@@ -162,6 +162,17 @@ class HostAccessFilePreferencesUpdateRequest(HostAccessFilePreferences):
     pass
 
 
+class HostAccessFileElevationRequest(BaseModel):
+    """Administrator mode toggle for file browsing."""
+
+    enabled: bool = Field(default=False)
+    profile_id: Optional[str] = Field(default=None, max_length=255)
+    password: str = Field(default='', max_length=1024)
+    scope: str = Field(default='host', max_length=16)
+    app_id: Optional[str] = Field(default=None, max_length=255)
+    volume_id: Optional[str] = Field(default=None, max_length=255)
+
+
 class HostAccessDirectoryResponse(BaseModel):
     current_path: str
     metadata: HostAccessFileMetadata

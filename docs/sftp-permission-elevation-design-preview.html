@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SFTP 权限与提权 · 设计参考</title>
+    <style>
+        * {
+            box-sizing: border-box
+        }
+
+        :root {
+            --text: #0f172a;
+            --subtle: #64748b;
+            --border: rgba(15, 23, 42, 0.08);
+            --border-strong: rgba(203, 213, 225, 0.9);
+            --accent: #2563eb;
+            --accent-soft: rgba(59, 130, 246, 0.12);
+            --danger: #b42318;
+            --danger-soft: rgba(180, 35, 24, 0.08);
+            --card: #ffffff;
+            --hover: #eef2f7;
+            --bg: #e9edf1;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font: 14px 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        button {
+            font: inherit;
+            cursor: default;
+            border-radius: 0
+        }
+
+        .page {
+            width: min(1000px, calc(100% - 32px));
+            margin: 28px auto 60px
+        }
+
+        .page-head {
+            margin-bottom: 22px;
+            color: var(--subtle);
+            font-size: 13px;
+            line-height: 1.9
+        }
+
+        .page-head h1 {
+            margin: 0 0 6px;
+            font-size: 20px;
+            color: var(--text)
+        }
+
+        .panel {
+            margin-bottom: 30px
+        }
+
+        .panel-note {
+            margin: 0 0 10px;
+            font-size: 12.5px;
+            color: var(--subtle)
+        }
+
+        .panel-note b {
+            color: var(--text)
+        }
+
+        .surface {
+            background: var(--card);
+            border: 1px solid var(--border-strong);
+            border-radius: 0;
+            box-shadow: 0 10px 30px rgba(37, 49, 60, 0.10);
+        }
+
+        /* ---------- 应用 SFTP 弹窗 ---------- */
+        .dialog {
+            width: min(680px, 100%)
+        }
+
+        .dialog-head {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border)
+        }
+
+        .dialog-head h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700
+        }
+
+        .dialog-head p {
+            margin: 3px 0 0;
+            font-size: 12.5px;
+            color: var(--subtle)
+        }
+
+        .dialog-body {
+            padding: 16px 20px
+        }
+
+        .dialog-foot {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 12px 20px;
+            border-top: 1px solid var(--border)
+        }
+
+        .alert {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding: 9px 12px;
+            border: 1px solid rgba(180, 35, 24, 0.22);
+            border-left: 3px solid var(--danger);
+            background: var(--danger-soft);
+            color: var(--danger);
+            font-size: 12.5px;
+            line-height: 1.6;
+        }
+
+        .hint-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 14px
+        }
+
+        .hint-row p {
+            margin: 0;
+            font-size: 12.5px;
+            line-height: 1.7;
+            color: var(--subtle)
+        }
+
+        .section-title {
+            margin: 0 0 6px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            color: var(--subtle)
+        }
+
+        .section-title+.list {
+            margin-bottom: 18px
+        }
+
+        .list {
+            border: 1px solid var(--border);
+            background: var(--card)
+        }
+
+        .row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 9px 12px;
+            border-top: 1px solid var(--border);
+            border-left: 3px solid transparent;
+            background: transparent;
+            font-size: 13.5px;
+        }
+
+        .row:first-child {
+            border-top: none
+        }
+
+        .row:hover {
+            background: var(--hover)
+        }
+
+        .row.selected {
+            border-left-color: var(--accent);
+            background: var(--accent-soft)
+        }
+
+        .row .radio {
+            flex: 0 0 auto;
+            width: 14px;
+            height: 14px;
+            margin-top: 3px;
+            border: 1.6px solid #94a3b8;
+            border-radius: 50%;
+        }
+
+        .row.selected .radio {
+            border-color: var(--accent);
+            box-shadow: inset 0 0 0 3.5px var(--accent)
+        }
+
+        .row-main {
+            min-width: 0
+        }
+
+        .row-title {
+            font-size: 13.5px;
+            font-weight: 600
+        }
+
+        .row-meta {
+            margin-top: 2px;
+            font-size: 12.5px;
+            color: var(--subtle)
+        }
+
+        .row-new .row-title {
+            color: var(--accent);
+            font-weight: 600
+        }
+
+        .btn {
+            padding: 6px 14px;
+            border: 1px solid var(--border-strong);
+            background: transparent;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            background: var(--hover)
+        }
+
+        .btn.primary {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff
+        }
+
+        .btn.ghost {
+            border-color: transparent;
+            color: var(--subtle);
+            font-weight: 600
+        }
+
+        .btn.danger {
+            border-color: var(--danger);
+            background: var(--danger);
+            color: #fff
+        }
+
+        .btn.small {
+            padding: 4px 10px;
+            font-size: 12.5px
+        }
+
+        /* ---------- 终端 · 文件视图 ---------- */
+        .workspace {
+            overflow: hidden
+        }
+
+        .ws-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 18px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .ws-head h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 800
+        }
+
+        .ws-head p {
+            margin: 3px 0 0;
+            font-size: 12.5px;
+            color: var(--subtle)
+        }
+
+        .ws-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end
+        }
+
+        .seg {
+            display: flex;
+            border: 1px solid var(--border-strong);
+            border-radius: 0;
+            overflow: hidden
+        }
+
+        .seg button {
+            padding: 6px 14px;
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--subtle)
+        }
+
+        .seg button.active {
+            background: var(--accent-soft);
+            color: var(--accent)
+        }
+
+        .seg button+button {
+            border-left: 1px solid var(--border-strong)
+        }
+
+        .admin-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 18px;
+            border-bottom: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            background: var(--accent-soft);
+            font-size: 12.5px;
+            color: var(--text);
+        }
+
+        .admin-banner strong {
+            font-weight: 700
+        }
+
+        .admin-banner span {
+            color: var(--subtle)
+        }
+
+        .crumbs {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            font-size: 12.5px;
+            color: var(--subtle);
+            border-bottom: 1px solid var(--border)
+        }
+
+        .crumbs b {
+            color: var(--text);
+            font-weight: 600
+        }
+
+        .file-list {
+            padding: 0 0 4px
+        }
+
+        .file-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 110px 130px 150px;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 18px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        .file-row:last-child {
+            border-bottom: none
+        }
+
+        .file-row:hover {
+            background: var(--hover)
+        }
+
+        .file-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            font-weight: 600
+        }
+
+        .file-name small {
+            color: var(--subtle);
+            font-weight: 400
+        }
+
+        .file-meta {
+            color: var(--subtle);
+            font-size: 12.5px
+        }
+
+        .file-actions {
+            text-align: right;
+            color: var(--accent);
+            font-size: 12.5px;
+            font-weight: 600
+        }
+
+        .file-error {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 12px 18px;
+            padding: 10px 12px;
+            border: 1px solid rgba(180, 35, 24, 0.22);
+            border-left: 3px solid var(--danger);
+            background: var(--danger-soft);
+            color: var(--danger);
+            font-size: 12.5px;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 7px;
+            border: 1px solid var(--accent);
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .tag.muted {
+            border-color: var(--border-strong);
+            background: transparent;
+            color: var(--subtle)
+        }
+
+        .confirm {
+            width: min(440px, 100%)
+        }
+
+        .confirm .dialog-body p {
+            margin: 0;
+            font-size: 13.5px;
+            line-height: 1.7
+        }
+
+        .confirm ul {
+            margin: 10px 0 0;
+            padding-left: 18px;
+            font-size: 12.5px;
+            line-height: 1.8;
+            color: var(--subtle)
+        }
+
+        .confirm .path {
+            margin-top: 10px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--subtle)
+        }
+
+        .field {
+            margin-top: 14px
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--subtle)
+        }
+
+        .field input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border-strong);
+            border-radius: 0;
+            background: #fff;
+            color: var(--text);
+            font: inherit;
+            font-size: 13px;
+        }
+
+        .field input:focus {
+            outline: none;
+            border-color: var(--accent)
+        }
+
+        .field .note {
+            margin: 6px 0 0;
+            font-size: 12px;
+            color: var(--subtle)
+        }
+
+        .field-invalid input {
+            border-color: var(--danger)
+        }
+
+        .field-error {
+            margin: 6px 0 0;
+            font-size: 12px;
+            color: var(--danger)
+        }
+
+        .notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin: 12px 18px 0;
+            padding: 8px 12px;
+            border: 1px solid var(--border-strong);
+            border-left: 3px solid var(--subtle);
+            background: var(--hover);
+            font-size: 12.5px;
+            line-height: 1.7;
+            color: var(--subtle);
+        }
+
+        .admin-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            background: var(--hover);
+        }
+
+        .admin-option-title {
+            font-size: 13.5px;
+            font-weight: 600
+        }
+
+        .admin-option-hint {
+            font-size: 12.5px;
+            color: var(--subtle)
+        }
+
+        .checkbox {
+            width: 14px;
+            height: 14px;
+            flex: 0 0 auto;
+            border: 1px solid var(--accent);
+            background: var(--accent);
+            color: #fff;
+            font-size: 10px;
+            line-height: 13px;
+            text-align: center;
+        }
+
+        .annot {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--subtle)
+        }
+
+        .annot div {
+            display: flex;
+            align-items: center;
+            gap: 6px
+        }
+
+        .swatch {
+            width: 10px;
+            height: 10px;
+            border: 1px solid var(--border-strong)
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="page-head">
+            <h1>SFTP 权限与提权 · 设计参考</h1>
+            专用账号不提权 · 本地连接按原权限 · 仅“终端 → 文件”提供管理员模式。
+        </div>
+
+        <!-- 1. 应用 SFTP：本地连接权限不足 -->
+        <section class="panel">
+            <p class="panel-note"><b>① 应用 SFTP · 本地连接权限不足</b> — 移除“使用 sudo 提权”，改为引导切换到专用账号或授权目录。</p>
+            <div class="surface dialog">
+                <div class="dialog-head">
+                    <h2>选择访问方式</h2>
+                    <p>上次使用的连接不可用，请重新选择</p>
+                </div>
+                <div class="dialog-body">
+                    <div class="alert">
+                        <span>⚠</span>
+                        <span>无法访问该应用目录，请改用专用账号，或为该连接账号授权。</span>
+                    </div>
+                    <div class="hint-row">
+                        <button class="btn small">切换为专用账号</button>
+                    </div>
+
+                    <p class="section-title">平台专用账号</p>
+                    <div class="list">
+                        <div class="row selected">
+                            <span class="radio"></span>
+                            <span class="row-main">
+                                <span class="row-title">使用平台专用账号</span>
+                                <span class="row-meta">websoft9-sftp · 自动按应用授权，无法访问其他目录</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <p class="section-title">本地连接</p>
+                    <div class="list">
+                        <div class="row">
+                            <span class="radio"></span>
+                            <span class="row-main">
+                                <span class="row-title">websoft9-local</span>
+                                <span class="row-meta">dev@127.0.0.1:22</span>
+                            </span>
+                        </div>
+                        <div class="row">
+                            <span class="radio"></span>
+                            <span class="row-main">
+                                <span class="row-title">ops-server</span>
+                                <span class="row-meta">root@192.168.1.20:22</span>
+                            </span>
+                        </div>
+                        <div class="row row-new">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">＋ 新建连接</span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button class="btn ghost">取消</button>
+                    <button class="btn primary">确定</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. 终端 · 文件：普通模式 + 权限不足 -->
+        <section class="panel">
+            <p class="panel-note"><b>② 终端 · 文件（普通模式）</b> — 新增“管理员模式”入口；权限不足时给出明确引导，不自动提权。</p>
+            <div class="surface workspace">
+                <div class="ws-head">
+                    <div>
+                        <h2>终端</h2>
+                        <p>通过已保存的 SSH 连接管理主机文件</p>
+                    </div>
+                    <div class="ws-actions">
+                        <div class="seg">
+                            <button>终端</button>
+                            <button class="active">文件</button>
+                        </div>
+                        <button class="btn">管理员模式</button>
+                        <button class="btn primary">主机列表</button>
+                    </div>
+                </div>
+                <div class="crumbs">位置：<b>/etc/nginx</b><span class="tag muted">普通权限</span></div>
+                <div class="file-error">
+                    <span>无法读取 /etc/nginx/nginx.conf：Permission denied</span>
+                    <button class="btn small">以管理员模式重试</button>
+                </div>
+                <div class="file-list">
+                    <div class="file-row">
+                        <span class="file-name">📁 sites-enabled</span>
+                        <span class="file-meta">目录</span>
+                        <span class="file-meta">root:root</span>
+                        <span class="file-actions">755</span>
+                    </div>
+                    <div class="file-row">
+                        <span class="file-name">📄 nginx.conf</span>
+                        <span class="file-meta">1.2 KB</span>
+                        <span class="file-meta">root:root</span>
+                        <span class="file-actions">644</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. 确认弹窗（免密） -->
+        <section class="panel">
+            <p class="panel-note"><b>③ 启用管理员模式 · 确认弹窗（免密 sudo）</b> — 同样先说原因，再说影响。</p>
+            <div class="surface confirm">
+                <div class="dialog-head">
+                    <h2>启用管理员模式？</h2>
+                    <p>当前账号没有访问权限</p>
+                </div>
+                <div class="dialog-body">
+                    <p style="margin:0;font-size:13.5px;line-height:1.7">当前账号（dev）无法读取系统目录。</p>
+                    <p style="margin:8px 0 0;font-size:13px;line-height:1.7;color:var(--subtle)">可以启用管理员模式（root
+                        权限）访问，仅本次有效，关闭后自动退出。</p>
+                    <p class="path" style="margin-top:10px">连接：dev@127.0.0.1:22</p>
+                </div>
+                <div class="dialog-foot">
+                    <button class="btn ghost">取消</button>
+                    <button class="btn primary">启用管理员模式</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3b. 确认弹窗（需要 sudo 密码） -->
+        <section class="panel">
+            <p class="panel-note"><b>③-B 启用管理员模式 · 需要 sudo 密码</b> — B 方案：一次性输入，仅存于本次会话内存，不落盘、不写日志。</p>
+            <div class="surface confirm">
+                <div class="dialog-head">
+                    <h2>启用管理员模式？</h2>
+                    <p>当前账号没有访问权限</p>
+                </div>
+                <div class="dialog-body">
+                    <p style="margin:0 0 12px;font-size:13.5px;line-height:1.7">当前账号（deploy）无法读取系统目录，需要通过 sudo 密码提权。</p>
+                    <div class="field">
+                        <label for="sudo-password">sudo 密码</label>
+                        <input id="sudo-password" type="password" value="••••••••" autocomplete="off">
+                        <p class="note">仅本次有效，不保存；关闭后自动退出。</p>
+                    </div>
+                    <p class="path" style="margin-top:12px">连接：deploy@192.168.1.20:22</p>
+                </div>
+                <div class="dialog-foot">
+                    <button class="btn ghost">取消</button>
+                    <button class="btn primary">启用管理员模式</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3c. 密码错误 -->
+        <section class="panel">
+            <p class="panel-note"><b>③-C 密码错误</b> — 就地提示并保留已勾选状态，不关闭弹窗；达到 3 次后按钮置灰。</p>
+            <div class="surface confirm">
+                <div class="dialog-head">
+                    <h2>启用管理员模式？</h2>
+                    <p>该账号的 sudo 需要密码</p>
+                </div>
+                <div class="dialog-body">
+                    <div class="alert" style="margin-bottom:0">
+                        <span>⚠</span>
+                        <span>密码不正确，还可尝试 2 次。</span>
+                    </div>
+                    <div class="field field-invalid">
+                        <label for="sudo-password-failed">sudo 密码</label>
+                        <input id="sudo-password-failed" type="password" value="" autocomplete="off">
+                    </div>
+                    <p class="path" style="margin-top:12px">连接：ops-server · root@192.168.1.20:22</p>
+                </div>
+                <div class="dialog-foot">
+                    <button class="btn ghost">取消</button>
+                    <button class="btn primary">启用管理员模式</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. 管理员模式开启态 -->
+        <section class="panel">
+            <p class="panel-note"><b>④ 终端 · 文件（管理员模式开启）</b> — 顶部常显标识条与退出入口，可访问受保护目录。</p>
+            <div class="surface workspace">
+                <div class="ws-head">
+                    <div>
+                        <h2>终端</h2>
+                        <p>通过已保存的 SSH 连接管理主机文件</p>
+                    </div>
+                    <div class="ws-actions">
+                        <div class="seg">
+                            <button>终端</button>
+                            <button class="active">文件</button>
+                        </div>
+                        <button class="btn">退出管理员模式</button>
+                        <button class="btn primary">主机列表</button>
+                    </div>
+                </div>
+                <div class="admin-banner">
+                    <div><strong>管理员模式</strong> <span>· root 权限</span></div>
+                    <span class="tag">已开启</span>
+                </div>
+                <div class="crumbs">位置：<b>/etc/nginx</b></div>
+                <div class="file-list">
+                    <div class="file-row">
+                        <span class="file-name">📁 sites-enabled</span>
+                        <span class="file-meta">目录</span>
+                        <span class="file-meta">root:root</span>
+                        <span class="file-actions">编辑 · 下载</span>
+                    </div>
+                    <div class="file-row">
+                        <span class="file-name">📄 nginx.conf</span>
+                        <span class="file-meta">1.2 KB</span>
+                        <span class="file-meta">root:root</span>
+                        <span class="file-actions">编辑 · 下载</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. 专用账号说明 -->
+        <section class="panel">
+            <p class="panel-note"><b>⑤ 专用账号路径</b> — 不出现提权入口；若报权限不足，视为 ACL 未生效的缺陷，界面只提示重新授权。</p>
+            <div class="surface dialog">
+                <div class="dialog-head">
+                    <h2>平台专用账号</h2>
+                    <p>websoft9-sftp · 按应用授权</p>
+                </div>
+                <div class="dialog-body">
+                    <div class="alert">
+                        <span>⚠</span>
+                        <span>目录授权未生效，请重新打开 SFTP。</span>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button class="btn ghost">关闭</button>
+                    <button class="btn primary">重新授权并打开</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. 不可提权的账号 -->
+        <section class="panel">
+            <p class="panel-note"><b>⑥ 账号本身不能提权</b> — 后端探测到该账号既无 NOPASSWD 也不允许 sudo 时：不显示“管理员模式”按钮，权限不足只给引导。</p>
+            <div class="surface workspace">
+                <div class="ws-head">
+                    <div>
+                        <h2>终端</h2>
+                        <p>通过已保存的 SSH 连接管理主机文件</p>
+                    </div>
+                    <div class="ws-actions">
+                        <div class="seg">
+                            <button>终端</button>
+                            <button class="active">文件</button>
+                        </div>
+                        <button class="btn primary">主机列表</button>
+                    </div>
+                </div>
+                <div class="crumbs">位置：<b>/var/log</b><span class="tag muted">普通权限</span></div>
+                <div class="notice">
+                    <span>ⓘ</span>
+                    <span>当前账号无管理员权限，管理员模式不可用。</span>
+                </div>
+                <div class="file-error">
+                    <span>无法读取 /var/log/syslog：Permission denied</span>
+                </div>
+                <div class="file-list">
+                    <div class="file-row">
+                        <span class="file-name">📄 syslog</span>
+                        <span class="file-meta">18.4 MB</span>
+                        <span class="file-meta">syslog:adm</span>
+                        <span class="file-actions">640</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7. 应用 SFTP -->
+        <section class="panel">
+            <p class="panel-note"><b>⑦ 应用 SFTP</b> — 不在 SFTP 里做提权；权限不足时只提示去“终端 → 文件”开启管理员模式，或改用专用账号。</p>
+            <div class="surface dialog">
+                <div class="dialog-head">
+                    <h2>访问应用文件</h2>
+                    <p>选择访问应用文件的方式</p>
+                </div>
+                <div class="dialog-body">
+                    <div class="alert">
+                        <span>⚠</span>
+                        <span>权限不足：当前连接账号无法访问该应用目录。可改用平台专用账号，或在“终端 → 文件”中开启管理员模式后再试。</span>
+                    </div>
+
+                    <p class="section-title">平台账号</p>
+                    <div class="list">
+                        <div class="row">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">平台专用账号</span></span>
+                            <span class="row-meta">websoft9-sftp · 自动按应用授权，无法访问其他目录</span>
+                        </div>
+                    </div>
+
+                    <p class="section-title">本地连接</p>
+                    <div class="list">
+                        <div class="row">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">sftpadmin</span></span>
+                            <span class="row-meta">sftpadmin@172.17.0.1:22</span>
+                        </div>
+                        <div class="row selected">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">sftppw</span></span>
+                            <span class="row-meta">sftppw@172.17.0.1:22</span>
+                        </div>
+                        <div class="row row-new">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">＋ 新建连接</span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button class="btn ghost">取消</button>
+                    <button class="btn primary">确定</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7b. 应用文件视图标识条 -->
+        <section class="panel">
+            <p class="panel-note"><b>⑦-B 应用文件视图（该连接已在终端 → 文件开启管理员模式）</b> — 提权状态跟着连接走，应用文件沿用同一状态并显示标识条。</p>
+            <div class="surface workspace">
+                <div class="ws-head">
+                    <div>
+                        <h2>wordpress_qu8hq / data</h2>
+                        <p>应用数据目录</p>
+                    </div>
+                    <div class="ws-actions">
+                        <button class="btn">退出管理员模式</button>
+                    </div>
+                </div>
+                <div class="admin-banner">
+                    <div><strong>管理员模式</strong> <span>· root 权限</span></div>
+                    <span class="tag">已开启</span>
+                </div>
+                <div class="crumbs">位置：<b>/opt/websoft9/data/app/wordpress_qu8hq/data</b></div>
+                <div class="file-list">
+                    <div class="file-row">
+                        <span class="file-name">📁 uploads</span>
+                        <span class="file-meta">目录</span>
+                        <span class="file-meta">www-data:www-data</span>
+                        <span class="file-actions">编辑 · 下载</span>
+                    </div>
+                    <div class="file-row">
+                        <span class="file-name">📄 .env</span>
+                        <span class="file-meta">0.6 KB</span>
+                        <span class="file-meta">www-data:www-data</span>
+                        <span class="file-actions">编辑 · 下载</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 8. 更换连接：在应用文件视图内弹出同一访问方式弹窗 -->
+        <section class="panel">
+            <p class="panel-note"><b>⑧ 更换连接（入口在应用文件视图，弹窗复用“访问应用文件”）</b> — 不再跳回应用详情页；当前连接标记“使用中”，确定后关闭旧会话并用新连接打开。</p>
+            <div class="surface workspace">
+                <div class="ws-head">
+                    <div>
+                        <h2>wordpress_qu8hq / data</h2>
+                        <p>应用数据目录</p>
+                    </div>
+                    <div class="ws-actions">
+                        <button class="btn">更换连接</button>
+                        <button class="btn">退出管理员模式</button>
+                    </div>
+                </div>
+                <div class="crumbs">位置：<b>/opt/websoft9/data/app/wordpress_qu8hq/data</b><span
+                        class="tag muted">当前连接：sftpadmin@172.17.0.1:22</span></div>
+                <div class="file-list">
+                    <div class="file-row">
+                        <span class="file-name">📁 uploads</span>
+                        <span class="file-meta">目录</span>
+                        <span class="file-meta">www-data:www-data</span>
+                        <span class="file-actions">编辑 · 下载</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <p class="panel-note"><b>⑧-B 点击“更换连接”后</b> — 同一个弹窗，就地打开；列表沿用现有样式，仅给当前连接加“使用中”标记。</p>
+            <div class="surface dialog">
+                <div class="dialog-head">
+                    <h2>访问应用文件</h2>
+                    <p>选择访问应用文件的方式</p>
+                </div>
+                <div class="dialog-body">
+                    <p class="section-title">平台账号</p>
+                    <div class="list">
+                        <div class="row">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">平台专用账号</span></span>
+                            <span class="row-meta">websoft9-sftp · 自动按应用授权，无法访问其他目录</span>
+                        </div>
+                    </div>
+
+                    <p class="section-title">本地连接</p>
+                    <div class="list">
+                        <div class="row selected">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">sftpadmin</span></span>
+                            <span class="row-meta">sftpadmin@172.17.0.1:22</span>
+                            <span class="tag muted" style="margin-left:auto;flex:0 0 auto">使用中</span>
+                        </div>
+                        <div class="row">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">sftppw</span></span>
+                            <span class="row-meta">sftppw@172.17.0.1:22</span>
+                        </div>
+                        <div class="row row-new">
+                            <span class="radio"></span>
+                            <span class="row-main"><span class="row-title">＋ 新建连接</span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button class="btn ghost">取消</button>
+                    <button class="btn primary">确定</button>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+
+</html>

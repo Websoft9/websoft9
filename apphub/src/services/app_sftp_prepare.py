@@ -18,7 +18,9 @@ import fcntl
 import json
 import os
 import pwd
+import secrets
 import stat
+import string
 import subprocess
 import sys
 import tempfile
@@ -48,7 +50,11 @@ Match User {account}
     AllowTcpForwarding no
     PermitTunnel no
     ForceCommand internal-sftp -u 0002
-""".format(account=ACCOUNT)
+"""
+
+
+def account_home(name):
+    return ACCOUNT_HOME if name == ACCOUNT else Path(f"/var/lib/{name}")
 
 
 def run(command, timeout=30):
@@ -78,33 +84,67 @@ def account_groups(username):
         return set()
 
 
-def ensure_account():
+def account_complies(account):
+    shell = str(account.pw_shell or "")
+    if shell not in NOLOGIN_SHELLS:
+        return False
+    if Path(account.pw_dir) != account_home(account.pw_name):
+        return False
+    return not (account_groups(account.pw_name) & FORBIDDEN_GROUPS)
+
+
+def choose_account_name():
+    """Return the account name to use.
+
+    The reserved name is reused only when the existing account is compliant.
+    If somebody else already owns it, fall back to ``websoft9-<4 letters>``
+    instead of touching that account.
+    """
     try:
-        account = pwd.getpwnam(ACCOUNT)
+        existing = pwd.getpwnam(ACCOUNT)
+    except KeyError:
+        return ACCOUNT
+    if account_complies(existing):
+        return ACCOUNT
+    alphabet = string.ascii_lowercase
+    for _ in range(20):
+        candidate = f"websoft9-{''.join(secrets.choice(alphabet) for _ in range(4))}"
+        try:
+            pwd.getpwnam(candidate)
+        except KeyError:
+            return candidate
+    raise ValueError("Unable to allocate a free SFTP account name")
+
+
+def ensure_account():
+    name = choose_account_name()
+    home = account_home(name)
+    try:
+        account = pwd.getpwnam(name)
     except KeyError:
         command = [
             "useradd", "--system", "--user-group",
-            "--home-dir", str(ACCOUNT_HOME), "--create-home",
+            "--home-dir", str(home), "--create-home",
             "--shell", "/usr/sbin/nologin", "--comment", "Websoft9 application file access",
         ]
         try:
-            run([*command, "--uid", str(PREFERRED_UID), ACCOUNT])
+            run([*command, "--uid", str(PREFERRED_UID), name])
         except subprocess.CalledProcessError:
-            run([*command, ACCOUNT])
-        account = pwd.getpwnam(ACCOUNT)
+            run([*command, name])
+        account = pwd.getpwnam(name)
 
     shell = str(account.pw_shell or "")
     if shell not in NOLOGIN_SHELLS:
-        raise ValueError(f"The existing '{ACCOUNT}' account has a login shell; refusing to use it")
-    if Path(account.pw_dir) != ACCOUNT_HOME:
-        raise ValueError(f"The existing '{ACCOUNT}' account has an unexpected home directory")
-    forbidden = account_groups(ACCOUNT) & FORBIDDEN_GROUPS
+        raise ValueError(f"The existing '{name}' account has a login shell; refusing to use it")
+    if Path(account.pw_dir) != home:
+        raise ValueError(f"The existing '{name}' account has an unexpected home directory")
+    forbidden = account_groups(name) & FORBIDDEN_GROUPS
     if forbidden:
-        raise ValueError(f"The existing '{ACCOUNT}' account belongs to privileged groups: {', '.join(sorted(forbidden))}")
-    if not ACCOUNT_HOME.is_dir():
-        ACCOUNT_HOME.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chown(ACCOUNT_HOME, account.pw_uid, account.pw_gid)
-    ACCOUNT_HOME.chmod(0o700)
+        raise ValueError(f"The existing '{name}' account belongs to privileged groups: {', '.join(sorted(forbidden))}")
+    if not home.is_dir():
+        home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chown(home, account.pw_uid, account.pw_gid)
+    home.chmod(0o700)
     return account
 
 
@@ -135,20 +175,21 @@ def write_atomic(path, content, mode, owner=0):
             os.unlink(temporary)
 
 
-def install_sshd_config(data_dir):
+def install_sshd_config(data_dir, account_name=None):
+    block = SSHD_BLOCK.format(account=account_name or ACCOUNT)
     if not SSHD_CONFIG.is_file():
         raise ValueError("The host does not expose an OpenSSH server configuration")
     original = SSHD_CONFIG.read_text()
     use_dropin = sshd_supports_dropin(original)
     if use_dropin:
         current = SSHD_DROPIN.read_text() if SSHD_DROPIN.is_file() else None
-        changed = current != SSHD_BLOCK
+        changed = current != block
         if changed:
-            write_atomic(SSHD_DROPIN, SSHD_BLOCK, 0o644)
+            write_atomic(SSHD_DROPIN, block, 0o644)
         target = SSHD_DROPIN
         mode = "dropin"
     else:
-        legacy = f"{MARKER_BEGIN}\n{SSHD_BLOCK}{MARKER_END}\n"
+        legacy = f"{MARKER_BEGIN}\n{block}{MARKER_END}\n"
         if MARKER_BEGIN in original:
             head, _, rest = original.partition(MARKER_BEGIN)
             _, _, tail = rest.partition(MARKER_END)
@@ -299,16 +340,16 @@ def prepare(data_root):
     with os.fdopen(descriptor, "r+") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         account = ensure_account()
-        sshd_state = install_sshd_config(data_dir)
+        sshd_state = install_sshd_config(data_dir, account.pw_name)
         key_file, public_key = ensure_keypair(data_dir)
         authorization = ensure_authorized_key(account, public_key)
         volume_root_acl = prepare_volume_root(account)
         state = {
             "version": STATE_VERSION,
-            "username": ACCOUNT,
+            "username": account.pw_name,
             "uid": account.pw_uid,
             "gid": account.pw_gid,
-            "home": str(ACCOUNT_HOME),
+            "home": str(account.pw_dir),
             "key_path": str(key_file),
             "authorization_path": str(authorization),
             "volume_root_acl": volume_root_acl,
@@ -337,8 +378,15 @@ def revoke(data_root):
     removed_key_lines = False
     with os.fdopen(descriptor, "r+") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        state_file = data_dir / "app-sftp-account.json"
+        username = ACCOUNT
+        if state_file.is_file():
+            try:
+                username = str(json.loads(state_file.read_text()).get("username") or ACCOUNT)
+            except (OSError, ValueError):
+                username = ACCOUNT
         try:
-            account = pwd.getpwnam(ACCOUNT)
+            account = pwd.getpwnam(username)
         except KeyError:
             account = None
         if account is not None:
@@ -353,7 +401,6 @@ def revoke(data_root):
         key_file = data_dir / "sftp.key"
         if key_file.exists() or key_file.is_symlink():
             key_file.unlink()
-        state_file = data_dir / "app-sftp-account.json"
         if state_file.exists() or state_file.is_symlink():
             state_file.unlink()
 

@@ -1,15 +1,58 @@
 import { useSyncExternalStore } from 'react'
 
+import { resolveAppFileAccess, type SftpAccessChoice } from './session-state'
+
+export type { SftpAccessChoice } from './session-state'
+
 export type AppFileSession = { session_id: string; root_path: string; app_id: string; volume_id: string; profile_id: string | null; profile_available?: boolean; host?: string; username?: string; port?: number; expires_at?: number; path?: string; status?: 'connected' | 'ended'; verified_at?: number }
 export const MAX_WORKSPACE_CONNECTIONS = 10
 export const PLATFORM_SFTP_PROFILE_ID = 'platform-sftp'
 export const TERMINAL_WORKSPACE_STORAGE_KEY = 'websoft9:terminal-workspace-v1'
 export const HOST_PROFILE_DELETED_EVENT = 'websoft9:host-profile-deleted'
+export const SESSION_RESET_EVENT = 'websoft9:session-reset'
 const SESSIONS_KEY = 'websoft9:app-files-sessions'
 const LEGACY_SESSION_KEY = 'websoft9:app-files-session'
 const CHANGE_EVENT = 'websoft9:app-files-sessions-changed'
 const pending = new Map<string, Promise<AppFileSession>>()
 const creating = new Set<string>()
+
+const ACCESS_CHOICE_KEY = 'websoft9:sftp-access-choice'
+
+export function readSftpAccessChoice(): SftpAccessChoice | null {
+    try {
+        const raw = window.localStorage.getItem(ACCESS_CHOICE_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw) as { mode?: string; profileId?: string }
+        if (parsed?.mode === 'platform') return { mode: 'platform' }
+        if (parsed?.mode === 'profile' && parsed.profileId) return { mode: 'profile', profileId: parsed.profileId }
+    } catch {
+        // Ignore unsupported or corrupted preferences.
+    }
+    return null
+}
+
+export function saveSftpAccessChoice(choice: SftpAccessChoice) {
+    try {
+        window.localStorage.setItem(ACCESS_CHOICE_KEY, JSON.stringify(choice))
+    } catch {
+        // Storage may be blocked; the dialog still works without remembering.
+    }
+}
+
+export function clearSftpAccessChoice() {
+    try {
+        window.localStorage.removeItem(ACCESS_CHOICE_KEY)
+    } catch {
+        // Ignore storage failures.
+    }
+}
+
+/** Remember a connection that was actually used, including ones created on the fly. */
+export function rememberSftpAccessChoice(profileId?: string | null) {
+    if (!profileId) return
+    saveSftpAccessChoice(profileId === PLATFORM_SFTP_PROFILE_ID ? { mode: 'platform' } : { mode: 'profile', profileId })
+}
+
 
 export class ConnectionLimitError extends Error {
     constructor() {
@@ -98,9 +141,54 @@ export function forgetAppFileSession(identifier: string) {
     saveSessions(readAppFileSessions().filter((session) => session.session_id !== identifier))
 }
 
+/** Drop every browser-side session snapshot; used when the operator signs out. */
+export function resetSessionStorageSnapshots() {
+    try {
+        sessionStorage.removeItem(SESSIONS_KEY)
+        sessionStorage.removeItem(LEGACY_SESSION_KEY)
+        sessionStorage.removeItem('websoft9:app-files-route')
+        sessionStorage.removeItem('websoft9:app-files-path')
+        sessionStorage.removeItem(TERMINAL_WORKSPACE_STORAGE_KEY)
+    } catch {
+        // Ignore storage failures.
+    }
+    clearSftpAccessChoice()
+    try {
+        // Mounted pages must also drop their in-memory session state.
+        window.dispatchEvent(new Event(SESSION_RESET_EVENT))
+    } catch {
+        // Ignore event dispatch failures.
+    }
+}
+
 export function synchronizeAppFileProfiles(profileIds: string[]) {
     const available = new Set(profileIds)
     saveSessions(readAppFileSessions().map((session) => session.profile_id ? { ...session, profile_available: available.has(session.profile_id), ...(!available.has(session.profile_id) ? { status: 'ended' as const } : {}) } : session))
+}
+
+/**
+ * Re-check the stored application file sessions against the server.
+ *
+ * A restarted AppHub loses every session, exactly like terminal sessions. Marking
+ * them as ended keeps the tabs honest instead of showing a stale "connected" dot;
+ * the operator reopens them explicitly from the tab or the application.
+ */
+export async function verifyStoredAppFileSessions(): Promise<void> {
+    const sessions = readAppFileSessions()
+    if (!sessions.length) return
+    const ended: string[] = []
+    for (const session of sessions) {
+        if (session.status === 'ended') continue
+        try {
+            await request(`/api/host-access/app-files/${session.session_id}/tree?${new URLSearchParams({ path: session.root_path })}`)
+        } catch (error) {
+            if (error instanceof FileSessionError && (error.status === 403 || error.status === 404)) {
+                ended.push(session.session_id)
+            }
+        }
+    }
+    if (!ended.length) return
+    saveSessions(readAppFileSessions().map((session) => ended.includes(session.session_id) ? { ...session, status: 'ended' as const } : session))
 }
 
 function subscribe(listener: () => void) {
@@ -129,6 +217,7 @@ export function getAppFileErrorKey(error: unknown) {
     if (code === 'Local SSH Setup Revoked') return 'sftpAuthorizationRevoked'
     if (code === 'Host Access Profile Not Found' || message.includes('The requested host profile is unavailable for file operations')) return 'sftpConnectionUnavailable'
     if (code === 'SFTP Scope Denied') return 'sftpScopeDenied'
+    if (code === 'SFTP Account Conflict') return 'sftpAccountConflict'
     if (code === 'SFTP Account Unavailable') return 'sftpAuthorizationMissing'
     if (code === 'SFTP Path Unsupported' || code === 'SFTP Authorization Failed') return 'sftpDirectoryPermissionDenied'
     if (code === 'SFTP Container Not Running') return 'sftpConnectionUnavailable'
@@ -155,18 +244,31 @@ export async function closeAppFileSession(identifier: string) {
     forgetAppFileSession(identifier)
 }
 
-export function acquireAppFileSession(appId: string, volumeId: string, profileId?: string, options?: { elevate?: boolean; platform?: boolean }): Promise<AppFileSession> {
-    const elevate = Boolean(options?.elevate)
-    const usePlatform = Boolean(options?.platform)
-    const key = JSON.stringify([appId, volumeId, profileId || null, elevate, usePlatform])
+/** Close the server session without touching the stored entry.
+ *
+ * Replacing a session (stale id or a different connection) must keep the tab in
+ * place: removing the entry first makes the tab disappear and pop back.
+ */
+async function closeRemoteSessionQuietly(identifier: string) {
+    try {
+        await request(`/api/host-access/app-files/${identifier}/session`, { method: 'DELETE' })
+    } catch {
+        // The server may already have dropped it.
+    }
+}
+
+export function acquireAppFileSession(appId: string, volumeId: string, profileId?: string, options?: { platform?: boolean }): Promise<AppFileSession> {
+    const access = resolveAppFileAccess({ profileId, platform: options?.platform, remembered: readSftpAccessChoice() })
+    const { profileId: effectiveProfileId, usePlatform } = access
+    const key = JSON.stringify([appId, volumeId, effectiveProfileId || null, usePlatform])
     const existing = pending.get(key)
     if (existing) return existing
     const operation = (async () => {
-        const saved = elevate ? undefined : readAppFileSessions().find((session) => session.app_id === appId && session.volume_id === volumeId)
-        if (saved?.profile_available === false && (!profileId || saved.profile_id === profileId)) {
+        const saved = readAppFileSessions().find((session) => session.app_id === appId && session.volume_id === volumeId)
+        if (saved?.profile_available === false && (!effectiveProfileId || saved.profile_id === effectiveProfileId)) {
             throw new FileSessionError('The requested host profile is unavailable for file operations', 400, 'Host Access Profile Not Found')
         }
-        if (saved && (!profileId || saved.profile_id === profileId)) {
+        if (saved && (!effectiveProfileId || saved.profile_id === effectiveProfileId) && !usePlatform) {
             if (saved.status !== 'ended' && typeof saved.verified_at === 'number' && Date.now() - saved.verified_at < 60000) {
                 return { ...saved, status: 'connected' as const }
             }
@@ -177,16 +279,17 @@ export function acquireAppFileSession(appId: string, volumeId: string, profileId
                 return verified
             } catch (error) {
                 if (!(error instanceof FileSessionError && (error.status === 403 || error.status === 404 || error.code === 'Host Access Profile Not Found'))) throw error
-                forgetAppFileSession(saved.session_id)
+                // Keep the stored entry until the replacement session is saved, so
+                // the tab does not vanish and reappear while switching.
             }
         } else if (saved) {
-            await closeAppFileSession(saved.session_id)
+            void closeRemoteSessionQuietly(saved.session_id)
         }
         if (getWorkspaceConnectionCount() >= MAX_WORKSPACE_CONNECTIONS) throw new ConnectionLimitError()
         creating.add(key)
         try {
             const session = await request<AppFileSession>('/api/host-access/app-files/sessions', {
-                method: 'POST', body: JSON.stringify({ app_id: appId, volume_id: volumeId, profile_id: profileId || null, elevate, use_platform: usePlatform }),
+                method: 'POST', body: JSON.stringify({ app_id: appId, volume_id: volumeId, profile_id: effectiveProfileId || null, use_platform: usePlatform }),
             })
             creating.delete(key)
             const connected = { ...session, status: 'connected' as const, verified_at: Date.now() }

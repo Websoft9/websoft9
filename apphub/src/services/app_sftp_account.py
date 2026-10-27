@@ -20,6 +20,7 @@ from src.services.host_access import HOST_ACCESS_HOST, HOST_ACCESS_PORT
 logger = logging.getLogger(__name__)
 
 ACCOUNT_NAME = "websoft9-sftp"
+APP_ACCOUNT_PREFIX = "websoft9-"
 STATE_VERSION = 3
 
 
@@ -43,15 +44,16 @@ class AppSftpAccountService:
 
     def status(self) -> dict[str, Any]:
         state = self._read_state()
+        username = str(state.get("username") or "")
         ready = (
             bool(state)
             and self.key_file.is_file()
-            and str(state.get("username") or "") == ACCOUNT_NAME
+            and username.startswith(APP_ACCOUNT_PREFIX)
             and int(state.get("version") or 0) == STATE_VERSION
         )
         return {
             "state": "ready" if ready else "missing",
-            "account": ACCOUNT_NAME,
+            "account": username or ACCOUNT_NAME,
             "uid": state.get("uid") if state else None,
             "sshd_mode": state.get("sshd_mode") if state else None,
             "version": state.get("version") if state else None,
@@ -60,15 +62,16 @@ class AppSftpAccountService:
 
     def credentials(self) -> dict[str, Any]:
         state = self._read_state()
-        if not state or not self.key_file.is_file():
+        username = str(state.get("username") or "") if state else ""
+        if not state or not self.key_file.is_file() or not username:
             raise CustomException(409, "SFTP Account Unavailable", "The platform SFTP account is not prepared yet")
         private_key = self._read_private_key()
         return {
             "profile_id": "platform-sftp",
-            "name": ACCOUNT_NAME,
+            "name": username,
             "host": HOST_ACCESS_HOST,
             "port": int(state.get("port") or HOST_ACCESS_PORT),
-            "username": ACCOUNT_NAME,
+            "username": username,
             "auth_method": "key",
             "private_key": private_key,
             "passphrase": "",
@@ -148,6 +151,20 @@ class AppSftpAccountService:
             errors = container.logs(stdout=False, stderr=True).decode("utf-8", errors="replace").strip()
             if int(result.get("StatusCode", 1)) != 0:
                 detail = errors or output or "Host SFTP account preparation failed"
+                lowered = detail.lower()
+                if (
+                    'refusing to use it' in lowered
+                    or 'unexpected home directory' in lowered
+                    or 'privileged groups' in lowered
+                    or 'unexpected owner' in lowered
+                ):
+                    # A local account with our reserved name already exists but was
+                    # not created by the platform: never reuse or modify it.
+                    raise CustomException(
+                        409,
+                        "SFTP Account Conflict",
+                        "A local account named websoft9-sftp already exists but was not created by the platform. Remove or rename it, or use a local connection instead.",
+                    )
                 raise CustomException(409, "SFTP Account Unavailable", detail)
             try:
                 return json.loads(output.splitlines()[-1])

@@ -53,6 +53,8 @@ class HostAccessService:
     _identity_label_cache: dict[str, str] = {}
     _identity_source_cache: dict[str, dict[str, Any]] = {}
     _file_browser_clients: dict[str, dict[str, Any]] = {}
+    # Administrator mode for host file browsing, keyed by saved profile id.
+    _file_elevation: dict[str, dict[str, Any]] = {}
 
     def __init__(self, data_dir: Optional[str] = None, auth_service: Optional[ProductAuthService] = None):
         data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
@@ -319,6 +321,15 @@ class HostAccessService:
                     "DELETE FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
                     (operator["id"], profile_id),
                 )
+                self._file_elevation.pop(profile_id, None)
+                deleted_cache_entry = self._file_browser_clients.get(self._build_file_client_cache_key(deleted_profile))
+                deleted_elevated_sftp = deleted_cache_entry.get("elevated_sftp") if deleted_cache_entry else None
+                if deleted_elevated_sftp is not None:
+                    try:
+                        deleted_elevated_sftp.close()
+                    except Exception:
+                        pass
+                    deleted_cache_entry["elevated_sftp"] = None
 
                 remaining_rows = connection.execute(
                     "SELECT profile_id, is_default, updated_at FROM host_profiles WHERE operator_id = ? ORDER BY is_default DESC, updated_at DESC",
@@ -358,6 +369,26 @@ class HostAccessService:
                     self._close_terminal_session_locked(session_id)
 
         return self._get_profile_for_operator(operator["id"])
+
+    def close_operator_sessions(self, operator_id: str) -> int:
+        """End every interactive session owned by the operator (used on logout)."""
+        closed = 0
+        with self._lock:
+            for session_id, session in list(self._terminal_sessions.items()):
+                if session.get("operator_id") != operator_id:
+                    continue
+                self._close_terminal_session_locked(session_id)
+                closed += 1
+            profile_ids = {str(profile.get("profile_id") or "") for profile in self._list_operator_profiles(operator_id)}
+            runtime = self._runtime_profiles.get(operator_id)
+            if runtime:
+                profile_ids.add(str(runtime.get("profile_id") or ""))
+            for profile_id in profile_ids:
+                if profile_id:
+                    # Administrator mode never survives a logout.
+                    for key in [entry for entry in self._file_elevation if entry.endswith(f":{profile_id}")]:
+                        self._file_elevation.pop(key, None)
+        return closed
 
     def _revoke_local_ssh_credentials(self, profile: dict[str, Any]) -> None:
         credentials = self._read_local_ssh_credentials()
@@ -411,7 +442,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
             client = self._connect_client(profile)
             if str(credentials.get('username') or '').strip() not in ('', 'root'):
                 try:
-                    sftp = self._create_sftp_client(client, elevated=True)
+                    sftp = self._create_sftp_client(client)
                     try:
                         sftp.remove('/etc/sudoers.d/websoft9-local-sftp')
                     except OSError:
@@ -454,6 +485,188 @@ with os.fdopen(descriptor, 'r+b') as handle:
                 ).fetchone() is not None
         except sqlite3.Error:
             return False
+
+    def file_elevation_status(self, session_token: Optional[str], profile_id: Optional[str] = None, scope: str = 'host', app_id: Optional[str] = None, volume_id: Optional[str] = None) -> dict[str, Any]:
+        """Report whether file browsing can run in administrator mode.
+
+        Administrator mode is scoped: the host file browser and each application
+        file view keep independent state, so one never turns the other on.
+        """
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
+        key = self._elevation_key(profile, scope, app_id, volume_id)
+        return self._file_elevation_status(profile, key)
+
+    @staticmethod
+    def _elevation_key(profile: dict[str, Any], scope: str = 'host', app_id: Optional[str] = None, volume_id: Optional[str] = None) -> str:
+        profile_id = str(profile.get('profile_id') or '')
+        if scope == 'app':
+            return f"app:{app_id or ''}:{volume_id or ''}:{profile_id}"
+        return f"host:{profile_id}"
+
+    def set_file_elevation(self, session_token: Optional[str], payload: dict[str, Any]) -> dict[str, Any]:
+        """Enable or disable administrator mode for one saved connection.
+
+        The sudo password is kept in process memory only: it is never persisted,
+        logged or returned to the browser.
+        """
+        self.auth_service._require_authenticated_operator(session_token)
+        profile = self.get_connection_profile(session_token, profile_id=payload.get('profile_id'))
+        key = self._elevation_key(profile, str(payload.get('scope') or 'host'), payload.get('app_id'), payload.get('volume_id'))
+        enabled = bool(payload.get('enabled'))
+        if not self._supports_file_elevation(profile):
+            raise CustomException(403, 'SFTP Elevation Unavailable', 'Administrator mode is not available for this connection')
+        if not enabled:
+            self._clear_file_elevation(profile, key)
+            return self._file_elevation_status(profile, key)
+        status = self._file_elevation_status(profile, key)
+        if not status['can_elevate']:
+            raise CustomException(403, 'SFTP Elevation Unavailable', 'The saved SSH account cannot gain administrator privileges')
+        password = str(payload.get('password') or '')
+        if status['requires_password'] and not password:
+            raise CustomException(400, 'SFTP Elevation Password Required', 'Enter the sudo password for this SSH account')
+        effective_password = password if status['requires_password'] else ''
+        with self._open_file_client(profile) as client:
+            if status['requires_password'] and not self._verify_sudo_password(client, effective_password):
+                raise CustomException(403, 'SFTP Elevation Password Invalid', 'The sudo password was rejected')
+            if not self._elevated_sftp_works(client, effective_password or None):
+                raise CustomException(403, 'SFTP Elevation Password Invalid', 'The sudo password was rejected')
+        with self._lock:
+            self._file_elevation[key] = {'enabled': True, 'password': effective_password}
+            cache_entry = self._file_browser_clients.get(self._build_file_client_cache_key(profile))
+            cached_sftp = cache_entry.get('elevated_sftp') if cache_entry else None
+            if cached_sftp is not None:
+                try:
+                    cached_sftp.close()
+                except Exception:
+                    pass
+                cache_entry['elevated_sftp'] = None
+        return self._file_elevation_status(profile, key)
+
+    def _supports_file_elevation(self, profile: dict[str, Any]) -> bool:
+        if profile.get('managed') or not str(profile.get('profile_id') or '').strip():
+            return False
+        return str(profile.get('username') or '').strip() not in ('', 'root')
+
+    def _file_elevation_status(self, profile: dict[str, Any], key: Optional[str] = None) -> dict[str, Any]:
+        elevation_key = key or profile.get('_elevation_key') or self._elevation_key(profile, 'host')
+        profile_id = str(profile.get('profile_id') or '')
+        with self._lock:
+            entry = dict(self._file_elevation.get(elevation_key) or {})
+        status = {
+            'profile_id': profile_id,
+            'enabled': bool(entry.get('enabled')),
+            'can_elevate': False,
+            'requires_password': False,
+            'reason': 'unavailable',
+        }
+        if not self._supports_file_elevation(profile):
+            if status['enabled']:
+                self._clear_file_elevation(profile, elevation_key)
+            return {**status, 'enabled': False}
+        status.update(self._probe_file_elevation(profile))
+        if status['enabled'] and not status['can_elevate']:
+            self._clear_file_elevation(profile, elevation_key)
+            status['enabled'] = False
+        return status
+
+    def _probe_file_elevation(self, profile: dict[str, Any]) -> dict[str, Any]:
+        try:
+            with self._open_file_client(profile) as client:
+                if self._elevated_sftp_works(client, None):
+                    return {'can_elevate': True, 'requires_password': False, 'reason': 'passwordless'}
+                _, stdout, _ = client.exec_command('LC_ALL=C sudo -n -l 2>&1', timeout=10)
+                exit_code = stdout.channel.recv_exit_status()
+                output = stdout.read().decode('utf-8', 'replace').lower()
+        except CustomException:
+            raise
+        except Exception:
+            return {'can_elevate': False, 'requires_password': False, 'reason': 'unavailable'}
+        if (
+            'may not run sudo' in output
+            or 'not in the sudoers file' in output
+            or 'is not allowed to execute' in output
+            or 'command not found' in output
+        ):
+            return {'can_elevate': False, 'requires_password': False, 'reason': 'forbidden'}
+        # "a password is required" / "interactive authentication is required" /
+        # "a terminal is required" all mean sudo exists but needs a password.
+        if exit_code == 0 or 'authentication' in output or 'password' in output or 'terminal' in output or 'askpass' in output:
+            return {'can_elevate': True, 'requires_password': True, 'reason': 'password'}
+        return {'can_elevate': False, 'requires_password': False, 'reason': 'forbidden'}
+
+    def _open_file_sftp(self, client: paramiko.SSHClient, use_elevated: bool, sudo_password: str) -> paramiko.SFTPClient:
+        if use_elevated:
+            return self._create_sftp_client(client, sudo_password=sudo_password or None)
+        return client.open_sftp()
+
+    def _verify_sudo_password(self, client: paramiko.SSHClient, password: str) -> bool:
+        """Validate a sudo password without starting a file session.
+
+        ``sudo -v`` refreshes the credential timestamp only, so a wrong password
+        fails fast instead of leaving an ``sftp-server`` channel waiting for input.
+        """
+        if not password:
+            return False
+        transport = client.get_transport() if hasattr(client, "get_transport") else None
+        if transport is None or not hasattr(transport, "open_session"):
+            return False
+        channel = None
+        try:
+            channel = transport.open_session()
+            channel.settimeout(10)
+            channel.exec_command('LC_ALL=C sudo -S -k -p "" -v 2>&1')
+            channel.sendall(f"{password}\n")
+            deadline = time.time() + 10
+            while not channel.exit_status_ready():
+                while channel.recv_ready():
+                    channel.recv(4096)
+                while channel.recv_stderr_ready():
+                    channel.recv_stderr(4096)
+                if time.time() > deadline:
+                    return False
+                time.sleep(0.05)
+            return channel.exit_status == 0
+        except Exception:
+            return False
+        finally:
+            if channel is not None:
+                try:
+                    channel.close()
+                except Exception:
+                    pass
+
+    def _elevated_sftp_works(self, client: paramiko.SSHClient, password: Optional[str]) -> bool:
+        try:
+            sftp = self._create_sftp_client(client, sudo_password=password)
+        except CustomException:
+            return False
+        except Exception:
+            return False
+        try:
+            sftp.close()
+        except Exception:
+            pass
+        return True
+
+    def _clear_file_elevation(self, profile: dict[str, Any], key: str) -> None:
+        with self._lock:
+            self._file_elevation.pop(key, None)
+            cache_entry = self._file_browser_clients.get(self._build_file_client_cache_key(profile))
+            cached_sftp = cache_entry.get('elevated_sftp') if cache_entry else None
+            if cached_sftp is not None:
+                try:
+                    cached_sftp.close()
+                except Exception:
+                    pass
+                cache_entry['elevated_sftp'] = None
+
+    def _resolve_file_elevation(self, profile: dict[str, Any], key: Optional[str] = None) -> tuple[bool, str]:
+        elevation_key = key or profile.get('_elevation_key') or self._elevation_key(profile, 'host')
+        with self._lock:
+            entry = self._file_elevation.get(elevation_key)
+            if entry and entry.get('enabled'):
+                return True, str(entry.get('password') or '')
+        return False, ''
 
     def list_directory(self, session_token: Optional[str], path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
@@ -1133,54 +1346,65 @@ with os.fdopen(descriptor, 'r+b') as handle:
                         cached_entry["last_used_at"] = time.time()
 
     @contextmanager
-    def _open_sftp(self, profile: dict[str, Any], *, elevated: bool = False) -> Iterator[paramiko.SFTPClient]:
+    def _open_sftp(self, profile: dict[str, Any]) -> Iterator[paramiko.SFTPClient]:
         """SFTP context manager with one automatic retry on transient transport failure."""
         with ExitStack() as stack:
             try:
-                sftp = stack.enter_context(self._open_sftp_impl(profile, elevated=elevated))
+                sftp = stack.enter_context(self._open_sftp_impl(profile))
             except CustomException as exc:
                 if exc.status_code == 500:
                     # Transport died between is_active() check and open_sftp() (TOCTOU).
                     # Cache was evicted by _open_file_client's exception handler.
                     # Retry once with a fresh connection.
-                    sftp = stack.enter_context(self._open_sftp_impl(profile, elevated=elevated))
+                    sftp = stack.enter_context(self._open_sftp_impl(profile))
                 else:
                     raise
             yield sftp
 
-    def _create_sftp_client(self, client: paramiko.SSHClient, *, elevated: bool = False) -> paramiko.SFTPClient:
-        if elevated:
-            transport = client.get_transport() if hasattr(client, "get_transport") else None
-            if transport is not None and hasattr(transport, "open_session"):
-                channel = None
+    def _create_sftp_client(self, client: paramiko.SSHClient, *, sudo_password: Optional[str] = None) -> paramiko.SFTPClient:
+        """Open an SFTP channel for the saved account.
+
+        Without ``sudo_password`` the channel only reuses passwordless sudo rules;
+        with it the password is piped to ``sudo -S`` once and never stored here.
+        """
+        transport = client.get_transport() if hasattr(client, "get_transport") else None
+        if transport is None or not hasattr(transport, "open_session"):
+            raise CustomException(403, "SFTP Elevation Failed", "The saved SSH account cannot gain administrator privileges")
+        sudo_prefix = 'sudo -S -p ""' if sudo_password else 'sudo -n'
+        command = (
+            'for p in /usr/lib/openssh/sftp-server /usr/libexec/openssh/sftp-server '
+            '/usr/lib/ssh/sftp-server /usr/lib/sftp-server; '
+            f'do [ -x "$p" ] && exec {sudo_prefix} "$p"; done; exit 127'
+        )
+        channel = None
+        try:
+            channel = transport.open_session()
+            # Guard the handshake so an unexpected password retry cannot hang the request.
+            channel.settimeout(15)
+            channel.exec_command(command)
+            if sudo_password:
+                channel.sendall(f"{sudo_password}\n".encode("utf-8"))
+            sftp = paramiko.SFTPClient(channel)
+            sftp.stat(".")
+            channel.settimeout(None)
+            return sftp
+        except Exception as error:
+            if channel is not None:
                 try:
-                    channel = transport.open_session()
-                    if channel is not None:
-                        channel.exec_command(
-                            "sh -c 'for p in "
-                            "/usr/lib/openssh/sftp-server "
-                            "/usr/libexec/openssh/sftp-server "
-                            "/usr/lib/ssh/sftp-server "
-                            "/usr/lib/sftp-server; "
-                            'do [ -x "$p" ] && exec sudo -n "$p"; done; exit 127\''
-                        )
-                        return paramiko.SFTPClient(channel)
+                    channel.close()
                 except Exception:
-                    if channel is not None:
-                        try:
-                            channel.close()
-                        except Exception:
-                            pass
-        return client.open_sftp()
+                    pass
+            raise CustomException(403, "SFTP Elevation Failed", "The saved SSH account could not gain administrator privileges") from error
 
     @contextmanager
-    def _open_sftp_impl(self, profile: dict[str, Any], *, elevated: bool = False) -> Iterator[paramiko.SFTPClient]:
+    def _open_sftp_impl(self, profile: dict[str, Any]) -> Iterator[paramiko.SFTPClient]:
         cache_key = self._build_file_client_cache_key(profile)
         client: Optional[paramiko.SSHClient] = None
         sftp: Optional[paramiko.SFTPClient] = None
         cache_entry: Optional[dict[str, Any]] = None
         entry_lock: Optional[threading.RLock] = None
         should_close_on_exit = False
+        elevated, sudo_password = self._resolve_file_elevation(profile)
         use_elevated = bool(elevated and str(profile.get("username") or "").strip() not in ("", "root"))
         sftp_key = "elevated_sftp" if use_elevated else "sftp"
         try:
@@ -1209,10 +1433,10 @@ with os.fdopen(descriptor, 'r+b') as handle:
                                     cached_sftp.close()
                                 except Exception:
                                     pass
-                            sftp = self._create_sftp_client(client, elevated=use_elevated)
+                            sftp = self._open_file_sftp(client, use_elevated, sudo_password)
                             cache_entry[sftp_key] = sftp
                     else:
-                        sftp = self._create_sftp_client(client, elevated=use_elevated)
+                        sftp = self._open_file_sftp(client, use_elevated, sudo_password)
                         should_close_on_exit = True
 
                     yield sftp

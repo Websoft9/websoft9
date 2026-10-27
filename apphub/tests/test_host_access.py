@@ -1110,6 +1110,77 @@ def test_host_ssh_preparation_configures_and_rolls_back_sftp_sudoers_for_non_roo
     assert f"ubuntu ALL=(root) NOPASSWD: {sftp_binary}" in sudoers_file.read_text()
 
 
+def test_file_elevation_status_skips_managed_and_root(tmp_path):
+    HostAccessService._file_elevation.clear()
+    host = HostAccessService(data_dir=str(tmp_path / "host-access"), auth_service=FakeAuthService())
+    managed = host._file_elevation_status({"profile_id": "platform-sftp", "username": "websoft9-sftp", "managed": True})
+    assert managed["can_elevate"] is False
+    assert managed["enabled"] is False
+    assert host._file_elevation_status({"profile_id": "root-profile", "username": "root"})["can_elevate"] is False
+
+
+def test_file_elevation_keeps_sudo_password_in_memory(tmp_path):
+    HostAccessService._file_elevation.clear()
+    host = HostAccessService(data_dir=str(tmp_path / "host-access"), auth_service=FakeAuthService())
+    profile = {"profile_id": "saved-1", "username": "ubuntu", "auth_method": "key"}
+    host.get_connection_profile = lambda token, profile_id=None: profile
+    host._probe_file_elevation = lambda value: {"can_elevate": True, "requires_password": True, "reason": "password"}
+    attempts = []
+
+    @contextmanager
+    def open_client(value):
+        yield object()
+
+    def elevated_works(client, password):
+        attempts.append(password)
+        return password == "secret"
+
+    host._open_file_client = open_client
+    host._verify_sudo_password = lambda client, password: password == "secret"
+    host._elevated_sftp_works = elevated_works
+
+    with pytest.raises(CustomException) as missing:
+        host.set_file_elevation("valid-session", {"enabled": True, "profile_id": "saved-1", "password": ""})
+    assert missing.value.status_code == 400
+
+    with pytest.raises(CustomException) as rejected:
+        host.set_file_elevation("valid-session", {"enabled": True, "profile_id": "saved-1", "password": "wrong"})
+    assert rejected.value.status_code == 403
+    assert "host:saved-1" not in HostAccessService._file_elevation
+
+    status = host.set_file_elevation("valid-session", {"enabled": True, "profile_id": "saved-1", "password": "secret"})
+    assert status["enabled"] is True
+    assert attempts[-1] == "secret"
+    assert HostAccessService._file_elevation["host:saved-1"] == {"enabled": True, "password": "secret"}
+
+    disabled = host.set_file_elevation("valid-session", {"enabled": False, "profile_id": "saved-1"})
+    assert disabled["enabled"] is False
+    assert "host:saved-1" not in HostAccessService._file_elevation
+
+
+def test_file_elevation_is_scoped_per_view(tmp_path):
+    HostAccessService._file_elevation.clear()
+    host = HostAccessService(data_dir=str(tmp_path / "host-access"), auth_service=FakeAuthService())
+    profile = {"profile_id": "saved-2", "username": "ubuntu", "auth_method": "key"}
+    host.get_connection_profile = lambda token, profile_id=None: profile
+    host._probe_file_elevation = lambda value: {"can_elevate": True, "requires_password": False, "reason": "passwordless"}
+
+    @contextmanager
+    def open_client(value):
+        yield object()
+
+    host._open_file_client = open_client
+    host._elevated_sftp_works = lambda client, password: True
+
+    host.set_file_elevation("valid-session", {"enabled": True, "profile_id": "saved-2"})
+    assert host._file_elevation_status(profile, host._elevation_key(profile, 'host'))["enabled"] is True
+    assert host._file_elevation_status(profile, host._elevation_key(profile, 'app', 'app-1', 'vol-1'))["enabled"] is False
+
+    host.set_file_elevation("valid-session", {"enabled": True, "profile_id": "saved-2", "scope": "app", "app_id": "app-1", "volume_id": "vol-1"})
+    assert host._file_elevation_status(profile, host._elevation_key(profile, 'app', 'app-1', 'vol-1'))["enabled"] is True
+    assert host._file_elevation_status(profile, host._elevation_key(profile, 'app', 'app-2', 'vol-1'))["enabled"] is False
+
+
 def test_app_sftp_never_elevates_sftp(tmp_path):
     from src.services.app_sftp import open_host_sftp
 
@@ -1129,22 +1200,3 @@ def test_app_sftp_never_elevates_sftp(tmp_path):
         assert isinstance(sftp, LocalTestSftp)
     assert captured["profile"]["username"] == "websoft9-sftp"
     assert captured["kwargs"] == {}
-
-
-def test_app_sftp_elevation_is_explicit_opt_in(tmp_path):
-    from src.services.app_sftp import open_host_sftp
-
-    root = tmp_path / "volume"
-    root.mkdir()
-    host = HostAccessService(data_dir=str(tmp_path / "host-access"), auth_service=FakeAuthService())
-    captured = {}
-
-    @contextmanager
-    def open_sftp(profile, **kwargs):
-        captured["kwargs"] = kwargs
-        yield LocalTestSftp(root)
-
-    host._open_sftp = open_sftp
-    with open_host_sftp(host, {"username": "ubuntu", "auth_method": "key"}, elevated=True):
-        pass
-    assert captured["kwargs"] == {"elevated": True}
