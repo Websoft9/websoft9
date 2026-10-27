@@ -5,6 +5,30 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.4] - 2026-10-27
+
+### Added
+- **Administrator Mode for File Browsing** — Elevate an SSH connection with `sudo` to read and write application directories, using passwordless sudo when available or a one-time password that stays in memory only.
+- **Scoped Elevation** — Keep administrator mode per connection and per application volume instead of one global flag, so enabling it on one connection never changes another.
+- **Connection Switching** — Switch the connection used by an open application file session from the workspace, without closing the workspace or losing other tabs.
+- **Session Restore Tests** — Add Playwright unit and end-to-end suites plus backend tests covering elevation, session cleanup and terminal view isolation.
+
+### Changed
+- **Application File Access** — Choose the platform account or an existing local connection in one dialog, keep the last choice, and reuse it the next time application files are opened.
+- **Terminal and Files Views** — Remember the active view per connection, so switching connections no longer switches every other connection between Terminal and Files.
+- **Session Lifecycle** — Signing out now closes server-side terminal and application file sessions and clears browser snapshots; sessions that the server no longer knows are marked as ended instead of reported as connected.
+- **Platform SFTP Account** — Reuse the existing `websoft9-sftp` account when it is compliant and pick a `websoft9-<suffix>` name on conflict, with state files tracked by name.
+- **SFTP Dialogs** — Show connection rows on one line, keep the platform account description short and drop the duplicated elevation controls from the application SFTP dialog.
+
+### Fixed
+- **Account Drift** — Stop application file sessions from silently falling back to another saved connection, such as `local` or `root`, after the selected connection was deleted; the request now fails with `Host Access Profile Not Found` instead.
+- **Host List** — Keep the host list open when a connection is deleted from it.
+- **Remembered Connection** — Remember connections created on the fly while opening application files, so the next attempt does not ask again.
+- **Session Tabs** — Keep the tab strip visible during workspace bootstrap and while a stale session is replaced, so the tab count no longer dips while switching.
+- **Password Elevation** — Validate the sudo password before opening the file channel and bound channel timeouts, so an invalid password reports an error instead of hanging.
+- **Elevation Detection** — Classify passwordless, password and forbidden sudo states correctly, including `interactive authentication is required` responses.
+- **Application Volume Access** — Create the session even when the directory is not readable yet, and report the permission problem in the file browser instead of failing the connection.
+
 ## [2.4.3] - 2026-10-23
 
 ### Added
