@@ -37,6 +37,7 @@ import { PrewarmResumeDialog } from '../../shared/design-system/prewarm-resume-d
 import { SurfaceFeedbackToast, SurfaceNoticeAlert, SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { UnifiedAppCard } from '../../shared/design-system/unified-app-card'
+import { getContentScopeContainer, useContentScopeRect, type ContentScopeRect } from '../../shared/hooks/useContentScopeRect'
 import { useAppColorMode } from '../../app/providers/color-mode'
 import {
     getAppStoreInstallDistributions,
@@ -708,16 +709,9 @@ type AppStorePageProps = {
     hideInstallSourceSelector?: boolean
 }
 
-type ContentViewportRect = {
-    top: number
-    left: number
-    width: number
-    height: number
-}
-
 type AppStoreScopedOverlayProps = {
     open: boolean
-    scopeRect: ContentViewportRect | null
+    scopeRect: ContentScopeRect | null
     onClose: () => void
     maxWidth?: number
     preferredHeight?: number
@@ -933,7 +927,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [isSubmittingCompose, setIsSubmittingCompose] = useState(false)
     const [isFavoritesOpen, setIsFavoritesOpen] = useState(false)
     const [detailDialogSource, setDetailDialogSource] = useState<DetailDialogSource>('catalog')
-    const [contentViewportRect, setContentViewportRect] = useState<ContentViewportRect | null>(null)
     const previousSyncStatusRef = useRef<AppStoreSyncStatusResponse['status'] | null>(null)
     const appIdInputRef = useRef<HTMLInputElement | null>(null)
     const customDomainInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
@@ -1017,7 +1010,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const directOpenAppKey = typeof location.state === 'object' && location.state && 'openAppKey' in location.state && typeof location.state.openAppKey === 'string'
         ? location.state.openAppKey.trim().toLowerCase()
         : ''
-    const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
+    const contentScopeContainer = getContentScopeContainer()
+    // Overlays are portalled out of the content area, so the rectangle they are anchored to has to
+    // follow every layout change instead of being captured once when a dialog opens.
+    const { rect: contentViewportRect, refresh: refreshContentViewport } = useContentScopeRect(contentScopeContainer)
     const favoriteSet = useMemo(() => new Set((favoritesData?.favorites ?? []).map((item) => item.toLowerCase())), [favoritesData?.favorites])
     const selectedAppSettings = useMemo(() => {
         const selectedAppKey = (selectedApp?.key ?? '').toLowerCase()
@@ -1747,29 +1743,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         )
     }
 
-    function captureContentViewport() {
-        if (!(contentScopeContainer instanceof HTMLElement)) {
-            setContentViewportRect(null)
-            return
-        }
-
-        const rect = contentScopeContainer.getBoundingClientRect()
-
-        setContentViewportRect({
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-        })
-    }
-
     function openFavoritesDialog() {
-        captureContentViewport()
+        refreshContentViewport()
         setIsFavoritesOpen(true)
     }
 
     function openAppDetail(app: AppStoreApp, source: DetailDialogSource) {
-        captureContentViewport()
+        refreshContentViewport()
         setDetailDialogSource(source)
         setSelectedApp(app)
     }
@@ -2103,7 +2083,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         setInstallFieldErrors({})
         setCustomDomainErrorIndex(null)
         setDetailDialogSource('catalog')
-        setContentViewportRect(null)
 
         if (shouldRestoreFavorites) {
             openFavoritesDialog()
@@ -2431,7 +2410,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             // proceed even if status check fails
         }
 
-        captureContentViewport()
+        refreshContentViewport()
         setRefreshConfirmOpen(true)
     }
 
@@ -2482,7 +2461,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             setIsInstallMode(false)
             setInstallError(null)
             setDetailDialogSource('catalog')
-            setContentViewportRect(null)
 
             if (shouldRestoreFavorites) {
                 openFavoritesDialog()

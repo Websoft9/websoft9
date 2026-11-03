@@ -22,6 +22,7 @@ import { useAppColorMode } from '../../app/providers/color-mode'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
+import { useContentScopeRect, getContentScopeContainer, type ContentScopeRect } from '../../shared/hooks/useContentScopeRect'
 import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
 import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { clearMyAppsDetailOverlayIntent, markMyAppsDetailOverlayIntent } from './my-app-detail-overlay-intent'
@@ -40,13 +41,6 @@ type ActionFeedback = {
     severity: 'success' | 'warning' | 'info'
     message: string
     cancellingInstallKey?: string
-}
-
-type ContentScopeRect = {
-    top: number
-    left: number
-    width: number
-    height: number
 }
 
 function getStatusLabel(status: number): string {
@@ -520,7 +514,7 @@ function LogDialog({
                             {isInstalling && idx === trailingStages.length - 1 ? (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: '44px', py: 0.5, color: dialogPalette.subtleText }}>
                                     <CircularProgress size={12} thickness={5} sx={{ color: dialogPalette.accent }} />
-                                    <Box component="span" sx={{ fontSize: 12 }}>{ `${stageTitle(stage.title)}...` }</Box>
+                                    <Box component="span" sx={{ fontSize: 12 }}>{`${stageTitle(stage.title)}...`}</Box>
                                 </Box>
                             ) : null}
                         </Box>
@@ -600,7 +594,6 @@ export function MyAppsPage() {
     const [actionBusy, setActionBusy] = useState(false)
     const [feedback, setFeedback] = useState<ActionFeedback | null>(null)
     const [manualRefreshing, setManualRefreshing] = useState(false)
-    const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
     const prefetchedActiveAppSignatureRef = useRef<string | null>(null)
 
     const { data, error, isLoading, refetch } = useMyApps()
@@ -625,7 +618,8 @@ export function MyAppsPage() {
             pb: { xs: 1.5, md: 2.5 },
         },
     }), [])
-    const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
+    const contentScopeContainer = getContentScopeContainer()
+    const { rect: contentScopeRect } = useContentScopeRect(contentScopeContainer)
 
     function closeAllMyAppsOverlays() {
         clearMyAppsDetailOverlayIntent()
@@ -647,29 +641,6 @@ export function MyAppsPage() {
             setManualRefreshing(false)
         }
     }
-
-    useEffect(() => {
-        if (!(contentScopeContainer instanceof HTMLElement)) {
-            setContentScopeRect(null)
-            return
-        }
-
-        const updateScopeRect = () => {
-            const rect = contentScopeContainer.getBoundingClientRect()
-            setContentScopeRect({
-                top: rect.top,
-                left: rect.left,
-                width: rect.width,
-                height: rect.height,
-            })
-        }
-
-        updateScopeRect()
-        window.addEventListener('resize', updateScopeRect)
-        return () => {
-            window.removeEventListener('resize', updateScopeRect)
-        }
-    }, [contentScopeContainer])
 
     useEffect(() => {
         if (apps.length === 0) return

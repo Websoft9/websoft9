@@ -153,6 +153,10 @@
 
 /* ── Content card – matches app-detail overview card style ── */
 .settings-module-card {
+    /* Form rows below size themselves against this card, not the viewport: the sidebar plus the
+       settings nav leave roughly half a window of content, so viewport queries collapse far too
+       late and the field controls end up only a few dozen pixels wide. */
+    container-type: inline-size;
     overflow: hidden;
     background: transparent;
     border: 1px solid var(--shell-surface-border, #eef2f7);
@@ -1359,6 +1363,32 @@
 }
 
 /* ── Responsive ──────────────────────────── */
+/*
+ * Container query on the module card: a 1200px window only leaves ~620px of card because of the
+ * sidebar and the settings nav, and a 1000px window leaves ~420px. Collapsing there keeps the
+ * label / control / actions columns readable, while wide windows keep the compact multi-column rows.
+ */
+@container (max-width: 560px) {
+    .settings-form-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .settings-form-label {
+        padding-top: 0;
+    }
+
+    .settings-form-actions {
+        justify-content: flex-start;
+        min-width: 0;
+    }
+
+    .settings-form-row--two-col,
+    .settings-form-row--three-col {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 @media (max-width: 899px) {
     .settings-page-grid {
         grid-template-columns: minmax(0, 1fr);

@@ -115,6 +115,10 @@
 }
 
 .myapps-detail-shell {
+    /* The shell is 95% of the content area, not of the window, so its own width has to drive the
+       responsive layout: at a 1000px window the shell is only ~710px and the fixed 216px tab rail
+       left ~467px for tables, which squeezed their headers into three or four lines. */
+    container-type: inline-size;
     width: min(95%, 1440px);
     margin: 0 auto;
     background: var(--myapps-detail-shell-bg);
@@ -830,7 +834,10 @@
     padding: 6px 16px 12px;
 }
 
+/* The database table is wider than a narrow panel; the card itself clips for its rounded corners,
+   so the body has to own the horizontal scroll or the last columns become unreachable. */
 .myapps-volume-database-card-body {
+    overflow-x: auto;
     padding: 0;
 }
 
@@ -1403,6 +1410,19 @@
 .myapps-detail-table {
     width: 100%;
     border-collapse: collapse;
+}
+
+/*
+ * The container list has eight columns. Leave them their natural width and let the surrounding
+ * `.myapps-table-wrap` scroll, instead of compressing every header and date into three lines.
+ */
+.myapps-container-runtime-card .myapps-detail-table {
+    min-width: 880px;
+}
+
+.myapps-container-runtime-card .myapps-detail-table th,
+.myapps-container-runtime-card .myapps-detail-table td {
+    white-space: nowrap;
 }
 
 .myapps-detail-table th,
@@ -2643,7 +2663,12 @@
     }
 }
 
-@media (max-width: 900px) {
+/*
+ * Container query on the shell (not the viewport): the tab rail is 216px wide, so below a ~820px
+ * shell the remaining content column is too narrow for the detail tables. Stacking the rail on top
+ * gives the content the full shell width instead of squeezing it into a few hundred pixels.
+ */
+@container (max-width: 820px) {
     .myapps-detail-body {
         padding: 16px;
     }
@@ -2657,6 +2682,24 @@
         min-width: 0;
         border-right: 0;
         padding-right: 0;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--myapps-detail-border);
+    }
+
+    /* Stacked rail: a wrapped row of tabs keeps the panel readable instead of spending seven
+       full-width rows on navigation. */
+    .myapps-detail-nav-col .nav,
+    .myapps-detail-nav-col .nav-pills,
+    .myapps-detail-nav-col .flex-column {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .myapps-detail-nav-col .nav-link {
+        width: auto;
+        flex: 0 0 auto;
+        text-align: center;
     }
 
     .myapps-detail-content-col {

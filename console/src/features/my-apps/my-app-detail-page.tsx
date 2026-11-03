@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
+import { getContentScopeContainer, useContentScopeRect } from '../../shared/hooks/useContentScopeRect'
 import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
 import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { LegacyMyAppLogo } from './my-app-media'
@@ -79,13 +80,6 @@ const MAX_CUSTOM_FIELDS = 10
 
 type MyAppsDetailLocationState = {
     backgroundScrollTop?: number
-}
-
-type ContentScopeRect = {
-    top: number
-    left: number
-    width: number
-    height: number
 }
 
 function getDetailDialogPalette(darkMode: boolean) {
@@ -732,7 +726,6 @@ export function MyAppDetailPage() {
     const [phpTargetVersion, setPhpTargetVersion] = useState('')
     const [phpMigrationRemarks, setPhpMigrationRemarks] = useState('')
     const [phpMigrationSubmitting, setPhpMigrationSubmitting] = useState(false)
-    const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
     const [activeVolumeFileManager, setActiveVolumeFileManager] = useState<{ volumeId: string; label: string; path: string } | null>(null)
     const [sftpVolumeId, setSftpVolumeId] = useState<string | null>(() => searchParams.get('sftp_volume'))
     const [customFields, setCustomFields] = useState<Array<{ field_name: string; field_value: string; field_type: string }>>([])
@@ -828,7 +821,8 @@ export function MyAppDetailPage() {
     const isDarkMode = colorMode === 'dark'
     const surfacePalette = getSurfacePalette(isDarkMode)
     const dialogPalette = getDetailDialogPalette(isDarkMode)
-    const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
+    const contentScopeContainer = getContentScopeContainer()
+    const { rect: contentScopeRect } = useContentScopeRect(contentScopeContainer)
     const detailSurfaceVars = useMemo(() => ({
         '--myapps-detail-shell-bg': surfacePalette.dialogBg,
         '--myapps-detail-surface': surfacePalette.panelBg,
@@ -967,26 +961,7 @@ export function MyAppDetailPage() {
             return
         }
 
-        const restoreScrollTop = typeof locationState?.backgroundScrollTop === 'number' ? locationState.backgroundScrollTop : contentScopeContainer.scrollTop
-
-        contentScopeContainer.scrollTop = restoreScrollTop
-
-        const updateScopeRect = () => {
-            const rect = contentScopeContainer.getBoundingClientRect()
-            setContentScopeRect({
-                top: rect.top,
-                left: rect.left,
-                width: rect.width,
-                height: rect.height,
-            })
-        }
-
-        updateScopeRect()
-
-        window.addEventListener('resize', updateScopeRect)
-        return () => {
-            window.removeEventListener('resize', updateScopeRect)
-        }
+        contentScopeContainer.scrollTop = typeof locationState?.backgroundScrollTop === 'number' ? locationState.backgroundScrollTop : contentScopeContainer.scrollTop
     }, [contentScopeContainer, locationState?.backgroundScrollTop])
 
     useEffect(() => {

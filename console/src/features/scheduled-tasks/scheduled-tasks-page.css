@@ -167,7 +167,13 @@
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
 }
 
+/*
+ * The table below keeps a 1080px minimum width, so this column has to be allowed to shrink past
+ * that minimum. Without it the column grows wider than the frame, `overflow: hidden` above clips
+ * the right side of the table and the panel never gets a horizontal scrollbar.
+ */
 .scheduled-tasks-list-content {
+    min-width: 0;
     padding: 12px;
 }
 
