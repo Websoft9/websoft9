@@ -137,12 +137,8 @@ function formatExpiryDate(isoString: string, locale: string): string {
     if (isNaN(date.getTime())) return ''
     const isZh = String(locale || '').toLowerCase().startsWith('zh')
     if (isZh) {
-        const y = date.getFullYear()
-        const m = date.getMonth() + 1
-        const d = date.getDate()
-        const hh = String(date.getHours()).padStart(2, '0')
-        const mm = String(date.getMinutes()).padStart(2, '0')
-        return `${y}年${m}月${d}日 ${hh}:${mm}`
+        // Let Intl produce the locale date pattern instead of spelling it out here.
+        return new Intl.DateTimeFormat(locale || undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
     }
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
     const day = date.getDate()
@@ -157,16 +153,16 @@ function formatExpiryDate(isoString: string, locale: string): string {
 
 function formatCertificateLabel(
     certificate: { nice_name?: string | null; domain_names?: string[]; provider?: string | null; expires_on?: string | null } | null | undefined,
-    locale?: string,
+    locale: string,
+    t: (key: string, options?: Record<string, unknown>) => string,
 ) {
     if (!certificate) return ''
     const name = certificate.nice_name?.trim() || certificate.domain_names?.join(', ') || certificate.provider?.trim() || ''
     if (!name) return ''
     if (certificate.expires_on) {
-        const expiryLabel = formatExpiryDate(certificate.expires_on, locale || '')
+        const expiryLabel = formatExpiryDate(certificate.expires_on, locale)
         if (expiryLabel) {
-            const isZh = String(locale || '').toLowerCase().startsWith('zh')
-            return isZh ? `${name}（过期：${expiryLabel}）` : `${name} (Expires: ${expiryLabel})`
+            return t('myAppsDetailPage.accessPanel.certificateExpires', { name, expires: expiryLabel })
         }
     }
     return name
@@ -305,7 +301,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
         () => data?.certificates.find((certificate) => certificate.id === currentProxyHost?.certificate_id) ?? null,
         [currentProxyHost?.certificate_id, data?.certificates],
     )
-    const currentCertificateLabel = currentProxyHost?.certificate_name || formatCertificateLabel(currentCertificate, i18n.resolvedLanguage)
+    const currentCertificateLabel = currentProxyHost?.certificate_name || formatCertificateLabel(currentCertificate, i18n.resolvedLanguage ?? 'en', t)
     const containerOptions = useMemo(() => {
         const seen = new Set<string>()
         return (data?.candidates ?? []).filter((candidate) => {
@@ -1531,7 +1527,7 @@ ${customCertIntermediate.trim()}`
                                                 <option value="none">{t('myAppsDetailPage.accessPanel.selectCertPlaceholder')}</option>
                                                 {availableCertificates.map((cert) => (
                                                     <option key={cert.id} value={cert.id}>
-                                                        {formatCertificateLabel(cert, i18n.resolvedLanguage) || `#${cert.id}`}
+                                                        {formatCertificateLabel(cert, i18n.resolvedLanguage ?? 'en', t) || `#${cert.id}`}
                                                     </option>
                                                 ))}
                                             </select>

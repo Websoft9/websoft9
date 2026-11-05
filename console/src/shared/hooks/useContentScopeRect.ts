@@ -39,7 +39,13 @@ function readScopeRect(element: HTMLElement | null): ContentScopeRect | null {
     }
 }
 
-function isSameScopeRect(left: ContentScopeRect | null, right: ContentScopeRect | null) {
+/**
+ * Reports whether two measurements describe the same rectangle.
+ *
+ * Exported so the de-duplication rule (which keeps continuous resizing from re-rendering on every
+ * pixel) can be asserted without a DOM.
+ */
+export function isSameScopeRect(left: ContentScopeRect | null, right: ContentScopeRect | null) {
     if (!left || !right) {
         return left === right
     }
