@@ -6,7 +6,7 @@
 # Output: install/dist/install.sh, install/dist/uninstall.sh (self-contained)
 # 
 # Usage:
-#   bash install/build-bundle.sh [--channel <release|rc|dev>] [output directory]
+#   bash install/build-bundle.sh [--channel <release|dev>] [output directory]
 #   Default channel: release  Default output directory: install/dist
 
 set -euo pipefail
@@ -31,8 +31,8 @@ done
 [ -z "$OPT_CHANNEL" ] && OPT_CHANNEL="release"
 
 case "$OPT_CHANNEL" in
-  release|rc|dev) ;;
-  *) log "Error: unsupported channel ${OPT_CHANNEL} (expected release, rc, or dev)"; exit 2 ;;
+  release|dev) ;;
+  *) log "Error: unsupported channel ${OPT_CHANNEL} (expected release or dev)"; exit 2 ;;
 esac
 
 BEGIN_MARK="# >>> WEBSOFT9_LIB_SOURCING >>>"

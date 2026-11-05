@@ -36,7 +36,7 @@ SCHEMA_VERSION_COMPAT="$(jq -r '.compatibility.schemaVersion // empty' "$MANIFES
 [[ "$SCHEMA_VERSION" == "1" ]] || fail "schemaVersion must be 1"
 [[ -n "$DATASET_VERSION" ]] || fail "datasetVersion must not be empty"
 [[ "$DATASET_VERSION" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{6}$ ]] || fail "datasetVersion format is invalid: $DATASET_VERSION"
-[[ "$CHANNEL" =~ ^(dev|rc|release)$ ]] || fail "channel must be dev, rc, or release"
+[[ "$CHANNEL" =~ ^(dev|release)$ ]] || fail "channel must be dev or release"
 [[ -n "$LIBRARY_PACKAGE" ]] || fail "libraryPackage must not be empty"
 [[ -n "$CHECKSUM_FILE" ]] || fail "checksum.libraryPackage must not be empty"
 [[ -n "$GENERATED_AT" ]] || fail "generatedAt must not be empty"

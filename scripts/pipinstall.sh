@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+# Sourced helper library: no shebang on purpose, callers run it from bash.
 function pipInstall() {
   requirementsFile=$1
   declare -a mirrors=(
@@ -13,7 +15,7 @@ function pipInstall() {
   time=-1
   fastMirror=""
   for url in "${mirrors[@]}"; do
-    SPEED_DOWNLOAD=$(curl --location --range 0-102400 --max-time 8 --silent --write-out %{speed_download} --output /dev/null "${url}")
+    SPEED_DOWNLOAD=$(curl --location --range 0-102400 --max-time 8 --silent --write-out '%{speed_download}' --output /dev/null "${url}")
     tempReult=$(echo "${SPEED_DOWNLOAD} ${time}" | awk '{if ($1 > $2) print 1; else print 0}')
     if [ "${tempReult}" -ne 0 ]; then
       time=${SPEED_DOWNLOAD}

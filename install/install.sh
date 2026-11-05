@@ -161,7 +161,6 @@ _resolve_target_image_tag() {
 
   case "$channel" in
     dev) echo "dev" ;;
-    rc) echo "rc" ;;
     release) echo "latest" ;;
     *) echo "$channel" ;;
   esac

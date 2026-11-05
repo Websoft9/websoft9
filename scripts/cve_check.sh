@@ -55,7 +55,8 @@ check_trivy() {
         log "Trivy Docker image pull completed successfully"
         
         # Get Trivy version from container
-        local trivy_version=$(docker run --rm aquasec/trivy:latest --version 2>/dev/null | head -n1)
+        local trivy_version
+        trivy_version=$(docker run --rm aquasec/trivy:latest --version 2>/dev/null | head -n1)
         print_status "${GREEN}" "Trivy version: ${trivy_version}"
         log "Trivy version: ${trivy_version}"
     else
@@ -68,7 +69,7 @@ check_trivy() {
 
 # Run Trivy command using Docker container
 run_trivy() {
-    local trivy_cmd="$@"
+    local trivy_cmd="$*"
     
     docker run --rm \
         -v /var/run/docker.sock:/var/run/docker.sock \
@@ -129,10 +130,12 @@ scan_filesystem() {
         print_status "${GREEN}" "Filesystem scan completed"
         
         # Parse and display critical vulnerabilities
-        local critical_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "${fs_report}" 2>/dev/null | wc -l)
-        local high_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' "${fs_report}" 2>/dev/null | wc -l)
-        local medium_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' "${fs_report}" 2>/dev/null | wc -l)
-        
+        local critical_count
+        critical_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "${fs_report}" 2>/dev/null | wc -l)
+        local high_count
+        high_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' "${fs_report}" 2>/dev/null | wc -l)
+        local medium_count
+        medium_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' "${fs_report}" 2>/dev/null | wc -l)
         print_status "${YELLOW}" "Filesystem vulnerabilities found:"
         echo -e "  ${RED}CRITICAL: ${critical_count}${NC}"
         echo -e "  ${YELLOW}HIGH: ${high_count}${NC}"
@@ -166,15 +169,18 @@ get_docker_images() {
 scan_docker_images() {
     print_status "${BLUE}" "Scanning Docker images for vulnerabilities..."
     
-    local images=$(get_docker_images)
+    local images
     
+    images=$(get_docker_images)
     if [ -z "${images}" ]; then
         print_status "${YELLOW}" "No Docker images found to scan"
         log "No Docker images found for scanning"
         return 0
     fi
     
-    local image_count=$(echo "${images}" | wc -l)
+    local image_count
+    
+    image_count=$(echo "${images}" | wc -l)
     print_status "${BLUE}" "Found ${image_count} Docker images to scan"
     log "Found ${image_count} Docker images to scan"
     
@@ -186,17 +192,20 @@ scan_docker_images() {
     echo "${images}" | while IFS= read -r image; do
         print_status "${BLUE}" "Scanning image (${current_image}/${image_count}): ${image}"
         
-        local image_report="${REPORT_DIR}/image_$(echo "${image}" | tr '/:' '_')_${TIMESTAMP}.json"
+        local image_report
+        image_report="${REPORT_DIR}/image_$(echo "${image}" | tr '/:' '_')_${TIMESTAMP}.json"
         
         # Scan for CRITICAL and HIGH vulnerabilities only to speed up the process
         # Use Docker container to scan Docker images
         if run_trivy image --format json --severity CRITICAL,HIGH,MEDIUM --output "${image_report}" "${image}" 2>/dev/null; then
             
             # Parse vulnerabilities
-            local critical_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "${image_report}" 2>/dev/null | wc -l)
-            local high_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' "${image_report}" 2>/dev/null | wc -l)
-            local medium_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' "${image_report}" 2>/dev/null | wc -l)
-            
+            local critical_count
+            critical_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "${image_report}" 2>/dev/null | wc -l)
+            local high_count
+            high_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' "${image_report}" 2>/dev/null | wc -l)
+            local medium_count
+            medium_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' "${image_report}" 2>/dev/null | wc -l)
             if [ "${critical_count}" -gt 0 ] || [ "${high_count}" -gt 0 ] || [ "${medium_count}" -gt 0 ]; then
                 echo -e "  ${image}:"
                 [ "${critical_count}" -gt 0 ] && echo -e "    ${RED}CRITICAL: ${critical_count}${NC}"
@@ -327,7 +336,8 @@ main() {
     
     # Check if critical vulnerabilities were found
     if [ -f "${REPORT_FILE}" ]; then
-        local total_critical=$(find "${REPORT_DIR}" -name "*_${TIMESTAMP}.json" -exec jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' {} \; 2>/dev/null | wc -l)
+        local total_critical
+        total_critical=$(find "${REPORT_DIR}" -name "*_${TIMESTAMP}.json" -exec jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' {} \; 2>/dev/null | wc -l)
         if [ "${total_critical}" -gt 0 ]; then
             print_status "${RED}" "WARNING: ${total_critical} CRITICAL vulnerabilities found!"
             print_status "${RED}" "Immediate action required!"

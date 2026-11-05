@@ -126,7 +126,8 @@ get_proxy_enabled() {
 
 get_settings() {
     local filename="$1"
-    local settings=$(grep "^W9_.*_SET=" "$filename" | awk -F '=' '{print $1, $2}' | \
+    local settings
+    settings=$(grep "^W9_.*_SET=" "$filename" | awk -F '=' '{print $1, $2}' | \
     while read -r key value; do
         value=$(echo "$value" | sed "s/^'//;s/'$//")
         jq -n --arg key "$key" --arg value "$value" '{($key): $value}'

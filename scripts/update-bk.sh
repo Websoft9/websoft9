@@ -13,7 +13,7 @@ urls="https://artifact.websoft9.com/release/websoft9"
 CheckEnv(){
 echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"
 
-if [ $(id -u) != "0" ]; then
+if [ "$(id -u)" != "0" ]; then
     echo "Please change to root or 'sudo su' to up system privileges, and  reinstall the script again ."
     exit 1
 fi
@@ -136,13 +136,13 @@ else
 fi
 new_library_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .LIBRARY | tr -d '"')
 
-if [ "$old_appstore_version" = "$new_appstore_version" ] && [ "$old_settings_version" = "$new_settings_version" ] && [ "$old_myapps_version" = "$new_myapp_version" ] && [ "$old_container_version" = "$new_container_version" ] && [ "$old_nginx_version" \< "$new_nginx_version" ]; then
+if [ "$old_appstore_version" = "$new_appstore_version" ] && [ "$old_settings_version" = "$new_settings_version" ] && [ "$old_myapps_version" = "$new_myapps_version" ] && [ "$old_container_version" = "$new_container_version" ] && [ "$old_nginx_version" \< "$new_nginx_version" ]; then
     echo "appstore all plugins is latest"
 else
     compare_versions $old_appstore_version $new_appstore_version
     if [[ $? -eq 0 ]]; then
         echo "appstore plugin need to update"
-        cd /usr/share/cockpit
+        cd /usr/share/cockpit || exit 1
         wget $urls/plugin/appstore/appstore-$new_appstore_version.zip
         rm -rf appstore
         unzip appstore-$new_appstore_version.zip
@@ -154,11 +154,11 @@ else
     compare_versions $old_navigator_version $new_navigator_version
     if [[ $? -eq 0 ]]; then
         echo "navigator plugin need to update"
-        cd /usr/share/cockpit
+        cd /usr/share/cockpit || exit 1
         wget $urls/plugin/navigator/navigator-$new_navigator_version.zip
         rm -rf navigator
-        unzip navigator-$navigator_version.zip
-        rm -f navigator-$navigator_version.zip
+        unzip navigator-$new_navigator_version.zip
+        rm -f navigator-$new_navigator_version.zip
     else
         echo "navigator is not need to update"
     fi
@@ -166,7 +166,7 @@ else
     compare_versions $old_settings_version $new_settings_version
     if [[ $? -eq 0 ]]; then
         echo "settings plugin need to update"
-        cd /usr/share/cockpit
+        cd /usr/share/cockpit || exit 1
         wget $urls/plugin/settings/settings-$new_settings_version.zip
         rm -rf settings
         unzip settings-$new_settings_version.zip
@@ -178,7 +178,7 @@ else
     compare_versions $old_myapps_version $new_myapps_version
     if [[ $? -eq 0 ]]; then
         echo "start to update myapps..."
-        cd /usr/share/cockpit
+        cd /usr/share/cockpit || exit 1
         wget $urls/plugin/myapps/myapps-$new_myapps_version.zip
         rm -rf myapps
         unzip myapps-$new_myapps_version.zip
@@ -190,7 +190,7 @@ else
     compare_versions $old_container_version $new_container_version
     if [[ $? -eq 0 ]]; then
         echo "start  to update portainer..."
-        cd /usr/share/cockpit
+        cd /usr/share/cockpit || exit 1
         wget $urls/plugin/portainer/portainer-$new_container_version.zip
         rm -rf container
         unzip portainer-$new_container_version.zip
@@ -202,7 +202,7 @@ else
     compare_versions $old_nginx_version $new_nginx_version
     if [[ $? -eq 0 ]]; then
         echo "start to update nginx..."
-        cd /usr/share/cockpit
+        cd /usr/share/cockpit || exit 1
         wget $urls/plugin/nginx/nginx-$new_nginx_version.zip
         rm -rf nginx
         unzip nginx-$new_nginx_version.zip
@@ -214,7 +214,7 @@ else
     compare_versions $old_library_version $new_library_version
     if [[ $? -eq 0 ]]; then
         echo "start to update library..."
-        cd /data
+        cd /data || exit 1
         wget $urls/plugin/library/library-$new_library_version.zip
         rm -rf library
         unzip library-$new_library_version.zip

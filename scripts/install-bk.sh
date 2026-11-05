@@ -70,12 +70,12 @@ echo "---------------------------------- Welcome to install websoft9's appstore,
 echo "Check  environment ..."
 echo  os_type: $os_type
 echo  os_version: $os_version
-if [ $(id -u) != "0" ]; then
+if [ "$(id -u)" != "0" ]; then
     echo "Please change to root or 'sudo su' to up system privileges, and  reinstall the script again ."
     exit 1
 fi
 
-if [ $(getconf WORD_BIT) = '32' ] && [ $(getconf LONG_BIT) = '64' ] ; then
+if [ "$(getconf WORD_BIT)" = "32" ] && [ "$(getconf LONG_BIT)" = "64" ] ; then
     echo "64-bit operating system detected."
 else
     echo "This script only works on 64-bit operating systems."
@@ -90,7 +90,7 @@ if [ "$os_type" == 'CentOS' ] ;then
 fi
 
 if  [ "$os_type" == 'CentOS Stream' ] ;then
-  if [ "$os_version" != "8" ] || [ "$os_version" != "9" ]; then
+  if [ "$os_version" != "8" ] && [ "$os_version" != "9" ]; then
       echo "This app only supported on CentOS Stream 8,9"
       exit 1
   fi
@@ -264,7 +264,7 @@ echo "Prepare to install Cockpit ..."
 
 if [ "${os_type}" == 'Debian' ]; then
   VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
-  sudo echo "deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main" >/etc/apt/sources.list.d/backports.list
+  echo "deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main" | sudo tee /etc/apt/sources.list.d/backports.list >/dev/null
   sudo apt update
   sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
   sudo apt install cockpit-pcp cockpit-packagekit -y 1>/dev/null 2>&1
@@ -339,14 +339,14 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 InstallPlugins(){
 
 # download apps
-mkdir -p /data/apps && cd /data/apps
+mkdir -p /data/apps && cd /data/apps || exit 1
 wget $urls/websoft9-latest.zip
 unzip websoft9-latest.zip
 cp -r /data/apps/websoft9/docker  /data/apps/w9services
 rm -f websoft9-latest.zip
 
 # install plugins
-cd /usr/share/cockpit
+cd /usr/share/cockpit || exit 1
 appstore_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .APPSTORE | tr -d '"')
 wget $urls/plugin/appstore/appstore-$appstore_version.zip
 unzip appstore-$appstore_version.zip
@@ -374,7 +374,7 @@ unzip navigator-$navigator_version.zip
 rm -f *.zip
 
 # install library
-cd /data
+cd /data || exit 1
 library_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .LIBRARY | tr -d '"')
 wget $urls/plugin/library/library-$library_version.zip
 unzip library-$library_version.zip

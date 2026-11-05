@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
+# shellcheck disable=SC1090  # 片段由被测脚本里提取，路径在运行时才确定
 load_helpers() {
   source <(sed -n '/^_build_repo_list()/,/^# Repo-based installation helper/p' \
     "$ROOT_DIR/install/install_docker.sh")

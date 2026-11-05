@@ -16,7 +16,6 @@ MODERN_DATA_MOUNT="/data"
 resolve_container_name_by_channel() {
   case "${1:-${W9_CHANNEL:-release}}" in
     dev) echo "websoft9-dev" ;;
-    rc)  echo "websoft9-rc" ;;
     *)   echo "websoft9" ;;
   esac
 }

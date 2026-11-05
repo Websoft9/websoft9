@@ -62,21 +62,21 @@ done
 install_tools(){
   if command -v apt > /dev/null;then  
     sudo apt update 1>/dev/null 2>&1
-    sudo apt install ${tool_list[*]} -y  1>/dev/null 2>&1
+    sudo apt install "${tool_list[@]}" -y 1>/dev/null 2>&1
   elif  command -v yum > /dev/null;then 
     sudo yum clean all 1>/dev/null 2>&1
     sudo yum makecache 1>/dev/null 2>&1
-    sudo yum install ${tool_list[*]} -y 1>/dev/null 2>&1
+    sudo yum install "${tool_list[@]}" -y 1>/dev/null 2>&1
   fi
 }
 
 download_docker_source(){
     docker_download_url="https://download.docker.com/linux/static/stable/x86_64/docker-20.10.6.tgz"
-    cd /tmp/
+    cd /tmp/ || exit 1
     sudo rm -rf docker.tgz
     sudo wget $docker_download_url -O docker.tgz 1>/dev/null 2>&1
     sudo echo -e "docker downloaded successfully"
-sudo cat > /tmp/docker.service <<EOF
+sudo tee /tmp/docker.service >/dev/null <<EOF
 [Unit]
 Description=Docker Application Container Engine
 Documentation=https://docs.docker.com
@@ -115,14 +115,14 @@ EOF
 
 install_docker_script(){
   if command -v docker > /dev/null;then 
-    sudo echo -e `docker -v`
+    echo -e "$(docker -v)"
     sudo echo -e "Docker installed successfully"
   else 
     sudo curl -fsSL https://get.docker.com -o get-docker.sh &>/dev/null && sh get-docker.sh &>/dev/null 
     sudo rm -rf get-docker.sh
     sudo systemctl start docker 
     sudo systemctl enable docker &>/dev/null
-    sudo echo -e `docker -v`
+    echo -e "$(docker -v)"
     sudo echo -e "Docker installed successfully"
   fi
   
@@ -144,24 +144,26 @@ download_docker_compose(){
 install_docker_compose(){ 
     curl -L "https://github.com/docker/compose/releases/download/1.29.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose 1>/dev/null 2>&1
     sudo chmod +x /usr/local/bin/docker-compose 
-    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose &>/dev/mull || true
-    sudo echo `docker-compose -v`
+    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose &>/dev/null || true
+    echo "$(docker-compose -v)"
     sudo echo -e "docker-compose installed successfully"
 }
 
 save_images(){
     sudo rm -rf /tmp/docker-$repo_name
     sudo git clone https://github.com/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name || sudo git clone https://github.com.cnpmjs.org/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name
-    sudo docker rmi `docker images -aq` -f &>/dev/null || true
+    mapfile -t docker_image_ids < <(docker images -aq)
+    sudo docker rmi "${docker_image_ids[@]}" -f &>/dev/null || true
 
-    cd /tmp/docker-$repo_name
+    cd "/tmp/docker-$repo_name" || exit 1
 
 
 # Pull images and save images
     sudo systemctl start docker
     docker-compose pull 
     sudo echo -e "In image packaging, there is a long wait..." 
-    sudo docker save $(docker images | grep -v REPOSITORY | awk 'BEGIN{OFS=":";ORS=" "}{print $1,$2}') -o /tmp/$repo_name.tar 
+    mapfile -t docker_image_refs < <(docker images | grep -v REPOSITORY | awk 'BEGIN{OFS=":"}{print $1,$2}')
+    sudo docker save "${docker_image_refs[@]}" -o "/tmp/$repo_name.tar" 
     sudo echo -e "The image was successfully saved as a tar package" 
 }
 
@@ -180,8 +182,8 @@ installation(){
 
 # Avoiding db port conflicts
     sudo echo -e "The database port is changing"
-    db_port_lines=$(cat $install_dir/.env |grep DB_.*PORT |wc -l)
-    db_port=$(cat $install_dir/.env |grep DB_.*PORT |cut -d= -f2 |sed -n 1p)
+    db_port_lines=$(grep -c 'DB_.*PORT' "$install_dir/.env")
+    db_port=$(grep 'DB_.*PORT' "$install_dir/.env" | cut -d= -f2 | sed -n 1p)
  
     while true 
     do 
@@ -202,12 +204,12 @@ installation(){
     sudo echo -e "---$repo_name Installation Wizard----" |boxes |tee -a /credentials/password.txt
     new_password=$(pwgen -ncCs 15 1)
 
-    db_password_lines=`cat $install_dir/.env |grep DB.*PASSWORD |wc -l`
-    db_user_lines=`cat $install_dir/.env |grep DB_.*_USER |wc -l`
+    db_password_lines=$(grep -c 'DB.*PASSWORD' "$install_dir/.env")
+    db_user_lines=$(grep -c 'DB_.*_USER' "$install_dir/.env")
 
     if  [ $db_password_lines -gt 0 ];then 
         if  [ $db_user_lines -gt 0 ];then 
-          db_username=$(cat $install_dir/.env |grep DB_.*_USER |cut -d= -f2 |sed -n 1p )
+          db_username=$(grep 'DB_.*_USER' "$install_dir/.env" | cut -d= -f2 | sed -n 1p)
           sudo echo "db username: $db_username" |tee -a /credentials/password.txt
         else
           sudo echo "db username: root" |tee -a /credentials/password.txt
@@ -280,6 +282,7 @@ installation(){
     sudo docker ps -a   
 }
 
+# shellcheck disable=SC2120  # the `$1` shellcheck sees lives in the generated awk script
 add_install_script(){
     sudo rm -rf /tmp/install.sh /tmp/README /tmp/setup.sh
 
@@ -287,7 +290,7 @@ add_install_script(){
 cat > /tmp/install.sh <<-EOF
 # Install docker
     sudo tar -xf docker.tgz 
-    sudo systemctl stop docker &>/dev/mull || true
+    sudo systemctl stop docker &>/dev/null || true
     sudo mv docker.service /etc/systemd/system/docker.service 
     sudo mv docker/* /usr/bin/  1>/dev/null 2>&1
     sudo systemctl daemon-reload
@@ -298,7 +301,7 @@ cat > /tmp/install.sh <<-EOF
 
 # Install docker-compose
     sudo mv docker-compose /usr/local/bin/docker-compose 1>/dev/null 2>&1
-    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose &>/dev/mull || true
+    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose &>/dev/null || true
     sudo echo \$(docker-compose -v)
     sudo echo -e "docker-compose installed successfully"
 
@@ -467,7 +470,7 @@ fi
 make_package(){
    sudo rm -rf /tmp/$repo_name.tgz install-$repo_name
    cd /tmp && tar -zcf /tmp/$repo_name.tgz ./{install.sh,README,$repo_name.tar,docker-$repo_name,docker.tgz,docker.service,docker-compose}
-   sudo cat setup.sh $repo_name.tgz > ~/install-$repo_name
+   cat setup.sh "$repo_name.tgz" > "$HOME/install-$repo_name"
    sudo chmod +x ~/install-$repo_name
    cd ~  && sudo echo -e "Image packaging successfully" |boxes -d whirly
 }

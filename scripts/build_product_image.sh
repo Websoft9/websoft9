@@ -35,12 +35,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$IMAGE_TAG" || -z "$PRODUCT_VERSION" ]]; then
-    echo "Usage: scripts/build_product_image.sh --tag <image:tag> --version <semver> [--appstore-channel <release|rc|dev>] [--region <cn|global>]" >&2
+    echo "Usage: scripts/build_product_image.sh --tag <image:tag> --version <semver> [--appstore-channel <release|dev>] [--region <cn|global>]" >&2
     exit 1
 fi
 
 case "$APPSTORE_CHANNEL" in
-    release|rc|dev)
+    release|dev)
         ;;
     *)
         echo "Unsupported app store channel: $APPSTORE_CHANNEL" >&2

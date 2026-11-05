@@ -5,9 +5,9 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/appstore_dataset_hotfix_helper.sh --mode list --channel <dev|rc|release> [--local-root <dir>]
-  scripts/appstore_dataset_hotfix_helper.sh --mode plan --channel <dev|rc|release> --dataset-version <version> [--local-root <dir>]
-  scripts/appstore_dataset_hotfix_helper.sh --mode switch --channel <dev|rc|release> --dataset-version <version> [--local-root <dir>] [--apply]
+  scripts/appstore_dataset_hotfix_helper.sh --mode list --channel <dev|release> [--local-root <dir>]
+  scripts/appstore_dataset_hotfix_helper.sh --mode plan --channel <dev|release> --dataset-version <version> [--local-root <dir>]
+  scripts/appstore_dataset_hotfix_helper.sh --mode switch --channel <dev|release> --dataset-version <version> [--local-root <dir>] [--apply]
 
 Default behavior is dry-run. Use --apply to write latest manifest.json files.
 
@@ -112,7 +112,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$MODE" =~ ^(list|plan|switch)$ ]] || fail "--mode must be list, plan, or switch"
-[[ "$CHANNEL" =~ ^(dev|rc|release)$ ]] || fail "--channel must be dev, rc, or release"
+[[ "$CHANNEL" =~ ^(dev|release)$ ]] || fail "--channel must be dev or release"
 [[ "$LAYOUT" =~ ^(legacy|v2)$ ]] || fail "--layout must be legacy or v2"
 if [[ "$MODE" =~ ^(plan|switch)$ ]]; then
   [[ -n "$DATASET_VERSION" ]] || fail "--dataset-version is required for plan or switch mode"

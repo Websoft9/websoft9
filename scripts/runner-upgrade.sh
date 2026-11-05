@@ -160,6 +160,7 @@ backup_material() {
 prune_old_backups() {
   keep=3
   index=0
+  # shellcheck disable=SC2045  # POSIX sh 没有数组；备份目录必须按修改时间从新到旧处理
   for directory in $(ls -1dt "$DATA_ROOT/upgrade/backups"/*/ 2>/dev/null); do
     index=$((index + 1))
     if [ "$index" -gt "$keep" ]; then

@@ -31,7 +31,7 @@ def normalize_channel(value: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Set the active Websoft9 product release version.")
     parser.add_argument("--version", required=True, help="Semantic version to publish, for example 2.2.17")
-    parser.add_argument("--channel", default="release", help="Release channel to publish, for example release, rc, or dev")
+    parser.add_argument("--channel", default="release", help="Release channel to publish, for example release or dev")
     args = parser.parse_args()
 
     version = validate_version(args.version)

@@ -5,10 +5,10 @@ url_path=(
 https://ghproxy.com/https://github.com
 https://github.com)
 git_clone(){
-    for r in ${1[*]}
+    for r in "${@}"
     do
 	filename=$(echo $r | cut -d '/' -f 2)
-        for x in ${url_path[*]}
+        for x in "${url_path[@]}"
         do      
 	     if [ -e $filename ]; then
 		  echo "$filename was cloned successfully"                   
@@ -20,4 +20,5 @@ git_clone(){
     done
 }
 
-git_clone
+# 仓库列表由命令行传入，例如：./git_proxy.sh repo1 repo2
+git_clone "$@"

@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: prepare_platform_artifact.sh --channel <release|rc|dev> --bundle-docker-dir <path> --artifact-dir <path>
+Usage: prepare_platform_artifact.sh --channel <release|dev> --bundle-docker-dir <path> --artifact-dir <path>
 EOF
 }
 
@@ -39,7 +39,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$CHANNEL" in
-  release|rc|dev) ;;
+  release|dev) ;;
   *)
     echo "Unsupported channel: ${CHANNEL:-<empty>}" >&2
     usage >&2

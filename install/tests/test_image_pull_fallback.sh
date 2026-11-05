@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
+# shellcheck disable=SC1090  # 片段由被测脚本里提取，路径在运行时才确定
 load_install_tag_resolvers() {
   W9_ROOT_DIR="$ROOT_DIR/install"
   W9_LIB_DIR="$W9_ROOT_DIR/lib"
@@ -106,9 +107,6 @@ test_initial_tag_respects_channel() {
 
   W9_CHANNEL=dev
   [[ "$(_resolve_initial_image_tag "$TEST_DIR")" == "dev" ]]
-
-  W9_CHANNEL=rc
-  [[ "$(_resolve_initial_image_tag "$TEST_DIR")" == "rc" ]]
 }
 
 run_case "Docker Hub success" test_docker_hub_success

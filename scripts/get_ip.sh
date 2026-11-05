@@ -20,18 +20,18 @@ curl_ip(){
 }
 
 debug(){
-  for x in ${url_list[*]}
+  for x in "${url_list[@]}"
     do
       curl_ip $x
     done
 }
 
 print_ip(){
-  for n in ${url_list[*]}
+  for n in "${url_list[@]}"
     do
        public_ip=`curl_ip $n`
        check_ip=`echo $public_ip | awk -F"." '{print NF}'`
-    if [ ! -z "$public_ip" -a $check_ip -eq "4" ]; then
+    if [ -n "$public_ip" ] && [ "$check_ip" -eq "4" ]; then
        echo $public_ip
        exit 0
     fi
