@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>我的应用 · 数据 · 数据库 — UI 设计预览</title>
+    <style>
+        :root {
+            --surface: #ffffff;
+            --surface-soft: #f8f9fc;
+            --surface-muted: #edf2f7;
+            --border: #eef2f7;
+            --border-strong: #ced4da;
+            --text: #364a63;
+            --text-strong: #212529;
+            --muted: #6c757d;
+            --subtle: #98a6ad;
+            --accent: #1767d1;
+            --accent-soft: rgba(23, 103, 209, 0.1);
+            --chip-bg: #eff6ff;
+            --chip-border: #bfdbfe;
+            --success: #059669;
+            --danger: #fa5c7c;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 32px 24px 64px;
+            background: #f4f6fa;
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .wrap {
+            max-width: 1060px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 22px;
+            color: var(--text-strong);
+        }
+
+        .lead {
+            margin: 0 0 28px;
+            color: var(--muted);
+        }
+
+        h2 {
+            margin: 36px 0 6px;
+            font-size: 16px;
+            color: var(--text-strong);
+        }
+
+        .hint {
+            margin: 0 0 14px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        /* ---------- 复刻现有区块 ---------- */
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 28px;
+            padding: 9px 16px;
+        }
+
+        .section-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-indicator {
+            display: block;
+            width: 4px;
+            height: 16px;
+            border-radius: 2px;
+            background: #3b82f6;
+            flex-shrink: 0;
+        }
+
+        .section-text {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-strong);
+        }
+
+        .card-body {
+            padding: 0 18px 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+
+        /* A 方案列宽：数据库 / 地址 / 数据库名称 / 用户 / 密码 / 工具 */
+        .section table th:nth-child(1),
+        .section table td:nth-child(1) {
+            width: 10%;
+        }
+
+        .section table th:nth-child(2),
+        .section table td:nth-child(2) {
+            width: 26%;
+        }
+
+        .section table th:nth-child(3),
+        .section table td:nth-child(3) {
+            width: 15%;
+        }
+
+        .section table th:nth-child(4),
+        .section table td:nth-child(4) {
+            width: 15%;
+        }
+
+        .section table th:nth-child(5),
+        .section table td:nth-child(5) {
+            width: 19%;
+        }
+
+        .section table th:nth-child(6),
+        .section table td:nth-child(6) {
+            width: 15%;
+        }
+
+        th {
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        td {
+            color: var(--muted);
+        }
+
+        tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .sub {
+            display: block;
+            margin-top: 2px;
+            font-size: 12px;
+            color: var(--subtle);
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .section table td:nth-child(2) .mono,
+        .instance-host {
+            overflow-wrap: anywhere;
+        }
+
+        .tool-link,
+        .tool-sep {
+            white-space: nowrap;
+        }
+
+        .tool-link {
+            color: var(--accent);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .tool-link:hover {
+            text-decoration: underline;
+        }
+
+        .tool-sep {
+            color: var(--subtle);
+            padding: 0 4px;
+        }
+
+        .pwd-cell {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .pwd-text {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            letter-spacing: 1px;
+        }
+
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: 0;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+        }
+
+        .icon-btn:hover {
+            border-color: var(--border-strong);
+            color: var(--text-strong);
+        }
+
+        .icon-btn svg {
+            width: 14px;
+            height: 14px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .empty {
+            color: var(--subtle);
+        }
+
+        .note {
+            margin: 10px 0 0;
+            font-size: 12px;
+            color: var(--subtle);
+        }
+
+        /* ---------- 方案 B：实例卡 ---------- */
+        .instance {
+            border: 1px solid var(--border);
+            background: var(--surface);
+            margin-bottom: 12px;
+        }
+
+        .instance-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, var(--surface) 0%, var(--surface-soft) 100%);
+        }
+
+        .type-chip {
+            padding: 2px 8px;
+            border: 1px solid var(--chip-border);
+            border-radius: 0;
+            background: var(--chip-bg);
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .instance-host {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .instance-meta {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: var(--subtle);
+        }
+
+        .text-btn {
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            color: var(--accent);
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .text-btn:hover {
+            text-decoration: underline;
+        }
+
+        .instance-body {
+            padding: 10px 14px 4px;
+        }
+
+        .db-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .db-tag {
+            padding: 1px 7px;
+            border: 1px solid var(--border-strong);
+            border-radius: 0;
+            background: var(--surface);
+            color: var(--text);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+        }
+
+        .instance-body table {
+            table-layout: fixed;
+        }
+
+        .instance-body table th:nth-child(1) {
+            width: 16%;
+        }
+
+        .instance-body table th:nth-child(2) {
+            width: 22%;
+        }
+
+        .instance-body table th:nth-child(3) {
+            width: 34%;
+        }
+
+        .instance-body table th:nth-child(4) {
+            width: 28%;
+        }
+
+        .instance-body table th,
+        .instance-body table td {
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
+        .instance-body table th:first-child,
+        .instance-body table td:first-child {
+            padding-left: 0;
+        }
+
+        .instance-body table th:last-child,
+        .instance-body table td:last-child {
+            padding-right: 0;
+        }
+
+        .role {
+            color: var(--text);
+        }
+
+        .role-admin {
+            color: var(--text-strong);
+            font-weight: 600;
+        }
+
+        /* ---------- 结论 ---------- */
+        .compare {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+
+        .compare th,
+        .compare td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .compare th {
+            background: var(--surface-soft);
+        }
+
+        .badge-a {
+            display: inline-block;
+            padding: 1px 8px;
+            border: 1px solid var(--chip-border);
+            background: var(--chip-bg);
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>我的应用 · 数据 · 数据库 — UI 设计预览</h1>
+        <p class="lead">
+            目标：一条记录展示一个可用连接，字段与真实数据一致；空值不误导。以下为两种展示口径，各含「显示一个」与「显示多个」两种形态。
+            示例数据来自本机实例（WordPress、Drupal）与模板声明（Seafile、Dify）。
+        </p>
+
+        <h2>方案 A · 单表平铺（沿用现有表格）</h2>
+        <p class="hint">
+            改动最小：保留现有表头与行样式，只把数据源换成接口返回值，并新增「数据库名称」列。多账号、多库时自动多行。
+        </p>
+
+        <div class="section">
+            <div class="section-head">
+                <div class="section-label">
+                    <span class="section-indicator"></span>
+                    <span class="section-text">数据库</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>数据库</th>
+                            <th>地址</th>
+                            <th>数据库名称</th>
+                            <th>用户</th>
+                            <th>密码</th>
+                            <th>工具</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>MySQL</td>
+                            <td>
+                                <span class="mono">wordpress_qu8hq-mysql:3306</span>
+                                <span class="sub">仅容器网络内可连</span>
+                            </td>
+                            <td><span class="mono">wordpress</span></td>
+                            <td>
+                                wordpress
+                                <span class="sub">应用用户</span>
+                            </td>
+                            <td>
+                                <div class="pwd-cell">
+                                    <span class="pwd-text">••••••••••</span>
+                                    <button class="icon-btn" title="显示密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                            <circle cx="12" cy="12" r="2.6" />
+                                        </svg>
+                                    </button>
+                                    <button class="icon-btn" title="复制密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <rect x="9" y="9" width="11" height="11" />
+                                            <path d="M5 15V5h10" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <a class="tool-link">phpMyAdmin</a>
+                                <span class="tool-sep">·</span>
+                                <a class="tool-link">CloudBeaver</a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="note">A-1 显示一个：WordPress 内置 MySQL，单账号（应用用户），单库。</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">
+                <div class="section-label">
+                    <span class="section-indicator"></span>
+                    <span class="section-text">数据库</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>数据库</th>
+                            <th>地址</th>
+                            <th>数据库名称</th>
+                            <th>用户</th>
+                            <th>密码</th>
+                            <th>工具</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>MySQL</td>
+                            <td>
+                                <span class="mono">drupal_fexsd-mysql:3306</span>
+                                <span class="sub">仅容器网络内可连</span>
+                            </td>
+                            <td><span class="mono">drupal</span></td>
+                            <td>
+                                root
+                                <span class="sub">管理员</span>
+                            </td>
+                            <td>
+                                <div class="pwd-cell">
+                                    <span class="pwd-text">••••••••••</span>
+                                    <button class="icon-btn" title="显示密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                            <circle cx="12" cy="12" r="2.6" />
+                                        </svg>
+                                    </button>
+                                    <button class="icon-btn" title="复制密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <rect x="9" y="9" width="11" height="11" />
+                                            <path d="M5 15V5h10" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <a class="tool-link">phpMyAdmin</a>
+                                <span class="tool-sep">·</span>
+                                <a class="tool-link">CloudBeaver</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>MySQL</td>
+                            <td>
+                                <span class="mono">drupal_fexsd-mysql:3306</span>
+                                <span class="sub">仅容器网络内可连</span>
+                            </td>
+                            <td><span class="mono">drupal</span></td>
+                            <td>
+                                drupal
+                                <span class="sub">应用用户</span>
+                            </td>
+                            <td>
+                                <div class="pwd-cell">
+                                    <span class="pwd-text">••••••••••</span>
+                                    <button class="icon-btn" title="显示密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                            <circle cx="12" cy="12" r="2.6" />
+                                        </svg>
+                                    </button>
+                                    <button class="icon-btn" title="复制密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <rect x="9" y="9" width="11" height="11" />
+                                            <path d="M5 15V5h10" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <a class="tool-link">phpMyAdmin</a>
+                                <span class="tool-sep">·</span>
+                                <a class="tool-link">CloudBeaver</a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="note">A-2 显示多个账号：Drupal 内置 MySQL 会创建管理员 root 与应用账号 drupal，两行同库同地址。</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">
+                <div class="section-label">
+                    <span class="section-indicator"></span>
+                    <span class="section-text">数据库</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>数据库</th>
+                            <th>地址</th>
+                            <th>数据库名称</th>
+                            <th>用户</th>
+                            <th>密码</th>
+                            <th>工具</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>MariaDB</td>
+                            <td>
+                                <span class="mono">seafile_xxx-db:3306</span>
+                                <span class="sub">仅容器网络内可连</span>
+                            </td>
+                            <td><span class="mono">seahub_db</span><span class="sub">主库</span></td>
+                            <td>
+                                seafile
+                                <span class="sub">应用用户</span>
+                            </td>
+                            <td>
+                                <div class="pwd-cell">
+                                    <span class="pwd-text">••••••••••</span>
+                                    <button class="icon-btn" title="显示密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                            <circle cx="12" cy="12" r="2.6" />
+                                        </svg>
+                                    </button>
+                                    <button class="icon-btn" title="复制密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <rect x="9" y="9" width="11" height="11" />
+                                            <path d="M5 15V5h10" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <a class="tool-link">phpMyAdmin</a>
+                                <span class="tool-sep">·</span>
+                                <a class="tool-link">CloudBeaver</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>MariaDB</td>
+                            <td><span class="mono">seafile_xxx-db:3306</span></td>
+                            <td><span class="mono">ccnet_db</span><span class="sub">内部库</span></td>
+                            <td>seafile</td>
+                            <td>
+                                <div class="pwd-cell">
+                                    <span class="pwd-text">••••••••••</span>
+                                    <button class="icon-btn" title="显示密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                            <circle cx="12" cy="12" r="2.6" />
+                                        </svg>
+                                    </button>
+                                    <button class="icon-btn" title="复制密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <rect x="9" y="9" width="11" height="11" />
+                                            <path d="M5 15V5h10" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <a class="tool-link">phpMyAdmin</a>
+                                <span class="tool-sep">·</span>
+                                <a class="tool-link">CloudBeaver</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>MariaDB</td>
+                            <td><span class="mono">seafile_xxx-db:3306</span></td>
+                            <td><span class="mono">seafile_db</span><span class="sub">内部库</span></td>
+                            <td>seafile</td>
+                            <td>
+                                <div class="pwd-cell">
+                                    <span class="pwd-text">••••••••••</span>
+                                    <button class="icon-btn" title="显示密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                            <circle cx="12" cy="12" r="2.6" />
+                                        </svg>
+                                    </button>
+                                    <button class="icon-btn" title="复制密码">
+                                        <svg viewBox="0 0 24 24">
+                                            <rect x="9" y="9" width="11" height="11" />
+                                            <path d="M5 15V5h10" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <a class="tool-link">phpMyAdmin</a>
+                                <span class="tool-sep">·</span>
+                                <a class="tool-link">CloudBeaver</a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="note">A-3 显示多个库：Seafile 一个账号对应三个库（主库 seahub_db，其余为内部库），同地址重复出现。</p>
+            </div>
+        </div>
+
+        <h2>方案 B · 实例分组卡（一个实例一张卡）</h2>
+        <p class="hint">
+            按「数据库实例」分组：卡头放类型、地址；卡内先列库名，再用小表列账号。多实例时不再重复地址，层级更清楚，但结构改动比方案 A 大。
+        </p>
+
+        <div class="section">
+            <div class="section-head">
+                <div class="section-label">
+                    <span class="section-indicator"></span>
+                    <span class="section-text">数据库</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="instance">
+                    <div class="instance-head">
+                        <span class="type-chip">MySQL</span>
+                        <span class="instance-host">wordpress_qu8hq-mysql:3306</span>
+                        <span class="instance-meta">
+                            <button class="text-btn">复制地址</button>
+                        </span>
+                    </div>
+                    <div class="instance-body">
+                        <div class="db-line">数据库<span class="db-tag">wordpress</span></div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>角色</th>
+                                    <th>用户</th>
+                                    <th>密码</th>
+                                    <th>工具</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="role">应用用户</td>
+                                    <td><span class="mono">wordpress</span></td>
+                                    <td>
+                                        <div class="pwd-cell">
+                                            <span class="pwd-text">••••••••••</span>
+                                            <button class="icon-btn" title="显示密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <path
+                                                        d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                                    <circle cx="12" cy="12" r="2.6" />
+                                                </svg>
+                                            </button>
+                                            <button class="icon-btn" title="复制密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <rect x="9" y="9" width="11" height="11" />
+                                                    <path d="M5 15V5h10" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <a class="tool-link">phpMyAdmin</a>
+                                        <span class="tool-sep">·</span>
+                                        <a class="tool-link">CloudBeaver</a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <p class="note">B-1 显示一个：只有一个实例、一个账号、一个库时，卡头即完整信息，卡内一行账号。</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">
+                <div class="section-label">
+                    <span class="section-indicator"></span>
+                    <span class="section-text">数据库</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="instance">
+                    <div class="instance-head">
+                        <span class="type-chip">PostgreSQL</span>
+                        <span class="instance-host">dify_xxx-db:5432</span>
+                        <span class="instance-meta">
+                            <button class="text-btn">复制地址</button>
+                        </span>
+                    </div>
+                    <div class="instance-body">
+                        <div class="db-line">数据库<span class="db-tag">dify</span></div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>角色</th>
+                                    <th>用户</th>
+                                    <th>密码</th>
+                                    <th>工具</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="role">应用用户</td>
+                                    <td><span class="mono">postgres</span></td>
+                                    <td>
+                                        <div class="pwd-cell">
+                                            <span class="pwd-text">••••••••••</span>
+                                            <button class="icon-btn" title="显示密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <path
+                                                        d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                                    <circle cx="12" cy="12" r="2.6" />
+                                                </svg>
+                                            </button>
+                                            <button class="icon-btn" title="复制密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <rect x="9" y="9" width="11" height="11" />
+                                                    <path d="M5 15V5h10" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td><a class="tool-link">pgAdmin</a><span class="tool-sep">·</span><a
+                                            class="tool-link">CloudBeaver</a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="instance">
+                    <div class="instance-head">
+                        <span class="type-chip">Redis</span>
+                        <span class="instance-host">dify_xxx-redis:6379</span>
+                        <span class="instance-meta">
+                            <button class="text-btn">复制地址</button>
+                        </span>
+                    </div>
+                    <div class="instance-body">
+                        <div class="db-line">数据库<span class="empty">—</span><span class="sub" style="margin: 0">逻辑库
+                                0-15</span></div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>角色</th>
+                                    <th>用户</th>
+                                    <th>密码</th>
+                                    <th>工具</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="role">—</td>
+                                    <td class="empty">—<span class="sub">仅密码认证</span></td>
+                                    <td>
+                                        <div class="pwd-cell">
+                                            <span class="pwd-text">••••••••••</span>
+                                            <button class="icon-btn" title="显示密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <path
+                                                        d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                                    <circle cx="12" cy="12" r="2.6" />
+                                                </svg>
+                                            </button>
+                                            <button class="icon-btn" title="复制密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <rect x="9" y="9" width="11" height="11" />
+                                                    <path d="M5 15V5h10" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td><a class="tool-link">RedisInsight</a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="instance">
+                    <div class="instance-head">
+                        <span class="type-chip">MySQL</span>
+                        <span class="instance-host">drupal_xxx-mysql:3306</span>
+                        <span class="instance-meta">
+                            <button class="text-btn">复制地址</button>
+                        </span>
+                    </div>
+                    <div class="instance-body">
+                        <div class="db-line">数据库<span class="db-tag">drupal</span></div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>角色</th>
+                                    <th>用户</th>
+                                    <th>密码</th>
+                                    <th>工具</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="role role-admin">管理员</td>
+                                    <td><span class="mono">root</span></td>
+                                    <td>
+                                        <div class="pwd-cell">
+                                            <span class="pwd-text">••••••••••</span>
+                                            <button class="icon-btn" title="显示密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <path
+                                                        d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                                    <circle cx="12" cy="12" r="2.6" />
+                                                </svg>
+                                            </button>
+                                            <button class="icon-btn" title="复制密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <rect x="9" y="9" width="11" height="11" />
+                                                    <path d="M5 15V5h10" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td><a class="tool-link">phpMyAdmin</a><span class="tool-sep">·</span><a
+                                            class="tool-link">CloudBeaver</a></td>
+                                </tr>
+                                <tr>
+                                    <td class="role">应用用户</td>
+                                    <td><span class="mono">drupal</span></td>
+                                    <td>
+                                        <div class="pwd-cell">
+                                            <span class="pwd-text">••••••••••</span>
+                                            <button class="icon-btn" title="显示密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <path
+                                                        d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                                                    <circle cx="12" cy="12" r="2.6" />
+                                                </svg>
+                                            </button>
+                                            <button class="icon-btn" title="复制密码">
+                                                <svg viewBox="0 0 24 24">
+                                                    <rect x="9" y="9" width="11" height="11" />
+                                                    <path d="M5 15V5h10" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td><a class="tool-link">phpMyAdmin</a><span class="tool-sep">·</span><a
+                                            class="tool-link">CloudBeaver</a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <p class="note">B-2 显示多个实例：Dify 同时有 PostgreSQL 与 Redis，各一张卡；Drupal 卡内展示管理员与应用用户两个账号。</p>
+            </div>
+        </div>
+
+        <h2>方案对比</h2>
+        <table class="compare">
+            <thead>
+                <tr>
+                    <th style="width: 22%">维度</th>
+                    <th>方案 A · 单表平铺</th>
+                    <th>方案 B · 实例分组卡</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>改动量</td>
+                    <td>小：沿用现有表头与行样式，替换数据源、加两列</td>
+                    <td>中：新增实例卡片结构与样式，现有表格样式保留给账号行</td>
+                </tr>
+                <tr>
+                    <td>显示一个</td>
+                    <td>一行，信息完整、密度高</td>
+                    <td>一张卡，地址与状态更醒目</td>
+                </tr>
+                <tr>
+                    <td>多个账号</td>
+                    <td>多行，地址与库名重复</td>
+                    <td>同卡内多行账号，地址只出现一次</td>
+                </tr>
+                <tr>
+                    <td>多个实例</td>
+                    <td>多行，需靠「数据库」列区分</td>
+                    <td>多卡，天然分组，地址只出现一次</td>
+                </tr>
+                <tr>
+                    <td>与现有 UI 一致性</td>
+                    <td><span class="badge-a">高</span></td>
+                    <td>中：卡片层级是新增的视觉元素</td>
+                </tr>
+                <tr>
+                    <td>建议</td>
+                    <td>先做这一版，覆盖当前 50 个应用</td>
+                    <td>后续应用出现多实例（如 Dify）时再升级</td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="note">
+            共同规则：空值显示「—」且不渲染掩码与复制按钮；内置库地址标注「仅容器网络内可连」；按钮保持直角。
+        </p>
+    </div>
+</body>
+
+</html>
