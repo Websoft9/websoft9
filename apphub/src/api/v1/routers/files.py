@@ -49,7 +49,13 @@ def list_file_manager_volumes(
     "/files/tree",
     summary="List Docker volume directory contents",
     description="List directory contents inside a selected Docker volume scope",
-    responses={200: {"model": FileManagerDirectoryResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerDirectoryResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def list_file_manager_tree(
     volume_id: str = Query(..., description="Docker volume name"),
@@ -63,7 +69,13 @@ def list_file_manager_tree(
     "/files/metadata",
     summary="Read file or directory metadata",
     description="Read metadata for a file-system item inside a selected Docker volume",
-    responses={200: {"model": FileManagerMetadataResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMetadataResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def read_file_manager_metadata(
     volume_id: str = Query(..., description="Docker volume name"),
@@ -101,7 +113,13 @@ def read_file_manager_root_metadata(
     "/files/content",
     summary="Read text file content",
     description="Read a UTF-8 text file from a selected Docker volume",
-    responses={200: {"model": FileManagerTextFileResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerTextFileResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def read_file_manager_text_content(
     volume_id: str = Query(..., description="Docker volume name"),
@@ -115,7 +133,13 @@ def read_file_manager_text_content(
     "/files/content",
     summary="Save text file content",
     description="Save UTF-8 text content inside a selected Docker volume",
-    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def save_file_manager_text_content(
     payload: FileManagerWriteTextRequest,
@@ -133,7 +157,13 @@ def save_file_manager_text_content(
     "/files/folders",
     summary="Create folder",
     description="Create a folder inside a selected Docker volume",
-    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def create_file_manager_folder(
     payload: FileManagerCreateFolderRequest,
@@ -151,7 +181,13 @@ def create_file_manager_folder(
     "/files/items",
     summary="Create empty file",
     description="Create an empty file inside a selected Docker volume",
-    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def create_file_manager_item(
     payload: FileManagerCreateFileRequest,
@@ -169,7 +205,13 @@ def create_file_manager_item(
     "/files/rename",
     summary="Rename file or folder",
     description="Rename a file-system item inside a selected Docker volume",
-    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def rename_file_manager_item(
     payload: FileManagerRenameRequest,
@@ -187,7 +229,13 @@ def rename_file_manager_item(
     "/files/copy",
     summary="Copy file or folder",
     description="Copy a file-system item into another directory inside a selected Docker volume",
-    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def copy_file_manager_item(
     payload: FileManagerCopyItemRequest,
@@ -205,7 +253,13 @@ def copy_file_manager_item(
     "/files/move",
     summary="Move file or folder",
     description="Move a file-system item into another directory inside a selected Docker volume",
-    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def move_file_manager_item(
     payload: FileManagerCopyItemRequest,
@@ -223,7 +277,13 @@ def move_file_manager_item(
     "/files/attributes",
     summary="Update file or folder attributes",
     description="Update name, owner, group, and permissions for a file-system item inside a selected Docker volume",
-    responses={200: {"model": FileManagerAttributesMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerAttributesMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def update_file_manager_item_attributes(
     payload: FileManagerUpdateAttributesRequest,
@@ -240,7 +300,13 @@ def update_file_manager_item_attributes(
     "/files/item",
     summary="Delete file or folder",
     description="Delete a file-system item inside a selected Docker volume",
-    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def delete_file_manager_item(
     payload: FileManagerDeleteRequest = Body(...),
@@ -257,7 +323,13 @@ def delete_file_manager_item(
     "/files/upload",
     summary="Upload file",
     description="Upload a file into a selected Docker volume directory",
-    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": FileManagerMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def upload_file_manager_item(
     payload: FileManagerUploadRequest,
@@ -266,7 +338,9 @@ def upload_file_manager_item(
     try:
         file_payload = base64.b64decode(payload.content_base64.encode("utf-8"), validate=True)
     except Exception:
-        raise CustomException(status_code=400, message="Invalid Request", details="content_base64 must be valid base64")
+        raise CustomException(
+            status_code=400, message="Invalid Request", details="content_base64 must be valid base64"
+        ) from None
     return _get_file_manager_service().upload_file(
         session_token=session_token,
         volume_id=payload.volume_id,
@@ -280,7 +354,13 @@ def upload_file_manager_item(
     "/files/download",
     summary="Download file",
     description="Download a file from a selected Docker volume",
-    responses={200: {"description": "Binary file response"}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"description": "Binary file response"},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def download_file_manager_item(
     volume_id: str = Query(..., description="Docker volume name"),

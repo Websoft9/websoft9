@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import re
 import time
 from typing import Any
 
 import click
 
-from src.cli.cli_output import CLIError, MAX_TEXT_BUDGET_BYTES, mask_sensitive_text, run_cli_action, truncate_utf8_text
-
+from src.cli.cli_output import MAX_TEXT_BUDGET_BYTES, CLIError, mask_sensitive_text, run_cli_action, truncate_utf8_text
 
 _DURATION_PATTERN = re.compile(r"^\s*(\d+)\s*([smhd])\s*$", re.IGNORECASE)
 _DURATION_MULTIPLIERS = {
@@ -56,8 +56,6 @@ def _find_exact_container(containers: list[dict[str, Any]], target: str) -> dict
         return None
     normalized_name = f"/{normalized.lstrip('/')}"
     for container in containers:
-        if not isinstance(container, dict):
-            continue
         container_id = str(container.get("Id") or "")
         names = container.get("Names") or []
         if container_id == normalized or (isinstance(names, list) and normalized_name in names):
@@ -67,7 +65,11 @@ def _find_exact_container(containers: list[dict[str, Any]], target: str) -> dict
 
 def _summarize_container_list_item(container: dict[str, Any]) -> dict[str, Any]:
     names = container.get("Names") or []
-    name = str(names[0]).lstrip("/") if isinstance(names, list) and names else str(container.get("Name") or "").lstrip("/") or None
+    name = (
+        str(names[0]).lstrip("/")
+        if isinstance(names, list) and names
+        else str(container.get("Name") or "").lstrip("/") or None
+    )
     labels = container.get("Labels") or {}
     return {
         "id": container.get("Id"),
@@ -136,6 +138,7 @@ def _summarize_container_inspect(raw_info: dict[str, Any], endpoint_id: int) -> 
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_containers_command(endpoint_id: int | None, project: str | None, state_filter: str | None, as_json: bool) -> None:
     """List Docker containers on the target endpoint."""
+
     def action() -> dict[str, Any]:
         from src.services.portainer_manager import PortainerManager
 
@@ -161,7 +164,9 @@ def list_containers_command(endpoint_id: int | None, project: str | None, state_
             return "No containers found."
         lines = [f"Containers ({len(items)}):"]
         for item in items:
-            lines.append(f"- {item.get('name') or item.get('id')} [{item.get('state')}] image={item.get('image')} project={item.get('project') or '-'}")
+            lines.append(
+                f"- {item.get('name') or item.get('id')} [{item.get('state')}] image={item.get('image')} project={item.get('project') or '-'}"
+            )
         return "\n".join(lines)
 
     run_cli_action(action, as_json=as_json, text_renderer=render_text)
@@ -173,6 +178,7 @@ def list_containers_command(endpoint_id: int | None, project: str | None, state_
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def inspect_container_command(container: str, endpoint_id: int | None, as_json: bool) -> None:
     """Inspect a Docker container by exact name or full ID."""
+
     def action() -> dict[str, Any]:
         from src.services.portainer_manager import PortainerManager
 
@@ -200,11 +206,18 @@ def inspect_container_command(container: str, endpoint_id: int | None, as_json: 
 @docker_container_group.command(name="logs")
 @click.argument("container")
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID (defaults to local endpoint).")
-@click.option("--tail", type=click.IntRange(min=1, max=1000), default=100, show_default=True, help="Number of lines from the end of the logs.")
+@click.option(
+    "--tail",
+    type=click.IntRange(min=1, max=1000),
+    default=100,
+    show_default=True,
+    help="Number of lines from the end of the logs.",
+)
 @click.option("--since", help="Relative duration filter such as 15m, 1h, 24h, or 7d.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def container_logs_command(container: str, endpoint_id: int | None, tail: int, since: str | None, as_json: bool) -> None:
     """Read bounded stdout/stderr logs for a Docker container."""
+
     def action() -> tuple[dict[str, Any], bool]:
         from src.services.app_access_manager import AppAccessManager
         from src.services.portainer_manager import PortainerManager
@@ -238,7 +251,9 @@ def container_logs_command(container: str, endpoint_id: int | None, tail: int, s
         except TimeoutError as exc:
             raise CLIError("LOGS_UNAVAILABLE", str(exc), details={"container": container}) from exc
         except Exception as exc:
-            raise CLIError("LOGS_UNAVAILABLE", f"Failed to read container logs: {exc}", details={"container": container}) from exc
+            raise CLIError(
+                "LOGS_UNAVAILABLE", f"Failed to read container logs: {exc}", details={"container": container}
+            ) from exc
 
         if raw_bytes is None:
             raise CLIError("CONTAINER_NOT_FOUND", f"Container '{container}' not found", details={"container": container})
@@ -292,7 +307,14 @@ def container_logs_command(container: str, endpoint_id: int | None, tail: int, s
     run_cli_action(action, as_json=as_json, text_renderer=render_text)
 
 
-_PROTECTED_CONTROL_PLANE_NAMES = {"websoft9", "websoft9-apphub", "websoft9-git", "websoft9-portainer", "websoft9-proxy", "websoft9-gateway"}
+_PROTECTED_CONTROL_PLANE_NAMES = {
+    "websoft9",
+    "websoft9-apphub",
+    "websoft9-git",
+    "websoft9-portainer",
+    "websoft9-proxy",
+    "websoft9-gateway",
+}
 
 
 def _is_protected_container(container_obj: dict[str, Any]) -> bool:
@@ -313,6 +335,7 @@ def _is_protected_container(container_obj: dict[str, Any]) -> bool:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def container_stats_command(container: str, endpoint_id: int | None, as_json: bool) -> None:
     """Sample point-in-time CPU, memory, network, and PID metrics for a container."""
+
     def action() -> dict[str, Any]:
         from src.services.portainer_manager import PortainerManager
 
@@ -329,7 +352,11 @@ def container_stats_command(container: str, endpoint_id: int | None, as_json: bo
         mem_stats = raw_stats.get("memory_stats") or {}
         mem_usage = mem_stats.get("usage")
         mem_limit = mem_stats.get("limit")
-        mem_pct = round((mem_usage / mem_limit) * 100, 2) if isinstance(mem_usage, int) and isinstance(mem_limit, int) and mem_limit > 0 else None
+        mem_pct = (
+            round((mem_usage / mem_limit) * 100, 2)
+            if isinstance(mem_usage, int) and isinstance(mem_limit, int) and mem_limit > 0
+            else None
+        )
 
         cpu_stats = raw_stats.get("cpu_stats") or {}
         precpu_stats = raw_stats.get("precpu_stats") or {}
@@ -339,9 +366,11 @@ def container_stats_command(container: str, endpoint_id: int | None, as_json: bo
         presys_cpu = precpu_stats.get("system_cpu_usage")
         online_cpus = cpu_stats.get("online_cpus") or len((cpu_stats.get("cpu_usage") or {}).get("percpu_usage") or []) or 1
         cpu_pct: float | None = None
-        if all(isinstance(x, int) for x in (cpu_total, precpu_total, sys_cpu, presys_cpu)):
-            cpu_delta = cpu_total - precpu_total
-            sys_delta = sys_cpu - presys_cpu
+        counter_values = (cpu_total, precpu_total, sys_cpu, presys_cpu)
+        if all(isinstance(value, int) for value in counter_values):
+            cpu_now, cpu_before, sys_now, sys_before = (int(value) for value in counter_values)  # type: ignore[arg-type]
+            cpu_delta = cpu_now - cpu_before
+            sys_delta = sys_now - sys_before
             if sys_delta > 0 and cpu_delta >= 0:
                 cpu_pct = round((cpu_delta / sys_delta) * online_cpus * 100.0, 2)
 
@@ -379,7 +408,9 @@ def _run_container_control(container: str, endpoint_id: int | None, operation: s
         if matched is None:
             raise CLIError("CONTAINER_NOT_FOUND", f"Container '{container}' not found", details={"container": container})
         if _is_protected_container(matched):
-            raise CLIError("PERMISSION_DENIED", f"Refusing to {operation} protected Websoft9 control-plane container '{container}'")
+            raise CLIError(
+                "PERMISSION_DENIED", f"Refusing to {operation} protected Websoft9 control-plane container '{container}'"
+            )
 
         if not yes:
             if as_json:
@@ -456,6 +487,7 @@ def docker_image_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_images_command(as_json: bool) -> None:
     """List local Docker images."""
+
     def action() -> dict[str, Any]:
         import docker as _docker
 
@@ -463,10 +495,8 @@ def list_images_command(as_json: bool) -> None:
         try:
             images = client.images.list()
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 client.close()
-            except Exception:
-                pass
         items = []
         for img in images:
             attrs = getattr(img, "attrs", {}) or {}
@@ -485,7 +515,10 @@ def list_images_command(as_json: bool) -> None:
         items = payload.get("items") or []
         if not items:
             return "No Docker images found."
-        return "\n".join(f"- {item.get('id')}: {', '.join(item.get('tags') or ['<untagged>'])} ({item.get('size_bytes')}B)" for item in items)
+        return "\n".join(
+            f"- {item.get('id')}: {', '.join(item.get('tags') or ['<untagged>'])} ({item.get('size_bytes')}B)"
+            for item in items
+        )
 
     run_cli_action(action, as_json=as_json, text_renderer=render_text)
 
@@ -496,14 +529,20 @@ def list_images_command(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def pull_image_command(image_ref: str, yes: bool, as_json: bool) -> None:
     """Pull a Docker image using Websoft9's configured mirror fallback chain."""
+
     def action() -> dict[str, Any]:
         import docker as _docker
+
         from src.services.image_pull import pull_with_fallback, validate_image_reference
 
         validate_image_reference(image_ref)
         if not yes:
             if as_json:
-                raise CLIError("CONFIRMATION_REQUIRED", f"Pulling image '{image_ref}' requires --yes confirmation", details={"image": image_ref})
+                raise CLIError(
+                    "CONFIRMATION_REQUIRED",
+                    f"Pulling image '{image_ref}' requires --yes confirmation",
+                    details={"image": image_ref},
+                )
             if not click.confirm(f"Pull Docker image '{image_ref}'?"):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
@@ -511,10 +550,8 @@ def pull_image_command(image_ref: str, yes: bool, as_json: bool) -> None:
         try:
             pulled = pull_with_fallback(client, image_ref)
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 client.close()
-            except Exception:
-                pass
         return {
             "image": image_ref,
             "served_from": getattr(pulled, "source", "direct"),
@@ -538,6 +575,7 @@ def docker_volume_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_volumes_command(endpoint_id: int | None, dangling: bool, as_json: bool) -> None:
     """List Docker volumes on the target endpoint."""
+
     def action() -> dict[str, Any]:
         from src.services.portainer_manager import PortainerManager
 
@@ -564,7 +602,9 @@ def list_volumes_command(endpoint_id: int | None, dangling: bool, as_json: bool)
         items = payload.get("items") or []
         if not items:
             return "No Docker volumes found."
-        return "\n".join(f"- {item.get('name')} (driver={item.get('driver')}, project={item.get('project') or '-'})" for item in items)
+        return "\n".join(
+            f"- {item.get('name')} (driver={item.get('driver')}, project={item.get('project') or '-'})" for item in items
+        )
 
     run_cli_action(action, as_json=as_json, text_renderer=render_text)
 
@@ -575,6 +615,7 @@ def list_volumes_command(endpoint_id: int | None, dangling: bool, as_json: bool)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def inspect_volume_command(volume_name: str, endpoint_id: int | None, as_json: bool) -> None:
     """Inspect metadata of a specific Docker volume (host paths excluded)."""
+
     def action() -> dict[str, Any]:
         from src.services.portainer_manager import PortainerManager
 
@@ -607,6 +648,7 @@ def inspect_volume_command(volume_name: str, endpoint_id: int | None, as_json: b
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def delete_volume_command(volume_name: str, endpoint_id: int | None, yes: bool, as_json: bool) -> None:
     """Delete an unreferenced Docker volume (protects control-plane and managed/inactive app volumes)."""
+
     def action() -> dict[str, Any]:
         from src.services.portainer_manager import PortainerManager
 
@@ -636,7 +678,11 @@ def delete_volume_command(volume_name: str, endpoint_id: int | None, yes: bool, 
 
         if not yes:
             if as_json:
-                raise CLIError("CONFIRMATION_REQUIRED", f"Deleting volume '{volume_name}' requires --yes confirmation", details={"volume": volume_name})
+                raise CLIError(
+                    "CONFIRMATION_REQUIRED",
+                    f"Deleting volume '{volume_name}' requires --yes confirmation",
+                    details={"volume": volume_name},
+                )
             if not click.confirm(f"Permanently delete Docker volume '{volume_name}'?"):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
@@ -658,6 +704,7 @@ def docker_network_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_networks_command(as_json: bool) -> None:
     """List Docker networks on the host."""
+
     def action() -> dict[str, Any]:
         import docker as _docker
 
@@ -665,10 +712,8 @@ def list_networks_command(as_json: bool) -> None:
         try:
             nets = client.networks.list()
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 client.close()
-            except Exception:
-                pass
         items = []
         for net in nets:
             attrs = getattr(net, "attrs", {}) or {}
@@ -695,6 +740,7 @@ def list_networks_command(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def inspect_network_command(network_name: str, as_json: bool) -> None:
     """Inspect a Docker network and its attached containers."""
+
     def action() -> dict[str, Any]:
         import docker as _docker
 
@@ -706,10 +752,8 @@ def inspect_network_command(network_name: str, as_json: bool) -> None:
                 raise CLIError("NOT_FOUND", f"Network '{network_name}' not found", details={"network": network_name}) from exc
             attrs = getattr(net, "attrs", {}) or {}
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 client.close()
-            except Exception:
-                pass
         containers_map = attrs.get("Containers") or {}
         attached = [
             {
@@ -745,6 +789,7 @@ def docker_stack_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_stacks_command(endpoint_id: int | None, as_json: bool) -> None:
     """List Portainer stacks on the target endpoint."""
+
     def action() -> dict[str, Any]:
         from src.services.portainer_manager import PortainerManager
 
@@ -779,6 +824,7 @@ def list_stacks_command(endpoint_id: int | None, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def inspect_stack_command(stack_name: str, endpoint_id: int | None, as_json: bool) -> None:
     """Inspect a Portainer stack with Git credentials masked."""
+
     def action() -> dict[str, Any]:
         from src.services.portainer_manager import PortainerManager
 

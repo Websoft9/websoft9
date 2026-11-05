@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextvars
@@ -7,7 +6,6 @@ import logging.config
 import os
 import sys
 from pathlib import Path
-
 
 _request_id_var = contextvars.ContextVar("apphub_request_id", default="-")
 _tracking_id_var = contextvars.ContextVar("apphub_tracking_id", default="-")
@@ -165,7 +163,9 @@ class Logger:
 
         for stream in (sys.stdout, sys.stderr):
             try:
-                stream.reconfigure(line_buffering=True)
+                reconfigure = getattr(stream, "reconfigure", None)
+                if reconfigure is not None:
+                    reconfigure(line_buffering=True)
             except Exception:
                 pass
 

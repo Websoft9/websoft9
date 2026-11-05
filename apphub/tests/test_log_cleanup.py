@@ -16,7 +16,9 @@ from src.services.log_cleanup import LogCleanupService, LogTarget
 def _service(tmp_path, pattern=r"service\.log", rotate=True):
     logs = tmp_path / "logs"
     logs.mkdir(exist_ok=True)
-    return LogCleanupService(targets=[LogTarget(logs, pattern, rotate)], state_dir=tmp_path / "state", now=2_000_000_000, max_bytes=100)
+    return LogCleanupService(
+        targets=[LogTarget(logs, pattern, rotate)], state_dir=tmp_path / "state", now=2_000_000_000, max_bytes=100
+    )
 
 
 def _old(path):
@@ -27,7 +29,15 @@ def _old(path):
 def test_cleanup_only_removes_expired_whitelisted_archives(tmp_path):
     service = _service(tmp_path)
     logs = tmp_path / "logs"
-    for name in ("service.log.1", "service.log.2026-09-01.gz", "service.log", "database.sqlite", "credential.json", "service.log.backup", "other.log.1"):
+    for name in (
+        "service.log.1",
+        "service.log.2026-09-01.gz",
+        "service.log",
+        "database.sqlite",
+        "credential.json",
+        "service.log.backup",
+        "other.log.1",
+    ):
         _old(logs / name)
     (logs / "service.log.2.gz").write_text("recent")
     os.utime(logs / "service.log.2.gz", (service.now, service.now))
@@ -35,7 +45,14 @@ def test_cleanup_only_removes_expired_whitelisted_archives(tmp_path):
     assert result["status"] == "success"
     assert result["deleted_files"] == 2
     assert result["freed_bytes"] == 16
-    assert sorted(path.name for path in logs.iterdir()) == ["credential.json", "database.sqlite", "other.log.1", "service.log", "service.log.2.gz", "service.log.backup"]
+    assert sorted(path.name for path in logs.iterdir()) == [
+        "credential.json",
+        "database.sqlite",
+        "other.log.1",
+        "service.log",
+        "service.log.2.gz",
+        "service.log.backup",
+    ]
 
 
 def test_cleanup_skips_symlinks_hardlinks_and_directories(tmp_path):
@@ -159,6 +176,7 @@ def test_rotation_timeout_reports_partial_failure(tmp_path, monkeypatch):
 @pytest.mark.parametrize("status,exit_code", [("success", 0), ("skipped", 75), ("failed", 1)])
 def test_log_cleanup_cli_exit_codes(monkeypatch, status, exit_code):
     from click.testing import CliRunner
+
     from src.cli.apphub_cli import cli
 
     monkeypatch.setattr(LogCleanupService, "run", lambda self: {"status": status, "deleted_files": 0})
@@ -236,6 +254,7 @@ def test_progress_reports_rotation_result(tmp_path, monkeypatch, exit_code):
 
 def test_cli_prints_structured_actions_without_debug_noise(tmp_path, monkeypatch):
     from click.testing import CliRunner
+
     from src.cli.apphub_cli import cli
 
     service = _service(tmp_path)
@@ -265,7 +284,9 @@ def test_cli_prints_structured_actions_without_debug_noise(tmp_path, monkeypatch
 @pytest.mark.parametrize("options", [[], ["--verbose"], ["--json"]])
 def test_cli_no_changes_verbose_and_json_modes(tmp_path, monkeypatch, options):
     import json
+
     from click.testing import CliRunner
+
     from src.cli.apphub_cli import cli
 
     service = _service(tmp_path)

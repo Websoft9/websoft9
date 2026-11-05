@@ -1,11 +1,10 @@
+import importlib.util
 import json
 import os
 import re
 import tempfile
-import importlib.util
 from pathlib import Path
 from typing import Any
-
 
 DATA_ROOT = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
 LOCAL_APP_STORE_ROOT = Path(os.getenv("WEBSOFT9_LOCAL_APP_STORE_ROOT", f"{DATA_ROOT}/localapps"))
@@ -53,7 +52,7 @@ def _get_distribution(metadata: object) -> list[dict[str, object]]:
 
 
 def _catalog_collection(bindings: object) -> dict[str, object]:
-    items: dict[str, dict[str, object]] = {}
+    items: dict[str, dict[str, Any]] = {}
     if not isinstance(bindings, list):
         return {"items": []}
     for binding in bindings:
@@ -123,15 +122,17 @@ def _build_app(media_path: Path, library_root: Path) -> dict[str, object]:
         default_scheme = "http"
     manifest = dict(media)
     manifest.pop("catalogBindings", None)
-    manifest.update({
-        "key": app_key,
-        "catalogCollection": _catalog_collection(media.get("catalogBindings")),
-        "distribution": distribution,
-        "settings": {key: value for key, value in env_values.items() if key.startswith("W9_") and key.endswith("_SET")},
-        "is_web_app": "W9_URL" in env_values,
-        "default_scheme": default_scheme,
-        "app_origin": "local",
-    })
+    manifest.update(
+        {
+            "key": app_key,
+            "catalogCollection": _catalog_collection(media.get("catalogBindings")),
+            "distribution": distribution,
+            "settings": {key: value for key, value in env_values.items() if key.startswith("W9_") and key.endswith("_SET")},
+            "is_web_app": "W9_URL" in env_values,
+            "default_scheme": default_scheme,
+            "app_origin": "local",
+        }
+    )
     profiles = _discover_profiles(app_dir)
     if profiles:
         manifest["profiles"] = profiles
@@ -218,7 +219,7 @@ def refresh_local_app_store_catalog(root: Path | None = None) -> dict[str, Any]:
     return {"official": official_report, "custom": custom_report}
 
 
-def get_local_app_store_apps(root: Path | None = None) -> list[dict[str, object]]:
+def get_local_app_store_apps(root: Path | None = None) -> list[dict[str, Any]]:
     manifest_path = local_manifest_path(root)
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

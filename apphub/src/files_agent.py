@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import grp
 import hashlib
 import json
@@ -22,7 +23,6 @@ from pydantic import BaseModel, Field
 
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
-
 
 TEXT_FILE_LIMIT_BYTES = 1024 * 1024
 DOCKER_HELPER_MOUNT_PATH = "/workspace"
@@ -413,7 +413,9 @@ except OSError as exc:
 
 
 class DockerHelperManager:
-    def __init__(self, docker_client=None, helper_image: Optional[str] = None, idle_ttl_seconds: int = DOCKER_HELPER_IDLE_TTL_SECONDS):
+    def __init__(
+        self, docker_client=None, helper_image: Optional[str] = None, idle_ttl_seconds: int = DOCKER_HELPER_IDLE_TTL_SECONDS
+    ):
         self.docker_client = docker_client
         self.helper_image = helper_image
         self.idle_ttl_seconds = idle_ttl_seconds
@@ -433,7 +435,7 @@ class DockerHelperManager:
             )
         except Exception as exc:
             self._drop_container(root_path, force_remove=True)
-            raise CustomException(500, "File Operation Error", f"Failed to execute Docker helper action: {exc}")
+            raise CustomException(500, "File Operation Error", f"Failed to execute Docker helper action: {exc}") from exc
         output = result.output.decode("utf-8", errors="replace").strip()
         return self._parse_output(output)
 
@@ -457,7 +459,7 @@ class DockerHelperManager:
         stale_roots = [
             root_path
             for root_path, entry in self._helpers.items()
-            if now - float(entry.get("last_used") or 0.0) > self.idle_ttl_seconds
+            if now - float(str(entry.get("last_used") or 0.0)) > self.idle_ttl_seconds
         ]
         for root_path in stale_roots:
             container_id = self._helpers.pop(root_path, {}).get("container_id")
@@ -465,11 +467,7 @@ class DockerHelperManager:
 
     def prune_orphaned_helpers(self) -> None:
         with self._lock:
-            known_ids = {
-                str(entry.get("container_id"))
-                for entry in self._helpers.values()
-                if entry.get("container_id")
-            }
+            known_ids = {str(entry.get("container_id")) for entry in self._helpers.values() if entry.get("container_id")}
             try:
                 containers = self._get_docker_client().containers.list(
                     all=True,
@@ -539,7 +537,7 @@ class DockerHelperManager:
                 volumes={root_path: {"bind": DOCKER_HELPER_MOUNT_PATH, "mode": "rw"}},
             )
         except Exception as exc:
-            raise CustomException(500, "File Operation Error", f"Failed to start Docker helper container: {exc}")
+            raise CustomException(500, "File Operation Error", f"Failed to start Docker helper container: {exc}") from exc
 
     def _load_running_container(self, container_ref):
         if not container_ref:
@@ -593,9 +591,9 @@ class DockerHelperManager:
         try:
             for image in self._get_docker_client().images.list(name="websoft9dev/websoft9"):
                 for tag in image.tags:
-                    if tag.startswith("websoft9dev/websoft9:"):
-                        self.helper_image = tag
-                        return tag
+                    if str(tag).startswith("websoft9dev/websoft9:"):
+                        self.helper_image = str(tag)
+                        return str(tag)
         except Exception:
             pass
         self.helper_image = DOCKER_HELPER_IMAGE_FALLBACK
@@ -608,7 +606,7 @@ class DockerHelperManager:
         try:
             payload = json.loads(output)
         except json.JSONDecodeError as exc:
-            raise CustomException(500, "File Operation Error", f"Invalid Docker helper response: {exc}: {output}")
+            raise CustomException(500, "File Operation Error", f"Invalid Docker helper response: {exc}: {output}") from exc
         if not payload.get("ok"):
             raise CustomException(
                 int(payload.get("status_code") or 500),
@@ -720,7 +718,7 @@ async def list_directory(payload: AgentPathRequest):
     try:
         entries = sorted(os.scandir(target_path), key=lambda entry: entry.name.lower())
     except FileNotFoundError:
-        raise CustomException(404, "File Not Found", "The requested path disappeared while being read")
+        raise CustomException(404, "File Not Found", "The requested path disappeared while being read") from None
 
     items = []
     for entry in entries:
@@ -785,7 +783,7 @@ async def read_text_file(payload: AgentPathRequest):
     try:
         return {"content": raw.decode("utf-8")}
     except UnicodeDecodeError:
-        raise CustomException(400, "Unsupported File", "Only UTF-8 text files are supported for inline editing")
+        raise CustomException(400, "Unsupported File", "Only UTF-8 text files are supported for inline editing") from None
 
 
 @app.put("/internal/files/write-text")
@@ -810,14 +808,10 @@ async def write_text_file(payload: AgentWriteTextRequest):
             handle.flush()
             os.fsync(handle.fileno())
             if original_stat is not None:
-                try:
+                with contextlib.suppress(OSError):
                     os.fchown(handle.fileno(), original_stat.st_uid, original_stat.st_gid)
-                except OSError:
-                    pass
-                try:
+                with contextlib.suppress(OSError):
                     os.fchmod(handle.fileno(), stat.S_IMODE(original_stat.st_mode))
-                except OSError:
-                    pass
             else:
                 try:
                     parent_stat = os.stat(parent_path)
@@ -1006,7 +1000,7 @@ async def upload_file(payload: AgentUploadRequest):
     try:
         content = base64.b64decode(payload.content_base64.encode("utf-8"), validate=True)
     except Exception:
-        raise CustomException(400, "Invalid Request", "content_base64 must be valid base64")
+        raise CustomException(400, "Invalid Request", "content_base64 must be valid base64") from None
     file_name = _normalize_name(payload.file_name)
     relative_parent = _normalize_relative_path(payload.parent_path)
     target_relative_path = str(PurePosixPath(relative_parent) / file_name)
@@ -1021,7 +1015,10 @@ async def download_file(payload: AgentPathRequest):
     root_path = _normalize_root_path(payload.root_path)
     if _should_use_helper_root(root_path):
         response = _helper_manager().execute(root_path, "download", payload.model_dump(exclude_none=True))
-        return Response(content=base64.b64decode(str(response.get("content_base64") or "").encode("utf-8")), media_type="application/octet-stream")
+        return Response(
+            content=base64.b64decode(str(response.get("content_base64") or "").encode("utf-8")),
+            media_type="application/octet-stream",
+        )
     target_path = _resolve_target_path(root_path, payload.path, allow_root=False)
     if not os.path.isfile(target_path):
         raise CustomException(400, "Invalid Request", "Only file downloads are supported")
@@ -1036,13 +1033,17 @@ def _normalize_root_path(root_path: str) -> str:
         raise CustomException(400, "Invalid Request", "A valid absolute root_path is required")
     if not any(_is_within_root(normalized, allowed_root) for allowed_root in _allowed_roots()):
         raise CustomException(400, "Invalid Request", "Requested root path is outside the allowed files-agent roots")
-    if not os.path.exists(normalized) and not any(_is_within_root(normalized, allowed_root) for allowed_root in _docker_allowed_roots()):
+    if not os.path.exists(normalized) and not any(
+        _is_within_root(normalized, allowed_root) for allowed_root in _docker_allowed_roots()
+    ):
         raise CustomException(404, "File Not Found", "The requested root path does not exist")
     return normalized
 
 
 def _should_use_helper_root(root_path: str) -> bool:
-    return not os.path.exists(root_path) and any(_is_within_root(root_path, allowed_root) for allowed_root in _docker_allowed_roots())
+    return not os.path.exists(root_path) and any(
+        _is_within_root(root_path, allowed_root) for allowed_root in _docker_allowed_roots()
+    )
 
 
 def _resolve_target_path(root_path: str, requested_path: str, allow_root: bool = True, require_exists: bool = True) -> str:
@@ -1115,11 +1116,9 @@ def _build_metadata(
 
 
 def _infer_text_editable(name: str, item_type: str, size: int, mode: int) -> bool:
-    if item_type != "file" or size > TEXT_FILE_LIMIT_BYTES or not stat.S_ISREG(mode):
-        return False
     # Keep volume browsing aligned with host-access file manager: allow small regular
     # files to enter the inline editor and let the read endpoint reject true binaries.
-    return True
+    return item_type == "file" and size <= TEXT_FILE_LIMIT_BYTES and stat.S_ISREG(mode)
 
 
 def _format_timestamp(timestamp: float) -> str:
@@ -1196,10 +1195,10 @@ def _parse_identity_value(value: Optional[str], *, kind: str) -> Optional[int]:
             return pwd.getpwnam(normalized).pw_uid
         return grp.getgrnam(normalized).gr_gid
     except KeyError:
-        raise CustomException(400, "Invalid Request", f"Unknown {kind}: {normalized}")
+        raise CustomException(400, "Invalid Request", f"Unknown {kind}: {normalized}") from None
 
 
-import subprocess
+import subprocess  # noqa: E402 - imported late to keep startup free of the module
 
 
 def _detect_docker_volumes_root() -> str:
@@ -1212,7 +1211,9 @@ def _detect_docker_volumes_root() -> str:
     try:
         result = subprocess.run(
             ["docker", "info", "--format", "{{.DockerRootDir}}"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode == 0 and result.stdout.strip():
             root = os.path.join(result.stdout.strip(), "volumes")

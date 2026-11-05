@@ -1,10 +1,10 @@
 import os
 import re
 import subprocess
-from hashlib import sha1
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from hashlib import sha1
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 from urllib.parse import urljoin
@@ -12,9 +12,15 @@ from urllib.parse import urljoin
 import requests
 
 from src.core.exception import CustomException
-from src.schemas.coreServices import CoreServiceSummary, ISO_PREFIX_PATTERN, ServiceIndicator, ServiceLogEntry, ServiceLogsQuery, ServiceLogsResponse
+from src.schemas.coreServices import (
+    ISO_PREFIX_PATTERN,
+    CoreServiceSummary,
+    ServiceIndicator,
+    ServiceLogEntry,
+    ServiceLogsQuery,
+    ServiceLogsResponse,
+)
 from src.services.product_auth import ProductAuthService
-
 
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
@@ -112,8 +118,10 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_verify_tls=False,
         log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")),
         log_paths=(
-            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "platform-gateway-access.log",
-            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "platform-gateway-error.log",
+            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs"))
+            / "platform-gateway-access.log",
+            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs"))
+            / "platform-gateway-error.log",
         ),
     ),
     ServiceDefinition(
@@ -132,8 +140,16 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_url=os.getenv("WEBSOFT9_GITEA_HEALTH_URL", "http://127.0.0.1:3001/"),
         workspace_route="repository",
         integration_key="gitea",
-        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "gitea",
-        markers=(Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/gitea/credential")),),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs"))
+        / "gitea",
+        markers=(
+            Path(
+                os.getenv(
+                    "WEBSOFT9_GITEA_CREDENTIAL_PATH",
+                    f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/gitea/credential",
+                )
+            ),
+        ),
     ),
     ServiceDefinition(
         key="portainer",
@@ -144,8 +160,16 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_verify_tls=True,
         workspace_route="containers",
         integration_key="portainer",
-        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "portainer",
-        markers=(Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/portainer/credential")),),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs"))
+        / "portainer",
+        markers=(
+            Path(
+                os.getenv(
+                    "WEBSOFT9_PORTAINER_CREDENTIAL_PATH",
+                    f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/portainer/credential",
+                )
+            ),
+        ),
     ),
     ServiceDefinition(
         key="nginx-proxy-manager",
@@ -155,10 +179,20 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_url=os.getenv("WEBSOFT9_NPM_HEALTH_URL", "http://127.0.0.1:81/"),
         workspace_route="gateway",
         integration_key="npm",
-        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "npm",
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs"))
+        / "npm",
         markers=(
-            Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/credential.json")),
-            Path(os.getenv("WEBSOFT9_NPM_CERT_MARKER", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/custom_ssl/websoft9-self-signed.cert")),
+            Path(
+                os.getenv(
+                    "WEBSOFT9_NPM_CREDENTIAL_PATH", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/credential.json"
+                )
+            ),
+            Path(
+                os.getenv(
+                    "WEBSOFT9_NPM_CERT_MARKER",
+                    f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/custom_ssl/websoft9-self-signed.cert",
+                )
+            ),
         ),
     ),
 )
@@ -202,7 +236,9 @@ class CoreServicesService:
         entries = self._filter_log_entries(entries, query)
         return self._build_service_logs_payload(definition, query, entries, unavailable_reason)
 
-    def open_service_logs_stream(self, session_token: Optional[str], service_key: str, query: ServiceLogsQuery) -> tuple[ServiceLogsResponse, ServiceLogsStreamCursor]:
+    def open_service_logs_stream(
+        self, session_token: Optional[str], service_key: str, query: ServiceLogsQuery
+    ) -> tuple[ServiceLogsResponse, ServiceLogsStreamCursor]:
         response = self.get_service_logs(session_token, service_key, query)
         definition = self._get_definition(service_key)
         cursor = ServiceLogsStreamCursor(
@@ -214,7 +250,9 @@ class CoreServicesService:
         )
         return response, cursor
 
-    def poll_service_logs_stream(self, session_token: Optional[str], cursor: ServiceLogsStreamCursor) -> ServiceLogsStreamDelta:
+    def poll_service_logs_stream(
+        self, session_token: Optional[str], cursor: ServiceLogsStreamCursor
+    ) -> ServiceLogsStreamDelta:
         self.auth_service._require_authenticated_operator(session_token)
         definition = self._get_definition(cursor.service_key)
         files = self._recent_log_files(definition.log_root, definition.log_paths)
@@ -227,7 +265,9 @@ class CoreServicesService:
             cursor.entries = []
             cursor.unavailable_reason = unavailable_reason
             cursor.file_cursors = {}
-            return ServiceLogsStreamDelta(snapshot=self._build_service_logs_payload(definition, cursor.query, [], unavailable_reason))
+            return ServiceLogsStreamDelta(
+                snapshot=self._build_service_logs_payload(definition, cursor.query, [], unavailable_reason)
+            )
 
         current_file_keys = {str(path) for path in files}
         previous_file_keys = set(cursor.file_cursors)
@@ -257,7 +297,9 @@ class CoreServicesService:
                 return self._reset_service_logs_stream(session_token, definition, cursor)
 
             incremental_entries.extend(file_entries)
-            next_file_cursors[file_key] = ServiceLogFileCursor(path=path, device=stat.st_dev, inode=stat.st_ino, position=position)
+            next_file_cursors[file_key] = ServiceLogFileCursor(
+                path=path, device=stat.st_dev, inode=stat.st_ino, position=position
+            )
 
         filtered_new_entries = self._filter_log_entries(incremental_entries, cursor.query)
         next_entries = [*cursor.entries, *filtered_new_entries]
@@ -270,14 +312,16 @@ class CoreServicesService:
             next_entries = trimmed_entries
 
         if len(next_entries) > cursor.query.limit:
-            next_entries = next_entries[-cursor.query.limit:]
+            next_entries = next_entries[-cursor.query.limit :]
 
         cursor.file_cursors = next_file_cursors
         cursor.unavailable_reason = None
 
         if removed_entries:
             cursor.entries = next_entries
-            return ServiceLogsStreamDelta(snapshot=self._build_service_logs_payload(definition, cursor.query, next_entries, None))
+            return ServiceLogsStreamDelta(
+                snapshot=self._build_service_logs_payload(definition, cursor.query, next_entries, None)
+            )
 
         if filtered_new_entries:
             cursor.entries = next_entries
@@ -304,7 +348,7 @@ class CoreServicesService:
             indicators.append(ServiceIndicator(key="health-endpoint", status="error", detail=str(exc)))
 
         marker_states = [marker.exists() for marker in definition.markers]
-        for marker, exists in zip(definition.markers, marker_states):
+        for marker, exists in zip(definition.markers, marker_states, strict=False):
             indicators.append(
                 ServiceIndicator(
                     key="bootstrap-marker",
@@ -340,7 +384,9 @@ class CoreServicesService:
             indicators=indicators,
         )
 
-    def _resolve_runtime_state(self, raw_supervisor_status: Optional[str], health_result: HealthProbeResult) -> tuple[str, Optional[str]]:
+    def _resolve_runtime_state(
+        self, raw_supervisor_status: Optional[str], health_result: HealthProbeResult
+    ) -> tuple[str, Optional[str]]:
         if raw_supervisor_status:
             normalized = raw_supervisor_status.strip().upper()
             if normalized == "RUNNING":
@@ -407,17 +453,23 @@ class CoreServicesService:
     def _probe_health(self, definition: ServiceDefinition) -> HealthProbeResult:
         if definition.key == "nginx-proxy-manager":
             token_url = urljoin(f"{definition.health_url.rstrip('/')}/", "api/tokens")
-            response = requests.post(token_url, json={}, timeout=HEALTH_PROBE_TIMEOUT_SECONDS, verify=definition.health_verify_tls)
+            response = requests.post(
+                token_url, json={}, timeout=HEALTH_PROBE_TIMEOUT_SECONDS, verify=definition.health_verify_tls
+            )
             if response.status_code == 400:
                 return HealthProbeResult(ok=True, detail="NPM API ready (HTTP 400)")
             return HealthProbeResult(ok=False, detail=f"NPM API HTTP {response.status_code}")
 
-        response = requests.get(definition.health_url, timeout=HEALTH_PROBE_TIMEOUT_SECONDS, verify=definition.health_verify_tls)
+        response = requests.get(
+            definition.health_url, timeout=HEALTH_PROBE_TIMEOUT_SECONDS, verify=definition.health_verify_tls
+        )
         if response.status_code < 500:
             return HealthProbeResult(ok=True, detail=f"HTTP {response.status_code}")
         return HealthProbeResult(ok=False, detail=f"HTTP {response.status_code}")
 
-    def _read_service_logs(self, definition: ServiceDefinition, limit: int, *, max_scan_bytes: int = 1024 * 1024) -> tuple[list[ServiceLogEntry], Optional[str]]:
+    def _read_service_logs(
+        self, definition: ServiceDefinition, limit: int, *, max_scan_bytes: int = 1024 * 1024
+    ) -> tuple[list[ServiceLogEntry], Optional[str]]:
         if not definition.log_root.exists() and not definition.log_paths:
             return [], "Service raw logs are not currently available"
 
@@ -482,7 +534,9 @@ class CoreServicesService:
             cursors[str(path)] = ServiceLogFileCursor(path=path, device=stat.st_dev, inode=stat.st_ino, position=stat.st_size)
         return cursors
 
-    def _reset_service_logs_stream(self, session_token: Optional[str], definition: ServiceDefinition, cursor: ServiceLogsStreamCursor) -> ServiceLogsStreamDelta:
+    def _reset_service_logs_stream(
+        self, session_token: Optional[str], definition: ServiceDefinition, cursor: ServiceLogsStreamCursor
+    ) -> ServiceLogsStreamDelta:
         response = self.get_service_logs(session_token, definition.key, cursor.query)
         cursor.entries = list(response.entries)
         cursor.unavailable_reason = response.unavailable_reason
@@ -538,7 +592,9 @@ class CoreServicesService:
             request = nginx_access_match.group("request").strip()
             status = nginx_access_match.group("status").strip()
             message = f'{request} | status={status}'
-            return self._build_log_entry(source, fingerprint, raw, self._normalize_timestamp(nginx_access_match.group("ts")), "INF", message)
+            return self._build_log_entry(
+                source, fingerprint, raw, self._normalize_timestamp(nginx_access_match.group("ts")), "INF", message
+            )
 
         portainer_match = PORTAINER_LOG_PATTERN.match(raw)
         if portainer_match:
@@ -554,17 +610,28 @@ class CoreServicesService:
         slash_match = SLASH_TIMESTAMP_PATTERN.match(raw)
         if slash_match:
             level, message = self._extract_message_level(slash_match.group("message").strip())
-            return self._build_log_entry(source, fingerprint, raw, self._normalize_timestamp(slash_match.group("ts")), level or self._infer_default_level(message), message)
+            return self._build_log_entry(
+                source,
+                fingerprint,
+                raw,
+                self._normalize_timestamp(slash_match.group("ts")),
+                level or self._infer_default_level(message),
+                message,
+            )
 
         match = ISO_PREFIX_PATTERN.match(raw)
         if match:
             timestamp = self._normalize_timestamp(match.group("ts"))
             level, message = self._extract_message_level(match.group("message").strip())
-            return self._build_log_entry(source, fingerprint, raw, timestamp, level or self._infer_default_level(message), message)
+            return self._build_log_entry(
+                source, fingerprint, raw, timestamp, level or self._infer_default_level(message), message
+            )
         level, message = self._extract_message_level(raw)
         return self._build_log_entry(source, fingerprint, raw, None, level or self._infer_default_level(message), message)
 
-    def _build_log_entry(self, source: str, fingerprint: str, raw: str, timestamp: Optional[str], level: Optional[str], message: str) -> ServiceLogEntry:
+    def _build_log_entry(
+        self, source: str, fingerprint: str, raw: str, timestamp: Optional[str], level: Optional[str], message: str
+    ) -> ServiceLogEntry:
         entry_id = sha1("\x1f".join((source, fingerprint, timestamp or "", level or "", raw)).encode("utf-8")).hexdigest()
         return ServiceLogEntry(id=entry_id, timestamp=timestamp, level=level, source=source or None, message=message, raw=raw)
 
@@ -572,7 +639,9 @@ class CoreServicesService:
         filtered_entries = entries
         if query.keyword:
             keyword = query.keyword.lower()
-            filtered_entries = [entry for entry in filtered_entries if keyword in entry.raw.lower() or keyword in entry.message.lower()]
+            filtered_entries = [
+                entry for entry in filtered_entries if keyword in entry.raw.lower() or keyword in entry.message.lower()
+            ]
         if query.level:
             allowed_levels = QUERY_LEVEL_TO_ENTRY_LEVELS[query.level]
             filtered_entries = [entry for entry in filtered_entries if entry.level in allowed_levels]
@@ -580,7 +649,7 @@ class CoreServicesService:
             cutoff = self._now_provider().astimezone(timezone.utc) - TIME_RANGE_DELTAS[query.time_range]
             filtered_entries = [entry for entry in filtered_entries if self._entry_at_or_after(entry, cutoff)]
         if len(filtered_entries) > query.limit:
-            filtered_entries = filtered_entries[-query.limit:]
+            filtered_entries = filtered_entries[-query.limit :]
         return filtered_entries
 
     def _build_service_logs_payload(
@@ -619,10 +688,7 @@ class CoreServicesService:
             parsed = datetime.fromisoformat(candidate)
         except ValueError:
             return None
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        else:
-            parsed = parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
         return parsed.isoformat().replace("+00:00", "Z")
 
     def _is_supported_log_file(self, path: Path) -> bool:

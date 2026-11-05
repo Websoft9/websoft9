@@ -10,7 +10,6 @@ from typing import Any, Optional
 
 import requests
 
-
 ARTIFACT_BASE_URL = "https://artifact.websoft9.com/websoft9"
 
 # The daily cron and the startup refresh keep the cache warm; this only bounds how long a
@@ -49,7 +48,7 @@ class ReleaseVersionChecker:
     """
 
     def __init__(self, *, data_root: str | None = None, artifact_base_url: str = ARTIFACT_BASE_URL):
-        self.data_root = Path(data_root or os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
+        self.data_root = Path(data_root or os.getenv("WEBSOFT9_DATA_ROOT") or "/opt/websoft9/data")
         self.upgrade_root = self.data_root / "upgrade"
         self.artifact_base_url = artifact_base_url.rstrip("/")
 
@@ -109,7 +108,7 @@ class ReleaseVersionChecker:
     def _acquire_refresh_lock(self, *, blocking: bool):
         """Take the refresh lock, or return None when another refresh already owns it."""
         self.upgrade_root.mkdir(parents=True, exist_ok=True)
-        handle = open(self.lock_file, "a", encoding="utf-8")
+        handle = open(self.lock_file, "a", encoding="utf-8")  # noqa: SIM115
         flags = fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB
         try:
             fcntl.flock(handle.fileno(), flags)
@@ -129,8 +128,7 @@ class ReleaseVersionChecker:
         """Return the latest version for ``channel``, refreshing the cache when needed."""
         cache = self.read_cache()
         if not force and (
-            self._is_fresh(cache, channel, max_age_seconds)
-            or self._attempt_is_throttled(cache, channel, max_age_seconds)
+            self._is_fresh(cache, channel, max_age_seconds) or self._attempt_is_throttled(cache, channel, max_age_seconds)
         ):
             return self._cached_version(cache, channel)
 
@@ -144,8 +142,7 @@ class ReleaseVersionChecker:
             # Another worker may have refreshed the cache while we waited for the lock.
             cache = self.read_cache()
             if not force and (
-                self._is_fresh(cache, channel, max_age_seconds)
-                or self._attempt_is_throttled(cache, channel, max_age_seconds)
+                self._is_fresh(cache, channel, max_age_seconds) or self._attempt_is_throttled(cache, channel, max_age_seconds)
             ):
                 return self._cached_version(cache, channel)
 
@@ -158,23 +155,27 @@ class ReleaseVersionChecker:
             except Exception as exc:
                 # A transient failure must not look like "this platform is up to date":
                 # keep the previous answer and only record that an attempt happened.
-                self._write_cache({
-                    "channel": channel,
-                    "version": previous_version or "",
-                    "checked_at": cache.get("checked_at") if self._matches_channel(cache, channel) else None,
-                    "last_attempt_at": _utc_now(),
-                    "last_error": str(exc),
-                })
+                self._write_cache(
+                    {
+                        "channel": channel,
+                        "version": previous_version or "",
+                        "checked_at": cache.get("checked_at") if self._matches_channel(cache, channel) else None,
+                        "last_attempt_at": _utc_now(),
+                        "last_error": str(exc),
+                    }
+                )
                 return previous_version
 
             checked_at = _utc_now()
-            self._write_cache({
-                "channel": channel,
-                "version": version,
-                "checked_at": checked_at,
-                "last_attempt_at": checked_at,
-                "last_error": None,
-            })
+            self._write_cache(
+                {
+                    "channel": channel,
+                    "version": version,
+                    "checked_at": checked_at,
+                    "last_attempt_at": checked_at,
+                    "last_error": None,
+                }
+            )
             return version
         finally:
             try:

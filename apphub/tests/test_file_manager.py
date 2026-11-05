@@ -8,7 +8,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -18,7 +17,6 @@ from src.api.v1.routers import files as files_router
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.services.file_manager import DOCKER_VOLUMES_ROOT_SENTINEL, FileManagerService
-
 
 DOCKER_VOLUMES_ROOT = "/var/lib/docker/volumes"
 WORDPRESS_ROOT = f"{DOCKER_VOLUMES_ROOT}/wordpress_data/_data"
@@ -456,7 +454,11 @@ def test_file_manager_lists_volumes_and_browse_root(monkeypatch, tmp_path):
         volumes_response = client.get("/files/volumes")
         assert volumes_response.status_code == 200
         payload = volumes_response.json()
-        assert [item["volume_name"] for item in payload["volumes"]] == ["websoft9_gitea", "wordpress_data", "platform-gateway-certificates"]
+        assert [item["volume_name"] for item in payload["volumes"]] == [
+            "websoft9_gitea",
+            "wordpress_data",
+            "platform-gateway-certificates",
+        ]
 
         browse_response = client.get("/files/tree", params={"volume_id": "wordpress_data", "path": "/"})
         assert browse_response.status_code == 200

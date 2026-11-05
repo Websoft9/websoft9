@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import json
 import sys
 import types
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
 import pytest
-
 from click.testing import CliRunner
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -41,7 +40,6 @@ def test_install_state_store_lazy_init_and_readonly_snapshot(tmp_path):
 
 def test_app_list_and_inspect_are_readonly_and_strict(monkeypatch, tmp_path):
     from src.cli.app_commands import app_group
-    from src.schemas.appResponse import AppResponse
     from src.services import app_manager as app_manager_module
     from src.services.app_manager import AppManger
     from src.services.app_status import appInstalling, configure_install_state_store, start_app_installation
@@ -207,10 +205,11 @@ def test_app_start_stop_restart_cli_commands(monkeypatch):
 
 
 def test_overview_and_appstore_and_host_ports_cli(monkeypatch):
+    import click
+
     from src.cli.appstore_commands import register_appstore_commands
     from src.cli.host_commands import host_group
     from src.cli.overview_commands import overview_group
-    import click
 
     @click.group(name="appstore")
     def temp_appstore_group():
@@ -277,7 +276,7 @@ def test_overview_and_appstore_and_host_ports_cli(monkeypatch):
     monkeypatch.setitem(sys.modules, "src.services.app_manager", manager_module)
 
     local_store_module = types.ModuleType("src.services.local_app_store")
-    local_store_module.get_local_app_store_apps = lambda: []
+    local_store_module.get_local_app_store_apps = list
     monkeypatch.setitem(sys.modules, "src.services.local_app_store", local_store_module)
 
     search_res = runner.invoke(temp_appstore_group, ["search", "word", "--json"])
@@ -294,7 +293,9 @@ def test_overview_and_appstore_and_host_ports_cli(monkeypatch):
 
     port_module = types.ModuleType("src.services.port_allocator")
     port_module.read_port_range = lambda: (9001, 9099)
-    port_module.check_ports = lambda ports: [{"port": p, "available": p != 9001, "reason": "container" if p == 9001 else None} for p in ports]
+    port_module.check_ports = lambda ports: [
+        {"port": p, "available": p != 9001, "reason": "container" if p == 9001 else None} for p in ports
+    ]
     port_module.suggest_ports = lambda keys: [{"key": k, "port": 9002 + idx} for idx, k in enumerate(keys)]
     monkeypatch.setitem(sys.modules, "src.services.port_allocator", port_module)
 
@@ -313,9 +314,8 @@ def test_overview_and_appstore_and_host_ports_cli(monkeypatch):
 def test_docker_container_inspect_and_logs_masking_and_decoding(monkeypatch):
     from src.cli.docker_commands import docker_group
 
-    raw_logs = (
-        _make_docker_frame(1, "Starting service with MYSQL_PASSWORD=mysecretpass\n")
-        + _make_docker_frame(2, "Connecting to redis://user:topsecret@127.0.0.1:6379/0\n")
+    raw_logs = _make_docker_frame(1, "Starting service with MYSQL_PASSWORD=mysecretpass\n") + _make_docker_frame(
+        2, "Connecting to redis://user:topsecret@127.0.0.1:6379/0\n"
     )
 
     class FakePortainerAPI:
@@ -349,7 +349,15 @@ def test_docker_container_inspect_and_logs_masking_and_decoding(monkeypatch):
                 "State": {"Status": "running", "Running": True, "ExitCode": 0, "OOMKilled": False},
                 "RestartCount": 1,
                 "NetworkSettings": {"Networks": {"websoft9": {"IPAddress": "172.18.0.5", "Gateway": "172.18.0.1"}}},
-                "Mounts": [{"Type": "volume", "Name": "wp_db_data", "Destination": "/var/lib/mysql", "RW": True, "Source": "/var/lib/docker/volumes/secret"}],
+                "Mounts": [
+                    {
+                        "Type": "volume",
+                        "Name": "wp_db_data",
+                        "Destination": "/var/lib/mysql",
+                        "RW": True,
+                        "Source": "/var/lib/docker/volumes/secret",
+                    }
+                ],
             }
 
     pm_module = types.ModuleType("src.services.portainer_manager")

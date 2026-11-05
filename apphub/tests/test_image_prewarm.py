@@ -5,7 +5,6 @@ from pathlib import Path
 import docker
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -37,9 +36,13 @@ def test_prewarm_uses_requested_version_and_skips_present_image(monkeypatch, tmp
         images = Images()
 
     pulled = []
-    monkeypatch.setattr("src.services.image_prewarm.pull_with_fallback", lambda _client, image, **_kwargs: pulled.append(image))
+    monkeypatch.setattr(
+        "src.services.image_prewarm.pull_with_fallback", lambda _client, image, **_kwargs: pulled.append(image)
+    )
 
-    result = ImagePrewarmService(library_path=str(tmp_path / "library"), docker_client=Client()).prewarm("wordpress", "6.3", refresh=refresh)
+    result = ImagePrewarmService(library_path=str(tmp_path / "library"), docker_client=Client()).prewarm(
+        "wordpress", "6.3", refresh=refresh
+    )
 
     assert result["images"] == ["wordpress:6.3", "mariadb:11"]
     assert result["already_present"] == ([] if refresh else ["wordpress:6.3"])

@@ -54,7 +54,4 @@ def should_skip_api_key_auth(path: str) -> bool:
     if normalized_path == "/apps/install":
         return True
 
-    if normalized_path == "/settings/domain":
-        return True
-
-    return False
+    return normalized_path == "/settings/domain"

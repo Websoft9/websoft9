@@ -35,7 +35,9 @@ class IntegrationCredentialProvider:
         self.config = config or ConfigManager()
         data_root = Path(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
         self.gitea_credential_path = Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", str(data_root / "gitea/credential")))
-        self.portainer_credential_path = Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", str(data_root / "portainer/credential")))
+        self.portainer_credential_path = Path(
+            os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", str(data_root / "portainer/credential"))
+        )
         self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", str(data_root / "credential.json")))
         self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", str(data_root / "database.sqlite")))
 
@@ -53,13 +55,19 @@ class IntegrationCredentialProvider:
             file_password = self.portainer_credential_path.read_text(encoding="utf-8").strip()
 
         return PortainerCredentials(
-            username=os.getenv("WEBSOFT9_PORTAINER_ADMIN_USER", "admin") if file_password else self._get_config_value("portainer", "user_name", fallback=os.getenv("WEBSOFT9_PORTAINER_ADMIN_USER", "admin")),
+            username=os.getenv("WEBSOFT9_PORTAINER_ADMIN_USER", "admin")
+            if file_password
+            else self._get_config_value(
+                "portainer", "user_name", fallback=os.getenv("WEBSOFT9_PORTAINER_ADMIN_USER", "admin")
+            ),
             password=file_password or self._get_config_value("portainer", "user_pwd"),
         )
 
     def get_portainer_config_credentials(self) -> PortainerCredentials:
         return PortainerCredentials(
-            username=self._get_config_value("portainer", "user_name", fallback=os.getenv("WEBSOFT9_PORTAINER_ADMIN_USER", "admin")),
+            username=self._get_config_value(
+                "portainer", "user_name", fallback=os.getenv("WEBSOFT9_PORTAINER_ADMIN_USER", "admin")
+            ),
             password=self._get_config_value("portainer", "user_pwd"),
         )
 
@@ -67,12 +75,21 @@ class IntegrationCredentialProvider:
         payload = self._read_json_file(self.npm_credential_path)
         username = str(payload.get("username") or self._get_config_value("nginx_proxy_manager", "user_name")).strip()
         fallback_name = username.split("@")[0] if username else "admin"
-        nickname = str(payload.get("nickname") or self._get_config_value("nginx_proxy_manager", "nike_name", fallback=fallback_name)).strip() or fallback_name
-        display_name = str(
-            payload.get("display_name")
-            or payload.get("name")
-            or self._get_config_value("nginx_proxy_manager", "name", fallback=nickname or fallback_name)
-        ).strip() or nickname or fallback_name
+        nickname = (
+            str(
+                payload.get("nickname") or self._get_config_value("nginx_proxy_manager", "nike_name", fallback=fallback_name)
+            ).strip()
+            or fallback_name
+        )
+        display_name = (
+            str(
+                payload.get("display_name")
+                or payload.get("name")
+                or self._get_config_value("nginx_proxy_manager", "name", fallback=nickname or fallback_name)
+            ).strip()
+            or nickname
+            or fallback_name
+        )
 
         return NpmCredentials(
             username=username,
@@ -84,8 +101,14 @@ class IntegrationCredentialProvider:
     def get_npm_config_credentials(self) -> NpmCredentials:
         username = str(self._get_config_value("nginx_proxy_manager", "user_name")).strip()
         fallback_name = username.split("@")[0] if username else "admin"
-        nickname = str(self._get_config_value("nginx_proxy_manager", "nike_name", fallback=fallback_name)).strip() or fallback_name
-        display_name = str(self._get_config_value("nginx_proxy_manager", "name", fallback=nickname or fallback_name)).strip() or nickname or fallback_name
+        nickname = (
+            str(self._get_config_value("nginx_proxy_manager", "nike_name", fallback=fallback_name)).strip() or fallback_name
+        )
+        display_name = (
+            str(self._get_config_value("nginx_proxy_manager", "name", fallback=nickname or fallback_name)).strip()
+            or nickname
+            or fallback_name
+        )
         return NpmCredentials(
             username=username,
             password=str(self._get_config_value("nginx_proxy_manager", "user_pwd")),
@@ -131,7 +154,12 @@ class IntegrationCredentialProvider:
                 return False
 
             modified_on = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-            target_display_name = credentials.display_name.strip() or credentials.nickname.strip() or credentials.username.split("@")[0] or "admin"
+            target_display_name = (
+                credentials.display_name.strip()
+                or credentials.nickname.strip()
+                or credentials.username.split("@")[0]
+                or "admin"
+            )
             target_nickname = credentials.nickname.strip() or target_display_name
             changed = False
 
@@ -184,7 +212,7 @@ class IntegrationCredentialProvider:
         modified_on: str,
     ) -> bool:
         try:
-            import bcrypt  # type: ignore
+            import bcrypt
         except Exception:
             return False
 
@@ -200,7 +228,7 @@ class IntegrationCredentialProvider:
 
     def _get_config_value(self, section: str, key: str, fallback: str = "") -> str:
         try:
-            return self.config.get_value(section, key)
+            return str(self.config.get_value(section, key) or fallback)
         except Exception:
             return fallback
 
@@ -209,6 +237,7 @@ class IntegrationCredentialProvider:
             return {}
 
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            loaded = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return {}
+        return loaded if isinstance(loaded, dict) else {}

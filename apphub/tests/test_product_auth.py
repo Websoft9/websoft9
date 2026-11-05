@@ -6,17 +6,17 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from fastapi.responses import JSONResponse
+
 from src.api.v1.routers import auth as auth_router
-from src.core.request_auth import has_valid_internal_gateway_auth
 from src.core.exception import CustomException
+from src.core.request_auth import has_valid_internal_gateway_auth
 from src.schemas.errorResponse import ErrorResponse
 from src.services.product_auth import ProductAuthService
-from fastapi.responses import JSONResponse
 
 
 def create_test_app() -> FastAPI:
@@ -161,6 +161,9 @@ def test_embedded_gateway_access_allows_when_product_auth_disabled(monkeypatch, 
 def test_embedded_gateway_access_requires_setup_before_login(monkeypatch, tmp_path):
     monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
     monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
+    # Only cloud-marketplace images redirect to the wizard from the gateway endpoint; other images
+    # answer 204 and leave the decision to the console route guard, so enable that branch explicitly.
+    monkeypatch.setattr("src.services.setup_wizard.SetupWizardService.should_use_wizard", lambda self: True)
 
     app = create_test_app()
 
@@ -168,7 +171,7 @@ def test_embedded_gateway_access_requires_setup_before_login(monkeypatch, tmp_pa
         response = client.get("/auth/gateway-access")
 
     assert response.status_code == 403
-    assert response.json()["message"] == "Product Authentication Setup Required"
+    assert response.headers["X-Websoft9-Setup-Route"] == "/setup"
 
 
 def test_embedded_gateway_access_requires_authenticated_session(monkeypatch, tmp_path):
@@ -216,14 +219,20 @@ def test_product_auth_initialize_sets_secure_cookie_on_https(monkeypatch, tmp_pa
 
 def test_internal_gateway_auth_requires_matching_secret():
     assert has_valid_internal_gateway_auth({"x-websoft9-internal-request": "1"}, "shared-secret") is False
-    assert has_valid_internal_gateway_auth(
-        {"x-websoft9-internal-request": "1", "x-websoft9-internal-secret": "wrong-secret"},
-        "shared-secret",
-    ) is False
-    assert has_valid_internal_gateway_auth(
-        {"x-websoft9-internal-request": "1", "x-websoft9-internal-secret": "shared-secret"},
-        "shared-secret",
-    ) is True
+    assert (
+        has_valid_internal_gateway_auth(
+            {"x-websoft9-internal-request": "1", "x-websoft9-internal-secret": "wrong-secret"},
+            "shared-secret",
+        )
+        is False
+    )
+    assert (
+        has_valid_internal_gateway_auth(
+            {"x-websoft9-internal-request": "1", "x-websoft9-internal-secret": "shared-secret"},
+            "shared-secret",
+        )
+        is True
+    )
 
 
 def test_product_auth_respects_configured_protected_modules(monkeypatch, tmp_path):
@@ -339,7 +348,6 @@ def test_product_auth_invalidates_existing_session_when_operator_is_disabled(mon
 
     assert session_response.status_code == 200
     assert session_response.json()["authenticated"] is False
-
 
     def test_product_auth_creates_sqlite_storage(monkeypatch, tmp_path):
         monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
@@ -912,7 +920,10 @@ def test_forgot_password_email_code_flow_and_no_bound_email(monkeypatch, tmp_pat
             invalid_res = client.post("/auth/forgot-password/validate-email", json={"identifier": identifier})
             assert invalid_res.status_code == 400
             assert client.post("/auth/forgot-password/send-code", json={"identifier": identifier}).status_code == 400
-        assert client.post("/auth/forgot-password/validate-email", json={"identifier": "nonexistent@example.com"}).status_code == 404
+        assert (
+            client.post("/auth/forgot-password/validate-email", json={"identifier": "nonexistent@example.com"}).status_code
+            == 404
+        )
         valid_res = client.post("/auth/forgot-password/validate-email", json={"identifier": " Admin@Example.com "})
         assert valid_res.status_code == 200
         assert valid_res.json() == {"valid": True}
@@ -920,7 +931,13 @@ def test_forgot_password_email_code_flow_and_no_bound_email(monkeypatch, tmp_pat
 
         disabled_user = client.post(
             "/auth/users",
-            json={"username": "disabled", "password": "StrongPass123!", "display_name": "Disabled User", "email": "disabled@example.com", "disabled": True},
+            json={
+                "username": "disabled",
+                "password": "StrongPass123!",
+                "display_name": "Disabled User",
+                "email": "disabled@example.com",
+                "disabled": True,
+            },
         )
         assert disabled_user.status_code == 200
         for endpoint in ("validate-email", "send-code"):
@@ -958,7 +975,11 @@ def test_forgot_password_email_code_flow_and_no_bound_email(monkeypatch, tmp_pat
 
         wrong_code_res = client.post(
             "/auth/forgot-password/reset",
-            json={"identifier": "admin@example.com", "code": "000000" if code != "000000" else "999999", "password": "ResetPass789!"},
+            json={
+                "identifier": "admin@example.com",
+                "code": "000000" if code != "000000" else "999999",
+                "password": "ResetPass789!",
+            },
         )
         assert wrong_code_res.status_code == 400
 

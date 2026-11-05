@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -30,9 +29,14 @@ class FakeContainer:
         self.name = name
         self.attrs = {
             "Config": {"Labels": {"com.docker.compose.project": project}},
-            "Mounts": mounts if mounts is not None else [{"Type": "volume", "Name": "wordpress_data", "Destination": "/var/www/html"}],
+            "Mounts": mounts
+            if mounts is not None
+            else [{"Type": "volume", "Name": "wordpress_data", "Destination": "/var/www/html"}],
         }
-        self.result = result or SimpleNamespace(exit_code=0, output=b"W9B1\x00R\x00drwxr-xr-x\x00www-data\x00www-data\x004096\x001700000001\x001700000002\x001700000003\x00F\x00index.php\x00-rw-r--r--\x00www-data\x00www-data\x00405\x001700000001\x001700000002\x001700000003\x00T\x00false\x00")
+        self.result = result or SimpleNamespace(
+            exit_code=0,
+            output=b"W9B1\x00R\x00drwxr-xr-x\x00www-data\x00www-data\x004096\x001700000001\x001700000002\x001700000003\x00F\x00index.php\x00-rw-r--r--\x00www-data\x00www-data\x00405\x001700000001\x001700000002\x001700000003\x00T\x00false\x00",
+        )
         self.commands = []
 
     def exec_run(self, command):
@@ -42,7 +46,9 @@ class FakeContainer:
 
 class FakeDockerClient:
     def __init__(self, volume, containers):
-        self.volumes = SimpleNamespace(get=lambda name: volume if name == volume.attrs["Name"] else (_ for _ in ()).throw(KeyError(name)))
+        self.volumes = SimpleNamespace(
+            get=lambda name: volume if name == volume.attrs["Name"] else (_ for _ in ()).throw(KeyError(name))
+        )
         self.containers = SimpleNamespace(list=lambda filters: containers)
 
 
@@ -63,7 +69,21 @@ def test_lists_current_application_volume_with_stable_container_selection():
     assert response["source_container"] == "wordpress-a"
     assert response["directory"]["path"] == "/"
     assert response["directory"]["item_type"] == "directory"
-    assert response["items"] == [{"name": "index.php", "path": "/index.php", "item_type": "file", "size": 405, "mode": "-rw-r--r--", "owner": "www-data", "group": "www-data", "accessed_at": 1700000001, "modified_at": 1700000002, "created_at": 1700000003, "text_viewable": True}]
+    assert response["items"] == [
+        {
+            "name": "index.php",
+            "path": "/index.php",
+            "item_type": "file",
+            "size": 405,
+            "mode": "-rw-r--r--",
+            "owner": "www-data",
+            "group": "www-data",
+            "accessed_at": 1700000001,
+            "modified_at": 1700000002,
+            "created_at": 1700000003,
+            "text_viewable": True,
+        }
+    ]
     assert selected.commands
     assert not first.commands
 
@@ -75,7 +95,21 @@ def test_parses_directory_records_from_container_response():
     )
 
     assert directory["path"] == "/"
-    assert items == [{"name": "uploads", "path": "/uploads", "item_type": "directory", "size": 0, "mode": "drwxr-xr-x", "owner": "www-data", "group": "www-data", "accessed_at": 1700000001, "modified_at": 1700000002, "created_at": 1700000003, "text_viewable": False}]
+    assert items == [
+        {
+            "name": "uploads",
+            "path": "/uploads",
+            "item_type": "directory",
+            "size": 0,
+            "mode": "drwxr-xr-x",
+            "owner": "www-data",
+            "group": "www-data",
+            "accessed_at": 1700000001,
+            "modified_at": 1700000002,
+            "created_at": 1700000003,
+            "text_viewable": False,
+        }
+    ]
     assert not truncated
 
 
@@ -122,10 +156,12 @@ def test_reads_only_utf8_text_and_rejects_binary_content():
 
 
 def test_rejects_multiple_mounts_in_one_container():
-    container = FakeContainer(mounts=[
-        {"Type": "volume", "Name": "wordpress_data", "Destination": "/one"},
-        {"Type": "volume", "Name": "wordpress_data", "Destination": "/two"},
-    ])
+    container = FakeContainer(
+        mounts=[
+            {"Type": "volume", "Name": "wordpress_data", "Destination": "/one"},
+            {"Type": "volume", "Name": "wordpress_data", "Destination": "/two"},
+        ]
+    )
     service = build_service(containers=[container])
 
     with pytest.raises(CustomException) as error:

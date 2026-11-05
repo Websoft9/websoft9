@@ -1,47 +1,81 @@
 import asyncio
 import datetime
-from http.client import HTTPException
 import json
-import time
+from threading import Thread
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Cookie, Query,Path, Body, Request, Response
+
+from fastapi import APIRouter, Body, Cookie, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from src.core import logger
+
+from src.core.config import ConfigManager
 from src.core.exception import CustomException
+from src.core.logger import logger
+from src.schemas.appAccess import (
+    AppAccessCertificateRequest,
+    AppAccessCustomCertificateRequest,
+    AppAccessDomainBindingRequest,
+    AppAccessOverviewResponse,
+    AppAccessProfile,
+    AppAccessProfileUpdateRequest,
+    AppAccessRootUrlRequest,
+    AppCliCommandRequest,
+    AppCliCommandResult,
+    AppCredentialResult,
+)
 from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
-from src.schemas.appComposeInstall import ComposeInstallAcceptedResponse, ComposeInstallRequest, ComposeValidationRequest, ComposeValidationResponse
-from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
+from src.schemas.appComposeInstall import (
+    ComposeInstallAcceptedResponse,
+    ComposeInstallRequest,
+    ComposeValidationRequest,
+    ComposeValidationResponse,
+)
+from src.schemas.appCustomFields import AppCustomFieldResponse, AppCustomFieldsRequest
 from src.schemas.appInstall import ExternalDatabaseConnectionTestRequest, appInstall
+from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
 from src.schemas.appPhpInfo import AppPhpInfoResponse
 from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
-from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessCustomCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest, AppAccessRootUrlRequest, AppCliCommandRequest, AppCliCommandResult, AppCredentialResult
-from src.schemas.appCustomFields import AppCustomFieldResponse, AppCustomFieldsRequest
 from src.schemas.errorResponse import ErrorResponse
+from src.schemas.scheduledTasks import ImagePrewarmRequest
 from src.services.app_access_manager import AppAccessManager
+from src.services.app_manager import AppManger
 from src.services.app_status import get_app_custom_fields, request_install_cancel, save_app_custom_fields
+from src.services.apps_stream_cache import apps_stream_cache
+from src.services.common_check import install_validate
+from src.services.compose_install import (
+    install_compose_application,
+    prepare_compose_install_tracking,
+    validate_compose_installation,
+)
+from src.services.gitea_manager import GiteaManager
 from src.services.image_prewarm import ImagePrewarmService
+from src.services.install_profile import (
+    get_external_database_type,
+    is_external_database_profile,
+    validate_external_database_connection,
+)
+from src.services.local_app_store import (
+    get_local_app_store_apps,
+    refresh_local_app_store_catalog,
+    resolve_local_app_store_root,
+)
+from src.services.portainer_manager import PortainerManager
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
 from src.services.scheduled_tasks import ScheduledTaskService
-from src.schemas.scheduledTasks import ImagePrewarmRequest
-from src.services.app_manager import AppManger
-from src.services.gitea_manager import GiteaManager
-from src.services.portainer_manager import PortainerManager
-from src.services.apps_stream_cache import apps_stream_cache
-from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
-from src.services.common_check import install_validate
-from src.services.install_profile import get_external_database_type, is_external_database_profile, validate_external_database_connection
-from src.services.local_app_store import get_local_app_store_apps, refresh_local_app_store_catalog, resolve_local_app_store_root
-from src.core.config import ConfigManager
-from threading import Thread
 
 router = APIRouter()
 
 
-@router.post("/apps/images/prewarm", status_code=202, responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}})
-def enqueue_app_image_prewarm(payload: ImagePrewarmRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+@router.post(
+    "/apps/images/prewarm",
+    status_code=202,
+    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def enqueue_app_image_prewarm(
+    payload: ImagePrewarmRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)
+):
     service = ScheduledTaskService()
     existing = service.get_prewarm_task(session_token, payload.app_name, payload.version)
     if existing and existing["queue_state"] in {"success", "failed", "cancelled"}:
@@ -63,33 +97,35 @@ def get_app_image_prewarm_status(
     status["task"] = ScheduledTaskService().get_prewarm_task(session_token, app_name, version)
     return status
 
+
 @router.get(
-        "/apps/catalog/{locale}",
+    "/apps/catalog/{locale}",
     summary="List Catalogs",
     description="Primary App Store catalog payload for product-origin shells.",
-        responses={
+    responses={
         200: {"model": list[AppCatalogResponse]},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-        }
-    )
+    },
+)
 def get_catalog_apps(
-    locale: str = Path(..., description="Language to get catalogs from", regex="^(zh|en)(-[A-Za-z]{2})?$"),
+    locale: str = Path(..., description="Language to get catalogs from", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return AppManger().get_catalog_apps(locale)
 
+
 @router.get(
-        "/apps/available/{locale}",
+    "/apps/available/{locale}",
     summary="List Available Apps",
     description="Primary App Store browse payload for product-origin shells. Media URLs preserve the original remote addresses when available, with local default paths only for missing or invalid assets.",
-        responses={
+    responses={
         200: {"model": list[AppAvailableResponse]},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-        }
-    )
+    },
+)
 def get_available_apps(
-    locale: str = Path(..., description="Language to get available apps from", regex="^(zh|en)(-[A-Za-z]{2})?$"),
+    locale: str = Path(..., description="Language to get available apps from", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return AppManger().get_available_apps(locale)
 
@@ -106,37 +142,38 @@ def get_local_available_apps():
 def refresh_local_apps():
     return refresh_local_app_store_catalog()
 
+
 @router.get(
-        "/apps",
-        summary="List Installed Apps",
-        description="List all installed apps",
-        responses={
+    "/apps",
+    summary="List Installed Apps",
+    description="List all installed apps",
+    responses={
         200: {"model": list[AppResponse]},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-        }
-    )
+    },
+)
 def get_apps(
     endpointId: int = Query(None, description="Endpoint ID to get apps from. If not set, get apps from the local endpoint"),
-    locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$")
+    locale: str = Query("en", description="Language used to resolve installed app media", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return AppManger().get_apps(endpointId, locale)
 
 
 @router.get(
-        "/apps/stream",
-        summary="Stream Installed Apps",
-        description="Server-sent events stream for installed app inventory snapshots.",
-        responses={
+    "/apps/stream",
+    summary="Stream Installed Apps",
+    description="Server-sent events stream for installed app inventory snapshots.",
+    responses={
         200: {"description": "Apps stream established"},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-        }
-    )
+    },
+)
 async def stream_apps(
     request: Request,
     endpointId: int = Query(None, description="Endpoint ID to get apps from. If not set, get apps from the local endpoint"),
-    locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$")
+    locale: str = Query("en", description="Language used to resolve installed app media", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     async def event_generator():
         last_digest: str | None = None
@@ -174,37 +211,42 @@ async def stream_apps(
         },
     )
 
+
 @router.get(
-        "/databases",
-        summary="List External Databases",
-        description="List external databases across installed apps.",
-        responses={
-            200: {"description": "Successful Response"},
-            400: {"model": ErrorResponse},
-            500: {"model": ErrorResponse},
-        },
+    "/databases",
+    summary="List External Databases",
+    description="List external databases across installed apps.",
+    responses={
+        200: {"description": "Successful Response"},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def get_external_databases(
-    endpointId: int = Query(None, description="Endpoint ID to get databases from. If not set, get databases from the local endpoint"),
-    locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$"),
+    endpointId: int = Query(
+        None, description="Endpoint ID to get databases from. If not set, get databases from the local endpoint"
+    ),
+    locale: str = Query("en", description="Language used to resolve installed app media", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return AppManger().get_external_databases(endpointId, locale)
 
 
 @router.get(
-        "/apps/{app_id}",
-        summary="Inspect App",
-        description="Retrieve details about an app",
-        responses={
+    "/apps/{app_id}",
+    summary="Inspect App",
+    description="Retrieve details about an app",
+    responses={
         200: {"model": AppResponse},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
-    )
+    },
+)
 def get_app_by_id(
     app_id: str = Path(..., description="App ID to get details from"),
-    endpointId: int = Query(None, description="Endpoint ID to get app details from. If not set, get details from the local endpoint"),
-    locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$")
+    endpointId: int = Query(
+        None, description="Endpoint ID to get app details from. If not set, get details from the local endpoint"
+    ),
+    locale: str = Query("en", description="Language used to resolve installed app media", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return AppManger().get_app_by_id(app_id, endpointId, locale)
 
@@ -217,7 +259,7 @@ def get_app_by_id(
         200: {"model": AppAccessOverviewResponse},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 def get_app_access(
     app_id: str = Path(..., description="App ID to inspect access for"),
@@ -234,7 +276,7 @@ def get_app_access(
 def read_app_credential(
     response: Response,
     app_id: str = Path(...),
-    field: str = Path(..., regex="^(username|password|token)$"),
+    field: str = Path(..., pattern="^(username|password|token)$"),
     endpointId: int = Query(None),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
@@ -270,7 +312,7 @@ def execute_app_cli_command(
         200: {"model": AppAccessProfile},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 def update_app_access_profile(
     payload: AppAccessProfileUpdateRequest = Body(...),
@@ -295,14 +337,16 @@ def update_app_access_profile(
         200: {"model": dict},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 def save_app_access_domains(
     payload: AppAccessDomainBindingRequest = Body(...),
     app_id: str = Path(..., description="App ID to bind domains for"),
     endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
 ):
-    return AppAccessManager().save_domain_binding(app_id, payload.domain_names, payload.certificate_id, payload.ssl_forced, payload.proxy_id, endpointId)
+    return AppAccessManager().save_domain_binding(
+        app_id, payload.domain_names, payload.certificate_id, payload.ssl_forced, payload.proxy_id, endpointId
+    )
 
 
 @router.put(
@@ -313,7 +357,7 @@ def save_app_access_domains(
         200: {"model": dict},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 def update_app_access_root_url(
     payload: AppAccessRootUrlRequest = Body(...),
@@ -332,7 +376,7 @@ def update_app_access_root_url(
         204: {"description": "Delete domain binding success"},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 def delete_app_access_domain(
     request: Request,
@@ -351,14 +395,17 @@ def delete_app_access_domain(
         200: {"model": dict},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 def issue_app_letsencrypt_certificate(
     payload: AppAccessCertificateRequest = Body(...),
     app_id: str = Path(..., description="App ID to request a certificate for"),
     endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
 ):
-    return AppAccessManager().issue_letsencrypt_certificate(app_id, payload.email, payload.domain_names, payload.proxy_id, endpointId)
+    return AppAccessManager().issue_letsencrypt_certificate(
+        app_id, payload.email, payload.domain_names, payload.proxy_id, endpointId
+    )
+
 
 @router.post(
     "/apps/{app_id}/access/certificates/custom",
@@ -368,7 +415,7 @@ def issue_app_letsencrypt_certificate(
         200: {"model": dict},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 def upload_app_custom_certificate(
     payload: AppAccessCustomCertificateRequest = Body(...),
@@ -379,64 +426,67 @@ def upload_app_custom_certificate(
         app_id, payload.nice_name, payload.certificate_pem, payload.key_pem, payload.proxy_id, payload.domain_names, endpointId
     )
 
+
 @router.get(
-        "/apps/{app_id}/php",
-        summary="Inspect PHP runtime",
-        description="Retrieve PHP version and modules for PHP-capable apps",
-        responses={
+    "/apps/{app_id}/php",
+    summary="Inspect PHP runtime",
+    description="Retrieve PHP version and modules for PHP-capable apps",
+    responses={
         200: {"model": AppPhpInfoResponse},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
-    )
+    },
+)
 def get_app_php_info(
     app_id: str = Path(..., description="App ID to inspect PHP runtime from"),
-    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint")
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
 ):
     return AppManger().get_php_info(app_id, endpointId)
 
+
 @router.post(
-        "/apps/{app_id}/php/migration-request",
-        summary="Submit PHP migration request",
-        description="Submit a PHP version migration request for PHP-capable apps",
-        responses={
+    "/apps/{app_id}/php/migration-request",
+    summary="Submit PHP migration request",
+    description="Submit a PHP version migration request for PHP-capable apps",
+    responses={
         200: {"description": "PHP migration request accepted"},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
-    )
+    },
+)
 def submit_app_php_migration_request(
     payload: AppPhpMigrationRequest,
     app_id: str = Path(..., description="App ID to request PHP migration for"),
-    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint")
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
 ):
     return AppManger().request_php_migration(app_id, payload.target_version, payload.remarks, endpointId)
+
 
 @router.post(
     "/apps/install",
     summary="Install App",
     response_model=AppInstallAcceptedResponse,
-    response_model_exclude_defaults=True, 
+    response_model_exclude_defaults=True,
     description="Install an app on an endpoint",
     responses={
         200: {"model": AppInstallAcceptedResponse},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 async def apps_install(
     appInstall: appInstall,
     endpointId: int = Query(None, description="Endpoint ID to install app on,if not set, install on the local endpoint"),
 ):
     # install validate
-    install_validate(appInstall,endpointId)
+    install_validate(appInstall, endpointId)
 
     app_manager = AppManger()
     tracked_app_id, tracking_id = app_manager.create_installation_tracking(appInstall)
 
     # install app
     Thread(target=app_manager.install_app, args=(appInstall, endpointId, tracked_app_id, tracking_id), daemon=True).start()
-    
+
     # return success
     return AppInstallAcceptedResponse(
         message="Success",
@@ -466,7 +516,12 @@ async def local_apps_install(
     local_app = next((app for app in local_apps if app.get("key", "").lower() == requested_key), None)
     if local_app is None:
         raise CustomException(400, "Invalid Request", f"app_name:{appInstall.app_name} not supported by the local app store")
-    versions = [version for item in local_app.get("distribution", []) for version in item.get("value", []) if isinstance(item, dict) and isinstance(item.get("value"), list)]
+    versions = [
+        version
+        for item in local_app.get("distribution") or []
+        for version in (item.get("value") or {} if isinstance(item, dict) else [])
+        if isinstance(item, dict) and isinstance(item.get("value"), list)
+    ]
     if requested_version not in versions:
         raise CustomException(400, "Invalid Request", f"app_version:{requested_version} not supported by the local app store")
 
@@ -474,7 +529,9 @@ async def local_apps_install(
     install_validate(appInstall, endpointId, library_path)
     app_manager = AppManger()
     tracked_app_id, tracking_id = app_manager.create_installation_tracking(appInstall)
-    Thread(target=app_manager.install_app, args=(appInstall, endpointId, tracked_app_id, tracking_id, library_path), daemon=True).start()
+    Thread(
+        target=app_manager.install_app, args=(appInstall, endpointId, tracked_app_id, tracking_id, library_path), daemon=True
+    ).start()
     return AppInstallAcceptedResponse(
         message="Success",
         details="The app is installing and can be viewed through 'My Apps.'",
@@ -587,7 +644,7 @@ def validate_compose_install(
 )
 def app_start(
     app_id: str = Path(..., description="App ID to start"),
-    endpointId: int = Query(None, description="Endpoint ID to start app on. If not set, start on the local endpoint")
+    endpointId: int = Query(None, description="Endpoint ID to start app on. If not set, start on the local endpoint"),
 ):
     AppManger().start_app(app_id, endpointId)
 
@@ -595,7 +652,7 @@ def app_start(
 @router.post(
     "/apps/{app_id}/stop",
     summary="Stop App",
-    response_model_exclude_defaults=True, 
+    response_model_exclude_defaults=True,
     description="Stop an app on an endpoint",
     status_code=204,
     responses={
@@ -610,10 +667,11 @@ def app_stop(
 ):
     AppManger().stop_app(app_id, endpointId)
 
+
 @router.post(
     "/apps/{app_id}/restart",
     summary="Restart App",
-    response_model_exclude_defaults=True, 
+    response_model_exclude_defaults=True,
     description="Restart an app on an endpoint",
     status_code=204,
     responses={
@@ -628,10 +686,11 @@ def app_restart(
 ):
     AppManger().restart_app(app_id, endpointId)
 
+
 @router.put(
     "/apps/{app_id}/redeploy",
     summary="Redeploy App",
-    response_model_exclude_defaults=True, 
+    response_model_exclude_defaults=True,
     description="Redeploy an app on an endpoint",
     # status_code=200,
     responses={
@@ -645,41 +704,36 @@ async def app_redeploy(
     endpointId: int = Query(None, description="Endpoint ID to redeploy app on. If not set, redeploy on the local endpoint"),
     pullImage: bool = Query(..., description="Whether to pull the image when redeploying the app"),
 ):
-    
+
     async def log_generator(queue: asyncio.Queue):
         error_occurred = False
         try:
             while True:
                 item = await queue.get()
-                
+
                 # 构建基础消息结构
-                log_entry: Dict[str, Any] = {
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "type": "log",
-                    "data": None
-                }
+                log_entry: Dict[str, Any] = {"timestamp": datetime.datetime.now().isoformat(), "type": "log", "data": None}
 
                 # 处理不同消息类型
                 if isinstance(item, dict):
                     if item.get("type") == "error":
-                        log_entry.update({
-                            "type": "error",
-                            "code": item.get("code", 500),
-                            "message": item.get("message", "Unknown error"),
-                            "details": item.get("details")
-                        })
+                        log_entry.update(
+                            {
+                                "type": "error",
+                                "code": item.get("code", 500),
+                                "message": item.get("message", "Unknown error"),
+                                "details": item.get("details"),
+                            }
+                        )
                         error_occurred = True
                     elif item.get("type") == "end":
                         log_entry["type"] = "end"
                     else:
                         log_entry["data"] = item
                 elif isinstance(item, CustomException):
-                    log_entry.update({
-                        "type": "error",
-                        "code": item.status_code,
-                        "message": item.message,
-                        "details": item.details
-                    })
+                    log_entry.update(
+                        {"type": "error", "code": item.status_code, "message": item.message, "details": item.details}
+                    )
                     error_occurred = True
                 else:
                     log_entry["data"] = str(item)
@@ -694,47 +748,46 @@ async def app_redeploy(
             # 记录最终状态
             final_status = {
                 "status": "failed" if error_occurred else "success",
-                "timestamp": datetime.datetime.now().isoformat()
+                "timestamp": datetime.datetime.now().isoformat(),
             }
             yield json.dumps(final_status) + "\n"
 
     async def task_wrapper():
         try:
             # 成功执行后发送明确的结束标记
-            await app_manager.redeploy_app(
-                app_id, 
-                pullImage, 
-                endpointId, 
-                queue=queue
-            )
+            await app_manager.redeploy_app(app_id, pullImage, endpointId, queue=queue)
             await queue.put({"type": "end"})
         except CustomException as e:
             # 标准化错误格式
-            await queue.put({
-                "type": "error",
-                "code": e.status_code,
-                "message": e.message,
-                "details": e.details,
-                "timestamp": datetime.datetime.now().isoformat()  # 添加时间戳
-            })
+            await queue.put(
+                {
+                    "type": "error",
+                    "code": e.status_code,
+                    "message": e.message,
+                    "details": e.details,
+                    "timestamp": datetime.datetime.now().isoformat(),  # 添加时间戳
+                }
+            )
         except Exception as e:
             # 处理未预期的异常类型
-            await queue.put({
-                "type": "error",
-                "code": 500,
-                "message": "Internal Server Error",
-                "details": f"{type(e).__name__}: {str(e)}",
-                "timestamp": datetime.datetime.now().isoformat()
-            })
+            await queue.put(
+                {
+                    "type": "error",
+                    "code": 500,
+                    "message": "Internal Server Error",
+                    "details": f"{type(e).__name__}: {str(e)}",
+                    "timestamp": datetime.datetime.now().isoformat(),
+                }
+            )
         finally:
             # 确保流结束
             await queue.put({"type": "end"})  # 冗余保障
 
-    queue = asyncio.Queue(maxsize=100)
+    queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=100)
     app_manager = AppManger()
 
     asyncio.create_task(task_wrapper())
-    #asyncio.create_task(app_manager.redeploy_app(app_id, pullImage,endpointId,queue))
+    # asyncio.create_task(app_manager.redeploy_app(app_id, pullImage,endpointId,queue))
     return StreamingResponse(log_generator(queue), media_type="text/plain")
 
 
@@ -747,20 +800,20 @@ async def app_redeploy(
         204: {"description": "App uninstalled successfully"},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
-    }
+    },
 )
 def apps_uninstall(
-    app_id: str=Path(..., description="App ID to uninstall"),
+    app_id: str = Path(..., description="App ID to uninstall"),
     endpointId: int = Query(None, description="Endpoint ID to uninstall app on,if not set, uninstall on the local endpoint"),
-    purge_data: bool = Query(..., description="Whether to purge data when uninstalling the app")
+    purge_data: bool = Query(..., description="Whether to purge data when uninstalling the app"),
 ):
-    AppManger().uninstall_app(app_id,purge_data, endpointId)
+    AppManger().uninstall_app(app_id, purge_data, endpointId)
 
 
 @router.delete(
     "/apps/{app_id}/remove",
     summary="Remove App",
-    response_model_exclude_defaults=True, 
+    response_model_exclude_defaults=True,
     description="Remove an app on an endpoint where the app is empty(status is 'inactive')",
     status_code=204,
     responses={
@@ -775,10 +828,11 @@ def app_remove(
 ):
     AppManger().remove_app(app_id, endpointId)
 
+
 @router.delete(
     "/apps/{app_id}/error/remove",
     summary="Remove Error App",
-    response_model_exclude_defaults=True, 
+    response_model_exclude_defaults=True,
     description="Remove an app on an endpoint where the app is error(status is 'error')",
     status_code=204,
     responses={
@@ -787,7 +841,7 @@ def app_remove(
         500: {"model": ErrorResponse},
     },
 )
-def app_remove(
+def app_remove_error(
     app_id: str = Path(..., description="The error app ID to remove"),
 ):
     AppManger().remove_error_app(app_id)
@@ -802,10 +856,15 @@ def app_remove(
 def debug_inject_error(
     app_id: str = Query("debug_app", description="Fake app_id"),
     app_name: str = Query("Debug Error App", description="Fake app name"),
-    error_msg: str = Query("This is a simulated installation error.\nLine 2 of error.\nFailed to deploy a stack: compose up operation failed.", description="Error message"),
+    error_msg: str = Query(
+        "This is a simulated installation error.\nLine 2 of error.\nFailed to deploy a stack: compose up operation failed.",
+        description="Error message",
+    ),
 ):
     import uuid
+
     from src.services.app_status import appInstallingError
+
     uid = str(uuid.uuid4())
     appInstallingError[uid] = {
         "app_id": app_id,
@@ -816,11 +875,14 @@ def debug_inject_error(
         "error": error_msg,
         "logs": [
             {"title": "Prepare", "sub_logs": ["Clone repository", "Render template", "Validate config"]},
-            {"title": "Deploy", "sub_logs": [
-                "Pulling image websoft9/moodle:latest",
-                "Creating network moodle_default",
-                error_msg.split("\n")[0],
-            ]},
+            {
+                "title": "Deploy",
+                "sub_logs": [
+                    "Pulling image websoft9/moodle:latest",
+                    "Creating network moodle_default",
+                    error_msg.split("\n")[0],
+                ],
+            },
             {"title": "Post-install", "sub_logs": []},
         ],
     }
@@ -964,4 +1026,3 @@ def update_app_repository_file(
         "deployed_sha": deployed_sha,
         "pending_redeploy": bool(head_sha and deployed_sha and head_sha != deployed_sha),
     }
-

@@ -17,16 +17,25 @@ def db_group():
 
 
 @db_group.command(name="list")
-@click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID to inspect (defaults to local endpoint).")
-@click.option("--locale", type=click.Choice(["en", "zh"], case_sensitive=False), default="en", show_default=True, help="Locale for application metadata.")
+@click.option(
+    "--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID to inspect (defaults to local endpoint)."
+)
+@click.option(
+    "--locale",
+    type=click.Choice(["en", "zh"], case_sensitive=False),
+    default="en",
+    show_default=True,
+    help="Locale for application metadata.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_external_dbs_command(endpoint_id: int | None, locale: str, as_json: bool) -> None:
     """List external database bindings grouped across installed applications."""
+
     def action() -> dict[str, Any]:
         from src.services.app_manager import AppManger
 
         records = AppManger().get_external_databases(endpoint_id, locale=locale.lower(), readonly=True)
-        items = [
+        items: list[dict] = [
             {
                 "type": record.get("type"),
                 "address": record.get("address"),
@@ -60,7 +69,13 @@ def list_external_dbs_command(endpoint_id: int | None, locale: str, as_json: boo
 
 
 @db_group.command(name="test")
-@click.option("--type", "db_type", required=True, type=click.Choice(["mysql", "postgresql"], case_sensitive=False), help="Database engine type.")
+@click.option(
+    "--type",
+    "db_type",
+    required=True,
+    type=click.Choice(["mysql", "postgresql"], case_sensitive=False),
+    help="Database engine type.",
+)
 @click.option("--host", required=True, help="Database host or IP address.")
 @click.option("--port", required=True, type=click.IntRange(min=1, max=65535), help="Database port.")
 @click.option("--database", "database_name", required=True, help="Target database name.")
@@ -77,6 +92,7 @@ def test_external_db_command(
     as_json: bool,
 ) -> None:
     """Test connectivity and version of an external MySQL/MariaDB or PostgreSQL database."""
+
     def action() -> dict[str, Any]:
         from src.services.install_profile import validate_external_database_connection
 
@@ -84,7 +100,9 @@ def test_external_db_command(
             password = sys.stdin.read().rstrip("\r\n")
         else:
             if as_json:
-                raise CLIError("INVALID_ARGUMENT", "Use --password-stdin when running app database test with --json", exit_code=2)
+                raise CLIError(
+                    "INVALID_ARGUMENT", "Use --password-stdin when running app database test with --json", exit_code=2
+                )
             password = click.prompt("Database password", hide_input=True)
 
         if not password:

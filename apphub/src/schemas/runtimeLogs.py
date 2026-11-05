@@ -3,7 +3,6 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-
 ALLOWED_LOG_LEVELS = {"error", "warning", "info"}
 ALLOWED_TIME_RANGES = {
     "15m": timedelta(minutes=15),

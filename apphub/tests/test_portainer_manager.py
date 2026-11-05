@@ -1,6 +1,5 @@
-import sys
-import types
 import importlib.util
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -63,10 +62,12 @@ def test_create_stack_retries_after_cleaning_stale_compose_workspace(monkeypatch
     workdir.mkdir(parents=True)
     (workdir / 'src').mkdir()
     error_text = '{"details":"open ' + str(workdir / 'src' / 'php.ini') + ': is a directory"}'
-    fake_api = FakePortainerApi([
-        FakeResponse(400, text=error_text),
-        FakeResponse(200, payload={'Id': 2}),
-    ])
+    fake_api = FakePortainerApi(
+        [
+            FakeResponse(400, text=error_text),
+            FakeResponse(200, payload={'Id': 2}),
+        ]
+    )
 
     manager = _build_manager(fake_api)
     monkeypatch.setattr(manager, '_extract_compose_workdir', lambda message: str(workdir))
@@ -79,9 +80,11 @@ def test_create_stack_retries_after_cleaning_stale_compose_workspace(monkeypatch
 
 
 def test_rewrite_legacy_stack_git_settings_updates_only_legacy_urls(monkeypatch):
-    fake_api = FakePortainerApi([
-        FakeResponse(200, payload={'Id': 7}),
-    ])
+    fake_api = FakePortainerApi(
+        [
+            FakeResponse(200, payload={'Id': 7}),
+        ]
+    )
     manager = _build_manager(fake_api)
     monkeypatch.setenv('WEBSOFT9_RUNTIME_LAYOUT', 'single-container-target')
     monkeypatch.setenv('WEBSOFT9_PLATFORM_PUBLIC_ORIGIN', 'http://47.239.243.133:9000')

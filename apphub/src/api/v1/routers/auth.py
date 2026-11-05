@@ -1,3 +1,4 @@
+import contextlib
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Header, Request, Response
@@ -19,10 +20,10 @@ from src.schemas.productAuth import (
     ProductAuthUpdateUserRequest,
     ProductAuthUsersResponse,
 )
-from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, SESSION_TTL_HOURS, ProductAuthService
-from src.services.host_access import HostAccessService
 from src.services.app_sftp import AppSftpService
+from src.services.host_access import HostAccessService
 from src.services.platform_readiness import PlatformReadinessService
+from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, SESSION_TTL_HOURS, ProductAuthService
 from src.services.setup_wizard import SetupWizardService
 
 router = APIRouter()
@@ -71,7 +72,11 @@ def get_product_auth_session(
     summary="Check embedded gateway access",
     description="Return an auth-request compatible status for embedded integration workspaces",
     status_code=204,
-    responses={204: {"description": "Authenticated or auth disabled"}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+    responses={
+        204: {"description": "Authenticated or auth disabled"},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+    },
 )
 def check_embedded_gateway_access(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
@@ -167,7 +172,12 @@ def list_product_auth_users(session_token: Optional[str] = Cookie(default=None, 
     "/auth/initialize",
     summary="Initialize first operator",
     description="Create the first product-side operator account and open a product-owned session",
-    responses={200: {"model": ProductAuthStatusResponse}, 400: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthStatusResponse},
+        400: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def initialize_first_operator(
     payload: ProductAuthInitializeRequest,
@@ -178,7 +188,7 @@ def initialize_first_operator(
     status_payload, session_token = ProductAuthService().initialize_first_operator(
         username=payload.username,
         password=payload.password,
-        display_name=payload.display_name,
+        display_name=payload.display_name or payload.username,
         locale=payload.locale,
         email=payload.email,
         create_session=payload.create_session,
@@ -194,7 +204,13 @@ def initialize_first_operator(
     "/auth/users",
     summary="Create product-side operator",
     description="Create an additional product-side operator account",
-    responses={200: {"model": ProductAuthOperator}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthOperator},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def create_product_auth_user(
     payload: ProductAuthCreateUserRequest,
@@ -219,7 +235,14 @@ def create_product_auth_user(
     "/auth/users/{operator_id}",
     summary="Update product-side user",
     description="Update a product-side user profile",
-    responses={200: {"model": ProductAuthOperator}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthOperator},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def update_product_auth_user(
     operator_id: str,
@@ -244,7 +267,12 @@ def update_product_auth_user(
     "/auth/login",
     summary="Operator login",
     description="Authenticate an existing product-side operator and create a product-owned session",
-    responses={200: {"model": ProductAuthStatusResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthStatusResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def login_operator(
     payload: ProductAuthLoginRequest,
@@ -258,7 +286,8 @@ def login_operator(
         client_host=request.client.host if request.client else None,
         user_agent=user_agent,
     )
-    _set_session_cookie(request, response, session_token)
+    if session_token:
+        _set_session_cookie(request, response, session_token)
     return status_payload
 
 
@@ -266,7 +295,13 @@ def login_operator(
     "/auth/users/{operator_id}/disable",
     summary="Disable product-side operator",
     description="Disable a product-side operator and invalidate their sessions",
-    responses={200: {"model": ProductAuthOperator}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthOperator},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def disable_product_auth_user(
     operator_id: str,
@@ -286,7 +321,13 @@ def disable_product_auth_user(
     "/auth/users/{operator_id}/enable",
     summary="Enable product-side operator",
     description="Enable a product-side operator so the account can sign in again",
-    responses={200: {"model": ProductAuthOperator}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthOperator},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def enable_product_auth_user(
     operator_id: str,
@@ -306,7 +347,14 @@ def enable_product_auth_user(
     "/auth/users/{operator_id}/reset-password",
     summary="Reset product-side operator password",
     description="Reset a product-side operator password and invalidate active sessions",
-    responses={200: {"model": ProductAuthOperator}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthOperator},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def reset_product_auth_user_password(
     operator_id: str,
@@ -328,7 +376,13 @@ def reset_product_auth_user_password(
     "/auth/users/{operator_id}",
     summary="Delete product-side operator",
     description="Soft-delete a product-side operator and invalidate active sessions",
-    responses={200: {"model": ProductAuthOperator}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthOperator},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def delete_product_auth_user(
     operator_id: str,
@@ -429,10 +483,8 @@ def logout_operator(
             lambda: _app_sftp_service.close_operator_sessions(operator_id),
             lambda: _host_access_service.close_operator_sessions(operator_id),
         ):
-            try:
+            with contextlib.suppress(Exception):
                 cleanup()
-            except Exception:
-                pass
     response.delete_cookie(key=PRODUCT_AUTH_COOKIE_NAME, path="/", samesite="lax")
     return status_payload
 
@@ -451,7 +503,12 @@ def list_product_auth_favorites(session_token: Optional[str] = Cookie(default=No
     "/auth/favorites",
     summary="Add app-store favorite",
     description="Store an app-store favorite for the current authenticated product-side user",
-    responses={200: {"model": ProductAuthFavoritesResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ProductAuthFavoritesResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def create_product_auth_favorite(
     payload: ProductAuthFavoriteRequest,

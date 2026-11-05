@@ -4,9 +4,10 @@ import re
 import shutil
 import time
 from typing import Optional
+
 from src.core.exception import CustomException
-from src.external.portainer_api import PortainerAPI
 from src.core.logger import logger
+from src.external.portainer_api import PortainerAPI
 from src.services.git_url_resolver import normalize_runtime_git_url
 
 
@@ -19,12 +20,7 @@ def _extract_portainer_error_message(response_text: str) -> str:
     except json.JSONDecodeError:
         return message
     if isinstance(response_details, dict):
-        return (
-            response_details.get('details')
-            or response_details.get('message')
-            or response_details.get('err')
-            or message
-        )
+        return response_details.get('details') or response_details.get('message') or response_details.get('err') or message
     return message
 
 
@@ -48,12 +44,13 @@ class PortainerManager:
         get_volumes_by_stack_name(stack_name, endpoint_id): Get volumes by stack name
         remove_volume(volume_names, endpoint_id): Remove volume by name
     """
+
     def __init__(self):
         try:
             self.portainer = PortainerAPI()
         except Exception as e:
             logger.error(f"Init Portainer API Error:{e}")
-            raise CustomException()
+            raise CustomException() from e
 
     _compose_workdir_pattern = re.compile(
         rf"({re.escape(os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data').rstrip('/'))}/portainer/compose/\d+|/data/portainer/compose/\d+)"
@@ -90,19 +87,17 @@ class PortainerManager:
             for endpoint in endpoints:
                 # find the local endpoint
                 if endpoint["URL"] == "unix:///var/run/docker.sock":
-                    if local_endpoint is None: # if there is only one local endpoint, return it
+                    if local_endpoint is None:  # if there is only one local endpoint, return it
                         local_endpoint = endpoint
-                    elif endpoint["Id"] < local_endpoint["Id"]: # if there are multiple local endpoints, return the one with the smallest id
+                    elif (
+                        endpoint["Id"] < local_endpoint["Id"]
+                    ):  # if there are multiple local endpoints, return the one with the smallest id
                         local_endpoint = endpoint
-            if local_endpoint is not None: 
+            if local_endpoint is not None:
                 return local_endpoint["Id"]
             else:
-                logger.error(f"Get local endpoint id error: Local endpoint is not exist")
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details="Local endpoint is not exist"
-                )
+                logger.error("Get local endpoint id error: Local endpoint is not exist")
+                raise CustomException(status_code=400, message="Invalid Request", details="Local endpoint is not exist")
         else:
             logger.error(f"Get local endpoint id error: {response.status_code}:{response.text}")
             raise CustomException()
@@ -125,7 +120,7 @@ class PortainerManager:
         else:
             logger.error(f"Check endpoint:{endpoint_id} exists error: {response.status_code}:{response.text}")
             raise CustomException()
-        
+
     def check_stack_exists(self, stack_name: str, endpoint_id: int):
         """
         Check stack exists
@@ -141,16 +136,17 @@ class PortainerManager:
         response = self.portainer.get_stacks(endpoint_id)
         if response.status_code == 200:
             stacks = response.json()
-            for stack in stacks:
-                if stack["Name"] == stack_name:
-                    return True
-            return False
+            return any(stack["Name"] == stack_name for stack in stacks)
         else:
             logger.error(f"Check stack:{stack_name} exists error: {response.status_code}:{response.text}")
             raise CustomException()
-        
-    def create_stack_from_repository(self, stack_name: str, endpoint_id: int,repositoryURL : str,user_name:str,user_password:str):
-        response = self.portainer.create_stack_standlone_repository(stack_name, endpoint_id,repositoryURL,user_name,user_password)
+
+    def create_stack_from_repository(
+        self, stack_name: str, endpoint_id: int, repositoryURL: str, user_name: str, user_password: str
+    ):
+        response = self.portainer.create_stack_standlone_repository(
+            stack_name, endpoint_id, repositoryURL, user_name, user_password
+        )
         if response.status_code == 200:
             return response.json()
 
@@ -160,9 +156,7 @@ class PortainerManager:
         if message and " is a directory" in message:
             workdir = self._extract_compose_workdir(message)
             if self.cleanup_compose_workdir(workdir):
-                logger.warning(
-                    f"Retrying stack creation for {stack_name} after cleaning stale Portainer workspace {workdir}"
-                )
+                logger.warning(f"Retrying stack creation for {stack_name} after cleaning stale Portainer workspace {workdir}")
                 retry_response = self.portainer.create_stack_standlone_repository(
                     stack_name,
                     endpoint_id,
@@ -177,12 +171,8 @@ class PortainerManager:
                 response = retry_response
 
         logger.error(f"Create stack:{stack_name} from repository:{repositoryURL} error: {response.status_code}:{raw_message}")
-        raise CustomException(
-            status_code=400,
-            message="Invalid Request",
-            details=message
-        )
-        
+        raise CustomException(status_code=400, message="Invalid Request", details=message)
+
     # def redeploy_stack(self, stack_id: int, endpoint_id: int,pull_image:bool,user_name:str,user_password:str):
     #     response = self.portainer.redeploy_stack(stack_id, endpoint_id,pull_image,user_name,user_password)
     #     if response.status_code == 200:
@@ -194,7 +184,7 @@ class PortainerManager:
     #                 response_details = json.loads(message)
     #                 message = response_details.get('details', 'unknown error')
     #             except json.JSONDecodeError:
-    #                 pass 
+    #                 pass
     #         logger.error(f"Redeploy stack:{stack_id} error: {response.status_code}:{response.text}")
     #         raise CustomException(
     #             status_code=400,
@@ -204,10 +194,10 @@ class PortainerManager:
 
     def redeploy_stack(self, stack_id: int, endpoint_id: int, pull_image: bool, user_name: str, user_password: str):
         try:
-            response = self.portainer.redeploy_stack(stack_id, endpoint_id, pull_image, user_name, user_password)   
-             # 检查状态码
+            response = self.portainer.redeploy_stack(stack_id, endpoint_id, pull_image, user_name, user_password)
+            # 检查状态码
             if response.status_code == 200:
-                return  
+                return
             # 根据状态码处理异常
             logger.error(f"Redeploy stack: {stack_id} error: {response.status_code}: {response.text}")
 
@@ -220,22 +210,13 @@ class PortainerManager:
                 except json.JSONDecodeError:
                     pass
 
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=message
-            )
+            raise CustomException(status_code=400, message="Invalid Request", details=message)
         except CustomException:
             raise
         except Exception as e:
             logger.error(f"Redeploy stack: {stack_id} error: {e}")
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=f"{e}"
-            )
-       
-    
+            raise CustomException(status_code=400, message="Invalid Request", details=f"{e}") from e
+
     def get_stacks(self, endpoint_id: int):
         """
         Get stacks
@@ -252,7 +233,7 @@ class PortainerManager:
         else:
             logger.error(f"Get stacks from endpoint:{endpoint_id} error: {response.status_code}:{response.text}")
             raise CustomException()
-        
+
     def get_stack_by_id(self, stack_id: int):
         """
         Get stack by id
@@ -269,7 +250,7 @@ class PortainerManager:
         else:
             logger.error(f"Get stack by id:{stack_id} error: {response.status_code}:{response.text}")
             raise CustomException()
-        
+
     def get_stack_by_name(self, stack_name: str, endpoint_id: int):
         """
         Get stack by name
@@ -378,7 +359,7 @@ class PortainerManager:
             "skipped": skipped,
             "total": len(stacks),
         }
-    
+
     def remove_stack(self, stack_id: int, endpoint_id: int):
         """
         Remove stack by id
@@ -391,7 +372,7 @@ class PortainerManager:
         if response.status_code != 204:
             logger.error(f"Remove stack:{stack_id} error: {response.status_code}:{response.text}")
             raise CustomException()
-    
+
     def remove_vloumes(self, stack_name: str, endpoint_id: int):
         """
         Remove volumes by stack name
@@ -400,10 +381,10 @@ class PortainerManager:
             stack_name (str): stack name
             endpoint_id (int): endpoint id
         """
-        volumes = self.get_volumes_by_stack_name(stack_name, endpoint_id,True)
+        volumes = self.get_volumes_by_stack_name(stack_name, endpoint_id, True)
         if volumes is not None:
             volume_names = []
-            for volume in volumes: 
+            for volume in volumes:
                 volume_names.append(volume["Name"])
             self.remove_volume(volume_names, endpoint_id)
 
@@ -416,7 +397,7 @@ class PortainerManager:
             endpoint_id (int): endpoint id
         """
         # get stack name
-        stack_name = self.get_stack_by_id(stack_id).get("Name") 
+        stack_name = self.get_stack_by_id(stack_id).get("Name")
 
         # remove stack
         response = self.portainer.remove_stack(stack_id, endpoint_id)
@@ -425,19 +406,23 @@ class PortainerManager:
             raise CustomException()
 
         # remove volumes
-        try: 
+        try:
             if stack_name is not None:
-                volumes = self.get_volumes_by_stack_name(stack_name, endpoint_id,True)
+                volumes = self.get_volumes_by_stack_name(stack_name, endpoint_id, True)
                 volume_names = []
-                for volume in volumes: 
+                for volume in volumes:
                     volume_names.append(volume["Name"])
 
                 if len(volume_names) > 0:
                     self.remove_volume(volume_names, endpoint_id)
-        except (CustomException,Exception) as e:
-            raise CustomException()
+        except CustomException:
+            # 卷清理失败时保留原始状态码与详情,否则调用方只能看到“未知错误”
+            raise
+        except Exception as exc:
+            logger.error(f"Remove volumes for stack:{stack_id} error: {exc}")
+            raise CustomException() from exc
 
-    def get_volumes_by_stack_name(self, stack_name: str, endpoint_id: int,dangling:bool):
+    def get_volumes_by_stack_name(self, stack_name: str, endpoint_id: int, dangling: bool):
         """
         Get volumes by stack name
 
@@ -449,22 +434,23 @@ class PortainerManager:
         Returns:
             dict: volumes info
         """
-        response = self.portainer.get_volumes(endpoint_id,dangling)
+        response = self.portainer.get_volumes(endpoint_id, dangling)
         if response.status_code == 200:
             try:
                 volumes = response.json().get("Volumes", [])
                 # volumes_info = [volume for volume in volumes if volume.get("Labels", {}).get("com.docker.compose.project") == stack_name]
                 volumes_info = [
-                    volume for volume in volumes 
+                    volume
+                    for volume in volumes
                     if (
-                        isinstance(volume, dict) and 
-                        volume.get("Labels") and 
-                        volume.get("Labels", {}).get("com.docker.compose.project") == stack_name
+                        isinstance(volume, dict)
+                        and volume.get("Labels")
+                        and volume.get("Labels", {}).get("com.docker.compose.project") == stack_name
                     )
                 ]
             except Exception as e:
                 logger.error(f"Get volumes by stack name:{stack_name} error: {e}")
-                raise CustomException()
+                raise CustomException() from e
             return volumes_info
         else:
             logger.error(f"Get volumes by stack name:{stack_name} error: {response.status_code}:{response.text}")
@@ -496,11 +482,13 @@ class PortainerManager:
             endpoint_id (int): endpoint id
         """
         for volume_name in volume_names:
-            response = self.portainer.remove_volume_by_name(endpoint_id,volume_name)
+            response = self.portainer.remove_volume_by_name(endpoint_id, volume_name)
             if response.status_code != 204:
-                logger.error(f"Remove volume:{volume_name} error: {response.status_code}:{response.text}")
-                raise CustomException()
-            
+                # 带上 Portainer 的原因,否则调用方只能看到 "Internal Server Error"
+                message = _extract_portainer_error_message(response.text)
+                logger.error(f"Remove volume:{volume_name} error: {response.status_code}:{message}")
+                raise CustomException(status_code=400, message="Invalid Request", details=message)
+
     def up_stack(self, stack_id: int, endpoint_id: int):
         """
         Up stack by id
@@ -511,11 +499,11 @@ class PortainerManager:
         """
         response = self.portainer.up_stack(stack_id, endpoint_id)
         if response.status_code == 409:
-            raise CustomException(400,"Invalid Request","The app is already running")
+            raise CustomException(400, "Invalid Request", "The app is already running")
         elif response.status_code != 200:
             logger.error(f"Up stack:{stack_id} error: {response.status_code}:{response.text}")
             raise CustomException()
-        
+
     def down_stack(self, stack_id: int, endpoint_id: int):
         """
         Down stack by id
@@ -526,91 +514,88 @@ class PortainerManager:
         """
         response = self.portainer.down_stack(stack_id, endpoint_id)
         if response.status_code == 400:
-            raise CustomException(400,"Invalid Request","The app is already uninstalled")
+            raise CustomException(400, "Invalid Request", "The app is already uninstalled")
         elif response.status_code != 200:
             logger.error(f"Down stack:{stack_id} error: {response.status_code}:{response.text}")
             raise CustomException()
-    
-    def stop_stack(self, stack_name: int, endpoint_id: int):
+
+    def stop_stack(self, stack_name: str, endpoint_id: int):
         """
         Stop stack by name
 
         Args:
-            stack_name (int): stack name
+            stack_name (str): stack name
             endpoint_id (int): endpoint id
         """
-        containers_response = self.portainer.get_containers_by_stackName(endpoint_id,stack_name)
+        containers_response = self.portainer.get_containers_by_stackName(endpoint_id, stack_name)
         if containers_response.status_code == 200:
             containers = containers_response.json()
             for container in containers:
                 container_id = container.get("Id")
-                stop_response = self.portainer.stop_container(endpoint_id,container_id)
+                stop_response = self.portainer.stop_container(endpoint_id, container_id)
                 if stop_response.status_code in {304, 404}:
                     continue
                 elif stop_response.status_code != 204:
                     message = _extract_portainer_error_message(stop_response.text)
                     logger.error(f"Stop container:{container_id} error: {stop_response.status_code}:{message}")
-                    raise CustomException(
-                        status_code=400,
-                        message="Invalid Request",
-                        details=message
-                    )
+                    raise CustomException(status_code=400, message="Invalid Request", details=message)
         else:
-            logger.error(f"Get containers by stack name:{stack_name} error: {containers_response.status_code}:{containers_response.text}")
+            logger.error(
+                f"Get containers by stack name:{stack_name} error: {containers_response.status_code}:{containers_response.text}"
+            )
             raise CustomException()
 
-    def start_stack(self, stack_name: int, endpoint_id: int):
+    def start_stack(self, stack_name: str, endpoint_id: int):
         """
         Start stack by name
 
         Args:
-            stack_name (int): stack name
+            stack_name (str): stack name
             endpoint_id (int): endpoint id
         """
-        containers_response = self.portainer.get_containers_by_stackName(endpoint_id,stack_name)
+        containers_response = self.portainer.get_containers_by_stackName(endpoint_id, stack_name)
         if containers_response.status_code == 200:
             containers = containers_response.json()
             for container in containers:
                 container_id = container.get("Id")
-                start_response=self.portainer.start_container(endpoint_id,container_id)
+                start_response = self.portainer.start_container(endpoint_id, container_id)
                 if start_response.status_code in {304, 404}:
                     continue
                 elif start_response.status_code != 204:
                     message = _extract_portainer_error_message(start_response.text)
                     logger.error(f"Start container:{container_id} error: {start_response.status_code}:{message}")
-                    raise CustomException(
-                        status_code=400,
-                        message="Invalid Request",
-                        details=message
-                    )
+                    raise CustomException(status_code=400, message="Invalid Request", details=message)
         else:
-            logger.error(f"Get containers by stack name:{stack_name} error: {containers_response.status_code}:{containers_response.text}")
+            logger.error(
+                f"Get containers by stack name:{stack_name} error: {containers_response.status_code}:{containers_response.text}"
+            )
             raise CustomException()
 
-    def restart_stack(self, stack_name: int, endpoint_id: int):
+    def restart_stack(self, stack_name: str, endpoint_id: int):
         """
         Restart stack by name
 
         Args:
-            stack_name (int): stack name
+            stack_name (str): stack name
             endpoint_id (int): endpoint id
         """
-        containers_response = self.portainer.get_containers_by_stackName(endpoint_id,stack_name)
+        containers_response = self.portainer.get_containers_by_stackName(endpoint_id, stack_name)
         if containers_response.status_code == 200:
             containers = containers_response.json()
             for container in containers:
                 container_id = container.get("Id")
-                restart_response=self.portainer.restart_container(endpoint_id,container_id)
+                restart_response = self.portainer.restart_container(endpoint_id, container_id)
+                # 与 start/stop 保持一致:304(容器未变化)与 404(容器已不存在)不当作失败。
+                if restart_response.status_code in {304, 404}:
+                    continue
                 if restart_response.status_code != 204:
                     message = _extract_portainer_error_message(restart_response.text)
                     logger.error(f"Restart container:{container_id} error: {restart_response.status_code}:{message}")
-                    raise CustomException(
-                        status_code=400,
-                        message="Invalid Request",
-                        details=message
-                    )
+                    raise CustomException(status_code=400, message="Invalid Request", details=message)
         else:
-            logger.error(f"Get containers by stack name:{stack_name} error: {containers_response.status_code}:{containers_response.text}")
+            logger.error(
+                f"Get containers by stack name:{stack_name} error: {containers_response.status_code}:{containers_response.text}"
+            )
             raise CustomException()
 
     def get_containers(self, endpoint_id: int):
@@ -641,7 +626,7 @@ class PortainerManager:
         Returns:
             list: containers info
         """
-        response = self.portainer.get_containers_by_stackName(endpoint_id,stack_name)
+        response = self.portainer.get_containers_by_stackName(endpoint_id, stack_name)
         if response.status_code == 200:
             return response.json()
         else:
@@ -669,13 +654,17 @@ class PortainerManager:
             if time.monotonic() >= deadline:
                 return []
             time.sleep(max(poll_interval, 1))
-        
+
     def get_container_stats(self, endpoint_id: int, container_id: str) -> dict:
         response = self.portainer.get_container_stats(endpoint_id, container_id)
         if response.status_code == 404:
-            raise CustomException(404, "Container Not Found", f"Container '{container_id}' does not exist on endpoint {endpoint_id}")
+            raise CustomException(
+                404, "Container Not Found", f"Container '{container_id}' does not exist on endpoint {endpoint_id}"
+            )
         if response.status_code != 200:
-            raise CustomException(503, "Container Stats Unavailable", f"Unable to read container stats (HTTP {response.status_code})")
+            raise CustomException(
+                503, "Container Stats Unavailable", f"Unable to read container stats (HTTP {response.status_code})"
+            )
         payload = response.json()
         if not isinstance(payload, dict):
             raise CustomException(503, "Container Stats Unavailable", "Docker returned an invalid stats response")
@@ -695,6 +684,10 @@ class PortainerManager:
         response = self.portainer.get_container_by_id(endpoint_id, container_id)
         if response.status_code == 200:
             return response.json()
-        else:
-            logger.error(f"Get container by id:{container_id} error: {response.status_code}:{response.text}")
-            raise CustomException()
+        if response.status_code == 404:
+            # 与 get_container_stats 保持一致:不存在的容器是 404,不是服务器错误。
+            raise CustomException(
+                404, "Container Not Found", f"Container '{container_id}' does not exist on endpoint {endpoint_id}"
+            )
+        logger.error(f"Get container by id:{container_id} error: {response.status_code}:{response.text}")
+        raise CustomException()

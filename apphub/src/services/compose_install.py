@@ -2,24 +2,32 @@ import os
 import random
 import shutil
 import tempfile
-import json
 from datetime import datetime
 
 import yaml
 
 from src.core.exception import CustomException
 from src.core.logger import logger
-from src.schemas.appComposeInstall import ComposeInstallAcceptedResponse, ComposeInstallRequest, ComposeValidationRequest, ComposeValidationResponse
+from src.schemas.appComposeInstall import (
+    ComposeInstallBase,
+    ComposeInstallRequest,
+    ComposeValidationResponse,
+)
 from src.services.app_manager import AppManger
-from src.services.app_status import add_installing_logs, modify_app_information, remove_app_installation, remove_installation_logs, start_app_installation
+from src.services.app_status import (
+    add_installing_logs,
+    modify_app_information,
+    remove_app_installation,
+    remove_installation_logs,
+    start_app_installation,
+)
 from src.services.gitea_manager import GiteaManager
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.portainer_manager import PortainerManager
 from src.services.proxy_manager import ProxyManager
-from src.utils.file_manager import FileHelper
 from src.utils.env_file import format_env_assignment
+from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
-
 
 COMPOSE_METADATA_PATH = ".websoft9/compose-metadata.json"
 
@@ -48,27 +56,26 @@ def _validate_service_spec(services: dict) -> None:
     list_only_fields = ['ports', 'expose']
     for service_name, service_spec in services.items():
         if not isinstance(service_spec, dict):
-            raise CustomException(
-                400, "Invalid Request",
-                f"Service '{service_name}' must be a mapping."
-            )
+            raise CustomException(400, "Invalid Request", f"Service '{service_name}' must be a mapping.")
         for field in list_or_dict_fields:
             if field in service_spec and service_spec[field] is not None:
                 val = service_spec[field]
                 if not isinstance(val, (list, dict)):
                     raise CustomException(
-                        400, "Invalid Request",
+                        400,
+                        "Invalid Request",
                         f"Service '{service_name}': field '{field}' must be a list or mapping, not a {type(val).__name__}. "
-                        f"Tip: list items need a leading '- ' dash."
+                        f"Tip: list items need a leading '- ' dash.",
                     )
         for field in list_only_fields:
             if field in service_spec and service_spec[field] is not None:
                 val = service_spec[field]
                 if not isinstance(val, list):
                     raise CustomException(
-                        400, "Invalid Request",
+                        400,
+                        "Invalid Request",
                         f"Service '{service_name}': field '{field}' must be a list, not a {type(val).__name__}. "
-                        f"Tip: list items need a leading '- ' dash."
+                        f"Tip: list items need a leading '- ' dash.",
                     )
 
 
@@ -84,9 +91,10 @@ def _check_variable_interpolation(compose_content: str) -> None:
             if close == -1:
                 snippet = line[start:].rstrip()
                 raise CustomException(
-                    400, "Invalid Request",
+                    400,
+                    "Invalid Request",
                     f"Line {line_no}: unclosed variable substitution '{snippet}' — "
-                    f"expected closing '}}'. Use '${{VAR_NAME}}' format."
+                    f"expected closing '}}'. Use '${{VAR_NAME}}' format.",
                 )
             pos = close + 1
 
@@ -96,7 +104,7 @@ def _load_compose_document(compose_content: str) -> dict:
     try:
         compose_document = yaml.safe_load(compose_content)
     except yaml.YAMLError as exc:
-        raise CustomException(400, "Invalid Request", f"Compose syntax is invalid: {exc}")
+        raise CustomException(400, "Invalid Request", f"Compose syntax is invalid: {exc}") from exc
 
     if not isinstance(compose_document, dict):
         raise CustomException(400, "Invalid Request", "Compose content must decode to an object.")
@@ -115,7 +123,7 @@ def _get_service_names(compose_document: dict) -> list[str]:
     if not isinstance(services, dict) or not services:
         raise CustomException(400, "Invalid Request", "Compose content must define at least one service.")
 
-    service_names = [str(name).strip() for name in services.keys() if str(name).strip()]
+    service_names = [str(name).strip() for name in services if str(name).strip()]
     if len(service_names) != len(services):
         raise CustomException(400, "Invalid Request", "Compose services must use non-empty names.")
 
@@ -137,15 +145,17 @@ def _extract_forward_port(compose_document: dict) -> int | None:
                 if target.isdigit():
                     return int(target)
             if isinstance(port, dict):
-                target = port.get("target")
+                target_port = port.get("target")
+                if target_port is None:
+                    continue
                 try:
-                    return int(target)
+                    return int(target_port)
                 except (TypeError, ValueError):
                     continue
     return None
 
 
-def validate_compose_installation(payload: ComposeValidationRequest) -> ComposeValidationResponse:
+def validate_compose_installation(payload: ComposeInstallBase) -> ComposeValidationResponse:
     compose_document = _load_compose_document(payload.compose_content)
     service_names = _get_service_names(compose_document)
 
@@ -195,7 +205,12 @@ def _collect_repository_required_files(workspace_path: str) -> list[str]:
     return sorted(set(required_files))
 
 
-def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int | None = None, tracked_app_id: str | None = None, tracking_id: str | None = None) -> None:
+def install_compose_application(
+    payload: ComposeInstallRequest,
+    endpoint_id: int | None = None,
+    tracked_app_id: str | None = None,
+    tracking_id: str | None = None,
+) -> None:
     compose_document = _load_compose_document(payload.compose_content)
     _inject_platform_network(compose_document)
     _get_service_names(compose_document)
@@ -221,7 +236,10 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
         workspace_path = os.path.join(temp_root, f"{payload.app_id}_{timestamp_str}_{random.randint(1000, 9999)}")
         os.makedirs(workspace_path, exist_ok=True)
 
-        FileHelper.write_file(os.path.join(workspace_path, "docker-compose.yml"), yaml.dump(compose_document, default_flow_style=False, allow_unicode=True, sort_keys=False))
+        FileHelper.write_file(
+            os.path.join(workspace_path, "docker-compose.yml"),
+            yaml.dump(compose_document, default_flow_style=False, allow_unicode=True, sort_keys=False),
+        )
 
         env_content = "".join(format_env_assignment(entry.key, entry.value) for entry in payload.env)
         FileHelper.write_file(os.path.join(workspace_path, ".env"), env_content or "\n")
@@ -248,7 +266,9 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
             _collect_repository_required_files(workspace_path),
         )
         add_installing_logs(install_tracking_id, "Starting the services", f"Deploying Docker Compose stack {app_id}")
-        stack_info = portainer_manager.create_stack_from_repository(app_id, endpoint_id, repo_url, credentials.username, credentials.password)
+        portainer_manager.create_stack_from_repository(
+            app_id, endpoint_id, repo_url, credentials.username, credentials.password
+        )
         add_installing_logs(install_tracking_id, "Starting the services", "Waiting for application containers to start")
         stack_containers = portainer_manager.wait_for_stack_containers(app_id, endpoint_id)
         if not stack_containers:
@@ -257,19 +277,29 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
             names = container.get("Names") if isinstance(container, dict) else None
             container_name = str(names[0]).lstrip("/") if isinstance(names, list) and names else app_id
             container_state = str(container.get("State") or "running") if isinstance(container, dict) else "running"
-            add_installing_logs(install_tracking_id, "Starting the services", f"Container {container_name} is {container_state}")
+            add_installing_logs(
+                install_tracking_id, "Starting the services", f"Container {container_name} is {container_state}"
+            )
 
         if payload.domain:
             if forward_port is None:
-                raise CustomException(400, "Invalid Request", "Cannot configure a domain because the compose file does not expose a target port.")
-            add_installing_logs(install_tracking_id, "Configuring the domain", f"Configuring reverse proxy for {payload.domain} -> {app_id}:{forward_port} (http)")
+                raise CustomException(
+                    400, "Invalid Request", "Cannot configure a domain because the compose file does not expose a target port."
+                )
+            add_installing_logs(
+                install_tracking_id,
+                "Configuring the domain",
+                f"Configuring reverse proxy for {payload.domain} -> {app_id}:{forward_port} (http)",
+            )
             advanced_config_path = os.path.join(workspace_path, "src", "nginx-proxy.conf")
             if os.path.exists(advanced_config_path):
                 advanced_config = FileHelper.read_file(advanced_config_path)
-                ProxyManager().create_proxy_by_app([payload.domain], app_id, str(forward_port), advanced_config, "http")
+                ProxyManager().create_proxy_by_app([payload.domain], app_id, int(forward_port), advanced_config, "http")
             else:
-                ProxyManager().create_proxy_by_app([payload.domain], app_id, str(forward_port), forward_scheme="http")
-            add_installing_logs(install_tracking_id, "Configuring the domain", f"Access configuration completed for {payload.domain}")
+                ProxyManager().create_proxy_by_app([payload.domain], app_id, int(forward_port), forward_scheme="http")
+            add_installing_logs(
+                install_tracking_id, "Configuring the domain", f"Access configuration completed for {payload.domain}"
+            )
 
         add_installing_logs(install_tracking_id, "Installation complete", "")
         remove_app_installation(install_tracking_id)
@@ -281,7 +311,7 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
         modify_app_information(install_tracking_id, "Compose installation failed")
         remove_installation_logs(install_tracking_id)
         logger.error(f"Compose installation failed for {app_id}: {exc}")
-        raise CustomException()
+        raise CustomException() from exc
     finally:
         if workspace_path and os.path.isdir(os.path.dirname(workspace_path)):
             shutil.rmtree(os.path.dirname(workspace_path), ignore_errors=True)

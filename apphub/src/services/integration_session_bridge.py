@@ -1,6 +1,5 @@
 import os
 import re
-import json
 import time
 from pathlib import Path
 from typing import Literal, Optional
@@ -11,7 +10,6 @@ import requests
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.services.integration_credentials import IntegrationCredentialProvider
-
 
 IntegrationKey = Literal["gitea", "portainer", "npm"]
 
@@ -29,7 +27,9 @@ class IntegrationSessionBridge:
             "WEBSOFT9_GITEA_DIRECT_ORIGIN",
             "http://127.0.0.1:3001",
         ).rstrip("/")
-        self.portainer_credential_path = Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", str(data_root / "portainer/credential")))
+        self.portainer_credential_path = Path(
+            os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", str(data_root / "portainer/credential"))
+        )
         self.portainer_direct_origin = os.getenv(
             "WEBSOFT9_PORTAINER_DIRECT_ORIGIN",
             "http://127.0.0.1:9004",
@@ -41,7 +41,9 @@ class IntegrationSessionBridge:
         self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", str(data_root / "credential.json")))
         self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", str(data_root / "database.sqlite")))
         self.npm_bootstrap_retry_attempts = max(1, int(os.getenv("WEBSOFT9_NPM_BOOTSTRAP_RETRY_ATTEMPTS", "6")))
-        self.npm_bootstrap_retry_interval_seconds = max(1, int(os.getenv("WEBSOFT9_NPM_BOOTSTRAP_RETRY_INTERVAL_SECONDS", "2")))
+        self.npm_bootstrap_retry_interval_seconds = max(
+            1, int(os.getenv("WEBSOFT9_NPM_BOOTSTRAP_RETRY_INTERVAL_SECONDS", "2"))
+        )
 
     def _resolve_platform_origin(self) -> str:
         public_origin = (os.getenv("WEBSOFT9_PLATFORM_PUBLIC_ORIGIN") or "").strip().rstrip("/")
@@ -177,7 +179,7 @@ class IntegrationSessionBridge:
                 status_code=502,
                 message="Integration Session Bootstrap Failed",
                 details="Unable to establish Gitea session",
-            )
+            ) from exc
 
     def _verify_gitea_session_cookie(self, session: requests.Session) -> None:
         cookie_names = {cookie.name for cookie in session.cookies}
@@ -198,12 +200,14 @@ class IntegrationSessionBridge:
 
             if response.status_code in {401, 403}:
                 fallback_credentials = self.credential_provider.get_portainer_config_credentials()
-                should_try_fallback = (
-                    bool(fallback_credentials.password)
-                    and (fallback_credentials.username != primary_credentials.username or fallback_credentials.password != primary_credentials.password)
+                should_try_fallback = bool(fallback_credentials.password) and (
+                    fallback_credentials.username != primary_credentials.username
+                    or fallback_credentials.password != primary_credentials.password
                 )
                 if should_try_fallback:
-                    fallback_response = self._request_portainer_token(session, fallback_credentials.username, fallback_credentials.password)
+                    fallback_response = self._request_portainer_token(
+                        session, fallback_credentials.username, fallback_credentials.password
+                    )
                     if fallback_response.status_code == 200:
                         self.credential_provider.write_portainer_credentials(fallback_credentials)
                         response = fallback_response
@@ -261,7 +265,7 @@ class IntegrationSessionBridge:
                 status_code=502,
                 message="Integration Session Bootstrap Failed",
                 details="Unable to establish Portainer session",
-            )
+            ) from exc
 
     def bootstrap_npm(self) -> list[dict[str, object]]:
         session = self._create_session()
@@ -286,18 +290,26 @@ class IntegrationSessionBridge:
             )
 
             if should_try_fallback:
-                fallback_response = self._request_npm_token_with_retry(session, fallback_credentials.username, fallback_credentials.password)
+                fallback_response = self._request_npm_token_with_retry(
+                    session, fallback_credentials.username, fallback_credentials.password
+                )
                 if fallback_response.status_code == 200:
                     self.credential_provider.write_npm_credentials(fallback_credentials)
                     active_credentials = fallback_credentials
                     response = fallback_response
 
             if self.credential_provider.sync_npm_credentials(active_credentials):
-                logger.warning("Nginx Proxy Manager credential drift detected; runtime user profile was synchronized from stored credential source")
+                logger.warning(
+                    "Nginx Proxy Manager credential drift detected; runtime user profile was synchronized from stored credential source"
+                )
 
             if response.status_code in {401, 403} and self.credential_provider.sync_npm_credentials(active_credentials):
-                logger.warning("Nginx Proxy Manager authentication recovered after synchronizing stored credentials into the runtime database")
-                response = self._request_npm_token_with_retry(session, active_credentials.username, active_credentials.password)
+                logger.warning(
+                    "Nginx Proxy Manager authentication recovered after synchronizing stored credentials into the runtime database"
+                )
+                response = self._request_npm_token_with_retry(
+                    session, active_credentials.username, active_credentials.password
+                )
 
             if response.status_code in {401, 403}:
                 raise CustomException(
@@ -338,7 +350,7 @@ class IntegrationSessionBridge:
                 status_code=502,
                 message="Integration Session Bootstrap Failed",
                 details="Unable to restore the embedded gateway session automatically",
-            )
+            ) from exc
 
     def _request_npm_token(self, session: requests.Session, username: str, password: str) -> requests.Response:
         return session.post(
@@ -433,7 +445,7 @@ class IntegrationSessionBridge:
             return normalized_default
 
         if normalized_cookie_path.startswith(f"{duplicated_prefix}/"):
-            suffix = normalized_cookie_path[len(duplicated_prefix):]
+            suffix = normalized_cookie_path[len(duplicated_prefix) :]
             return f"{normalized_default}{suffix}" or normalized_default
 
         return normalized_cookie_path

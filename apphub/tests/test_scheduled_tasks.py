@@ -1,7 +1,7 @@
-import subprocess
 import json
 import os
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -11,17 +11,17 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from fastapi.responses import JSONResponse
 
 from src.api.v1.routers import scheduled_tasks as scheduled_tasks_router
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 from src.services.scheduled_tasks import SKIPPED_EXIT_CODE, SYSTEM_TASKS, ScheduledTaskService
-from fastapi.responses import JSONResponse
 
 
 class FakeAuthService:
@@ -145,7 +145,9 @@ def create_test_app() -> FastAPI:
 
     @app.exception_handler(CustomException)
     async def custom_exception_handler(_request, exc: CustomException):
-        return JSONResponse(status_code=exc.status_code, content=ErrorResponse(message=exc.message, details=exc.details).model_dump())
+        return JSONResponse(
+            status_code=exc.status_code, content=ErrorResponse(message=exc.message, details=exc.details).model_dump()
+        )
 
     app.include_router(scheduled_tasks_router.router)
     return app
@@ -197,7 +199,9 @@ def test_platform_task_crud_renders_cron_and_preserves_operator_isolation(monkey
         assert toggled.status_code == 200
         assert task["task_id"] not in (tmp_path / "websoft9-tasks").read_text(encoding="utf-8")
 
-        deleted = client.delete(f"/scheduled-tasks/{task['task_id']}", headers={"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"})
+        deleted = client.delete(
+            f"/scheduled-tasks/{task['task_id']}", headers={"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"}
+        )
         assert deleted.status_code == 204
         assert not (tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh").exists()
 
@@ -213,9 +217,12 @@ def test_reconcile_local_schedule_rebuilds_only_enabled_container_tasks(tmp_path
         host_access_service=host_access,
     )
     enabled = service.create_task("valid-session", {"name": "Enabled", "schedule": "* * * * *", "command": "date"})
-    disabled = service.create_task("valid-session", {"name": "Disabled", "schedule": "* * * * *", "command": "echo disabled", "enabled": False})
+    disabled = service.create_task(
+        "valid-session", {"name": "Disabled", "schedule": "* * * * *", "command": "echo disabled", "enabled": False}
+    )
     host_task = service.create_task(
-        "valid-session", {"name": "Remote", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"}
+        "valid-session",
+        {"name": "Remote", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"},
     )
 
     cron_file.unlink()
@@ -250,7 +257,10 @@ def test_internal_one_time_schedule_is_not_rendered_to_cron(tmp_path):
 
     assert task["task_id"] not in cron_file.read_text(encoding="utf-8")
     assert service._next_run("@once") is None
-    assert service._normalize_payload({"name": "Internal", "schedule": "@once", "command": "date"}, allow_once=True)["schedule"] == "@once"
+    assert (
+        service._normalize_payload({"name": "Internal", "schedule": "@once", "command": "date"}, allow_once=True)["schedule"]
+        == "@once"
+    )
     with pytest.raises(CustomException):
         service.create_task("valid-session", {"name": "External", "schedule": "@once", "command": "date"})
 
@@ -301,13 +311,20 @@ def test_app_prewarm_reuses_existing_task_from_install_page(monkeypatch, tmp_pat
     from src.api.v1.routers import app as app_router
     from src.schemas.scheduledTasks import ImagePrewarmRequest
 
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     previous = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     service._write_task(previous["task_id"], queue_state=state)
     monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
     monkeypatch.setattr(app_router, "ScheduledTaskService", lambda: service)
 
-    result = app_router.enqueue_app_image_prewarm(ImagePrewarmRequest(app_name="gitea", version="1.27", refresh=refresh), "valid-session")
+    result = app_router.enqueue_app_image_prewarm(
+        ImagePrewarmRequest(app_name="gitea", version="1.27", refresh=refresh), "valid-session"
+    )
 
     assert result["task_id"] == previous["task_id"]
     assert result["queue_state"] == "queued"
@@ -316,7 +333,12 @@ def test_app_prewarm_reuses_existing_task_from_install_page(monkeypatch, tmp_pat
 
 
 def test_dispatch_prewarm_claims_and_starts_oldest_task(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     monkeypatch.setenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", str(tmp_path / "instance-id"))
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
 
@@ -335,7 +357,12 @@ def test_dispatch_prewarm_claims_and_starts_oldest_task(monkeypatch, tmp_path):
 
 
 def test_prewarm_tasks_are_grouped_under_one_fixed_task(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     service.enqueue_prewarm("valid-session", "gitea", "1.27")
     service.enqueue_prewarm("valid-session", "openclaw", "2026.9.6")
     snapshot = service.list_cached_tasks("valid-session")
@@ -350,7 +377,12 @@ def test_prewarm_tasks_are_grouped_under_one_fixed_task(tmp_path):
 
 @pytest.mark.parametrize("active", [False, True])
 def test_prewarm_summary_uses_active_or_latest_run_time(monkeypatch, tmp_path, active):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     first = service.enqueue_prewarm("valid-session", "dify", "1.9.2")
     first_status = "running" if active else "success"
     service._write_task(first["task_id"], queue_state=first_status, runner_pgid=12345 if active else None)
@@ -363,11 +395,17 @@ def test_prewarm_summary_uses_active_or_latest_run_time(monkeypatch, tmp_path, a
         (recent, "2099-01-01T03:00:00+00:00", "success"),
     ):
         task_id = task["task_id"]
-        (service._runs_dir(task_id) / "run.json").write_text(json.dumps({
-            "task_id": task_id, "run_id": task_id, "started_at": started_at,
-            "finished_at": "" if status == "running" else "2099-01-01T04:00:00+00:00",
-            "status": status,
-        }))
+        (service._runs_dir(task_id) / "run.json").write_text(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "run_id": task_id,
+                    "started_at": started_at,
+                    "finished_at": "" if status == "running" else "2099-01-01T04:00:00+00:00",
+                    "status": status,
+                }
+            )
+        )
         service._state_path(task_id).write_text(f"run_id={task_id}\nstatus={status}\n")
     monkeypatch.setattr(service, "_prewarm_runner_alive", lambda pgid: bool(pgid))
 
@@ -381,7 +419,12 @@ def test_prewarm_summary_uses_active_or_latest_run_time(monkeypatch, tmp_path, a
 
 @pytest.mark.parametrize("live", [False, True])
 def test_prewarm_interrupted_current_run_is_closed_and_logged_once(monkeypatch, tmp_path, live):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "dify", "1.9.2")
     task_id = task["task_id"]
     service._write_task(task_id, queue_state="failed", runner_pgid=12345 if live else None)
@@ -389,13 +432,22 @@ def test_prewarm_interrupted_current_run_is_closed_and_logged_once(monkeypatch, 
     started_at = "2099-01-01T09:00:00+08:00"
     log_path = service._task_logs_dir(task_id) / "interrupted.log"
     log_path.write_text("[prewarm] Downloading\n")
-    (service._runs_dir(task_id) / "interrupted.json").write_text(json.dumps({
-        "task_id": task_id, "run_id": "interrupted", "started_at": started_at,
-        "finished_at": "", "status": "running", "exit_code": None, "log_path": str(log_path),
-    }))
+    (service._runs_dir(task_id) / "interrupted.json").write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "run_id": "interrupted",
+                "started_at": started_at,
+                "finished_at": "",
+                "status": "running",
+                "exit_code": None,
+                "log_path": str(log_path),
+            }
+        )
+    )
     service._state_path(task_id).write_text("run_id=interrupted\nstatus=running\n")
 
-    for repeat in range(2):
+    for _repeat in range(2):
         snapshot = service.list_cached_tasks("valid-session")
         with service._db_connect() as connection:
             run = connection.execute("SELECT * FROM scheduled_task_runs WHERE task_id = ?", (task_id,)).fetchone()
@@ -411,7 +463,12 @@ def test_prewarm_interrupted_current_run_is_closed_and_logged_once(monkeypatch, 
 
 
 def test_prewarm_records_follow_fifo_queue_across_pages(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     monkeypatch.setattr(service, "_now_iso", lambda: "2026-10-10T09:00:00+08:00")
     oldest = service.enqueue_prewarm("valid-session", "mysql", "9.1")
     service._write_task(oldest["task_id"], queue_state="success")
@@ -425,14 +482,22 @@ def test_prewarm_records_follow_fifo_queue_across_pages(monkeypatch, tmp_path):
     expected = [running["task_id"], first["task_id"], second["task_id"], newer["task_id"], oldest["task_id"]]
     pages = [service.list_prewarm_records("valid-session", offset=offset, limit=2) for offset in (0, 2, 4)]
     assert [record["task_id"] for page in pages for record in page["runs"]] == expected
-    assert [record["task_id"] for record in service.list_prewarm_records("valid-session", status="queued")["runs"]] == [first["task_id"], second["task_id"]]
+    assert [record["task_id"] for record in service.list_prewarm_records("valid-session", status="queued")["runs"]] == [
+        first["task_id"],
+        second["task_id"],
+    ]
     service._write_task(running["task_id"], queue_state="success")
     monkeypatch.setattr(subprocess, "Popen", lambda *_args, **_kwargs: type("Process", (), {"pid": 12345})())
     assert service.dispatch_prewarm()["task_id"] == first["task_id"]
 
 
 def test_prewarm_records_preserve_attempts_and_filter_by_subject(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     first = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     service._write_task(first["task_id"], queue_state="success")
     second = service.enqueue_prewarm("valid-session", "gitea", "1.27")
@@ -450,14 +515,29 @@ def test_prewarm_records_preserve_attempts_and_filter_by_subject(tmp_path):
 
 
 def test_prewarm_records_preserve_legacy_logs_and_delete_only_selected_run(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     task_id = task["task_id"]
     service._write_task(task_id, queue_state="success")
     for run_id in ("old-run", "new-run"):
         log_path = service._task_logs_dir(task_id) / f"{run_id}.log"
         log_path.write_text(f"{run_id} retained log\n")
-        (service._runs_dir(task_id) / f"{run_id}.json").write_text(json.dumps({"task_id": task_id, "run_id": run_id, "status": "success", "started_at": service._now_iso(), "log_path": str(log_path)}))
+        (service._runs_dir(task_id) / f"{run_id}.json").write_text(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "run_id": run_id,
+                    "status": "success",
+                    "started_at": service._now_iso(),
+                    "log_path": str(log_path),
+                }
+            )
+        )
     assert service.list_prewarm_records("valid-session")["total"] == 1
     assert "old-run retained log" in service.get_run_log("valid-session", task_id, "old-run")["content"]
     service.delete_prewarm_record("valid-session", task_id, "old-run")
@@ -470,7 +550,12 @@ def test_prewarm_records_preserve_legacy_logs_and_delete_only_selected_run(tmp_p
 
 
 def test_prewarm_records_api_auth_pagination_and_operator_isolation(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     owned = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     foreign = service.enqueue_prewarm("valid-session", "openclaw", "2026.9.6")
     service._write_task(foreign["task_id"], operator_id="operator-2", queue_state="success")
@@ -484,12 +569,20 @@ def test_prewarm_records_api_auth_pagination_and_operator_isolation(monkeypatch,
         assert result.json()["runs"][0]["task_id"] == owned["task_id"]
         assert client.get("/scheduled-tasks/prewarm/records?offset=1", headers=headers).json()["runs"] == []
         assert client.get("/scheduled-tasks/prewarm/records?status=invalid", headers=headers).status_code == 422
-        assert client.delete(f"/scheduled-tasks/prewarm/{foreign['task_id']}/records/__pending__", headers=headers).status_code == 404
+        assert (
+            client.delete(f"/scheduled-tasks/prewarm/{foreign['task_id']}/records/__pending__", headers=headers).status_code
+            == 404
+        )
 
 
 @pytest.mark.parametrize("refresh", [False, True])
 def test_prewarm_retry_reuses_record_and_blocks_duplicate_attempts(monkeypatch, tmp_path, refresh):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     old = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     service._write_task(old["task_id"], queue_state="success")
     monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
@@ -506,7 +599,12 @@ def test_prewarm_retry_reuses_record_and_blocks_duplicate_attempts(monkeypatch, 
 
 
 def test_prewarm_retry_blocks_other_record_for_active_subject(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     old = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     service._write_task(old["task_id"], queue_state="cancelled")
     active = service.enqueue_prewarm("valid-session", "gitea", "1.27")
@@ -520,13 +618,28 @@ def test_prewarm_retry_blocks_other_record_for_active_subject(monkeypatch, tmp_p
 
 
 def test_prewarm_retry_keeps_one_visible_record_and_preserves_logs(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     task_id = task["task_id"]
     service._write_task(task_id, queue_state="cancelled")
     old_log = service._task_logs_dir(task_id) / "old-run.log"
     old_log.write_text("old attempt log\n")
-    (service._runs_dir(task_id) / "old-run.json").write_text(json.dumps({"task_id": task_id, "run_id": "old-run", "status": "cancelled", "started_at": service._now_iso(), "log_path": str(old_log)}))
+    (service._runs_dir(task_id) / "old-run.json").write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "run_id": "old-run",
+                "status": "cancelled",
+                "started_at": service._now_iso(),
+                "log_path": str(old_log),
+            }
+        )
+    )
     service._state_path(task_id).write_text("status=success\nrun_id=old-run\n")
     monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
     service.retry_prewarm("valid-session", task_id)
@@ -538,7 +651,17 @@ def test_prewarm_retry_keeps_one_visible_record_and_preserves_logs(monkeypatch, 
     service._write_task(task_id, queue_state="success")
     new_log = service._task_logs_dir(task_id) / "new-run.log"
     new_log.write_text("new attempt log\n")
-    (service._runs_dir(task_id) / "new-run.json").write_text(json.dumps({"task_id": task_id, "run_id": "new-run", "status": "success", "started_at": "2099-01-01T00:00:00+00:00", "log_path": str(new_log)}))
+    (service._runs_dir(task_id) / "new-run.json").write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "run_id": "new-run",
+                "status": "success",
+                "started_at": "2099-01-01T00:00:00+00:00",
+                "log_path": str(new_log),
+            }
+        )
+    )
     records = service.list_prewarm_records("valid-session")
     assert records["total"] == 1
     assert records["runs"][0]["run_id"] == "new-run"
@@ -552,18 +675,31 @@ def test_prewarm_retry_keeps_one_visible_record_and_preserves_logs(monkeypatch, 
 
 
 def test_prewarm_retry_joins_tail_of_same_second_queue(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     monkeypatch.setattr(service, "_now_iso", lambda: "2026-10-10T09:00:00+08:00")
     old = service.enqueue_prewarm("valid-session", "gitea", "1.27")
     service._write_task(old["task_id"], queue_state="cancelled")
     waiting = service.enqueue_prewarm("valid-session", "mysql", "9.4")
     monkeypatch.setattr(service, "dispatch_prewarm", lambda: None)
     service.retry_prewarm("valid-session", old["task_id"])
-    assert [record["task_id"] for record in service.list_prewarm_records("valid-session", status="queued")["runs"]] == [waiting["task_id"], old["task_id"]]
+    assert [record["task_id"] for record in service.list_prewarm_records("valid-session", status="queued")["runs"]] == [
+        waiting["task_id"],
+        old["task_id"],
+    ]
 
 
 def test_dispatch_prewarm_requeues_task_claimed_by_old_instance(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     monkeypatch.setenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", str(tmp_path / "instance-id"))
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     service._write_task(task["task_id"], queue_state="running", claimed_by="old-instance", runner_pgid=12345)
@@ -581,7 +717,12 @@ def test_dispatch_prewarm_requeues_task_claimed_by_old_instance(monkeypatch, tmp
 
 
 def test_dispatch_prewarm_recovers_missing_runner_before_starting_next(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     monkeypatch.setenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", str(tmp_path / "instance-id"))
     first = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     second = service.enqueue_prewarm("valid-session", "nginx", "1.27")
@@ -599,7 +740,12 @@ def test_dispatch_prewarm_recovers_missing_runner_before_starting_next(monkeypat
 
 
 def test_cancel_prewarm_starts_next_only_after_process_stops(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     first = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     second = service.enqueue_prewarm("valid-session", "nginx", "1.27")
     service._write_task(first["task_id"], queue_state="running", runner_pgid=4321)
@@ -607,7 +753,9 @@ def test_cancel_prewarm_starts_next_only_after_process_stops(monkeypatch, tmp_pa
     alive = {"value": True}
     monkeypatch.setattr(service, "_prewarm_runner_alive", lambda pgid: bool(pgid) and alive["value"])
     calls = []
-    monkeypatch.setattr(subprocess, "Popen", lambda *_args, **_kwargs: calls.append("started") or type("Process", (), {"pid": 5678})())
+    monkeypatch.setattr(
+        subprocess, "Popen", lambda *_args, **_kwargs: calls.append("started") or type("Process", (), {"pid": 5678})()
+    )
     service.cancel_prewarm("valid-session", first["task_id"])
     assert calls == []
     assert service._get_task("operator-1", first["task_id"])["runner_pgid"] == 4321
@@ -621,7 +769,12 @@ def test_cancel_prewarm_starts_next_only_after_process_stops(monkeypatch, tmp_pa
 
 
 def test_cancel_prewarm_holds_operator_lock_until_run_is_closed(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     service._write_task(task["task_id"], queue_state="running", runner_pgid=4321)
     acquired = []
@@ -646,6 +799,7 @@ def test_cancel_prewarm_holds_operator_lock_until_run_is_closed(monkeypatch, tmp
 @pytest.mark.parametrize("exit_code", [0, 1])
 def test_prewarm_runner_continues_after_releasing_lock(monkeypatch, tmp_path, exit_code):
     import shlex
+
     from src.services import scheduled_tasks
 
     dispatcher = tmp_path / "dispatcher"
@@ -656,7 +810,17 @@ def test_prewarm_runner_continues_after_releasing_lock(monkeypatch, tmp_path, ex
     monkeypatch.setattr(scheduled_tasks, "PLATFORM_CLI_PATH", str(dispatcher))
     service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService())
     runner = tmp_path / "runner.sh"
-    runner.write_text(service._runner_content(str(tmp_path / "state"), str(lock), str(tmp_path / "logs"), str(tmp_path / "runs"), "prewarm-1", f"exit {exit_code}", prewarm=True))
+    runner.write_text(
+        service._runner_content(
+            str(tmp_path / "state"),
+            str(lock),
+            str(tmp_path / "logs"),
+            str(tmp_path / "runs"),
+            "prewarm-1",
+            f"exit {exit_code}",
+            prewarm=True,
+        )
+    )
     result = subprocess.run(["bash", str(runner)], capture_output=True, text=True)
     assert result.returncode == exit_code
     assert marker.exists()
@@ -666,7 +830,9 @@ def test_prewarm_queue_continues_across_runner_processes(monkeypatch, tmp_path):
     from src.services import scheduled_tasks
 
     dispatcher = tmp_path / "dispatcher"
-    dispatcher.write_text(f"#!{sys.executable}\nimport sys\nsys.path.insert(0, {str(PROJECT_ROOT)!r})\nfrom src.services import scheduled_tasks\nscheduled_tasks.PLATFORM_CLI_PATH = __file__\nscheduled_tasks.ScheduledTaskService().dispatch_prewarm()\n")
+    dispatcher.write_text(
+        f"#!{sys.executable}\nimport sys\nsys.path.insert(0, {str(PROJECT_ROOT)!r})\nfrom src.services import scheduled_tasks\nscheduled_tasks.PLATFORM_CLI_PATH = __file__\nscheduled_tasks.ScheduledTaskService().dispatch_prewarm()\n"
+    )
     dispatcher.chmod(0o700)
     monkeypatch.setattr(scheduled_tasks, "PLATFORM_CLI_PATH", str(dispatcher))
     monkeypatch.setenv("WEBSOFT9_SCHEDULED_TASKS_DATA_DIR", str(tmp_path / "tasks"))
@@ -681,7 +847,9 @@ def test_prewarm_queue_continues_across_runner_processes(monkeypatch, tmp_path):
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
             with service._db_connect() as connection:
-                states = [row[0] for row in connection.execute("SELECT queue_state FROM scheduled_tasks WHERE category = 'prewarm'")]
+                states = [
+                    row[0] for row in connection.execute("SELECT queue_state FROM scheduled_tasks WHERE category = 'prewarm'")
+                ]
             if states == ["success", "success"]:
                 break
             threading.Event().wait(0.05)
@@ -697,7 +865,12 @@ def test_prewarm_queue_continues_across_runner_processes(monkeypatch, tmp_path):
 def test_concurrent_prewarm_dispatch_claims_only_once(monkeypatch, tmp_path):
     from concurrent.futures import ThreadPoolExecutor
 
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     entered = threading.Event()
     release = threading.Event()
@@ -722,7 +895,12 @@ def test_concurrent_prewarm_dispatch_claims_only_once(monkeypatch, tmp_path):
 
 
 def test_cancel_running_prewarm_preserves_cancelled_state(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     service._write_task(task["task_id"], queue_state="running", runner_pgid=12345)
     calls = []
@@ -740,7 +918,12 @@ def test_cancel_running_prewarm_preserves_cancelled_state(monkeypatch, tmp_path)
 
 def test_cancel_running_prewarm_escalates_when_the_run_survives(monkeypatch, tmp_path):
     """`timeout` moves the pull into its own process group, so the whole session is signalled."""
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     service._write_task(task["task_id"], queue_state="running", runner_pgid=4321)
     group_calls = []
@@ -760,11 +943,25 @@ def test_cancel_running_prewarm_escalates_when_the_run_survives(monkeypatch, tmp
 
 def test_cancelled_run_is_not_reopened_by_the_runner_record(monkeypatch, tmp_path):
     """The runner writes "running" while a run lives; that must not revive a run already closed."""
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     task_id = task["task_id"]
     started_at = service._now_iso()
-    record = {"run_id": "run-1", "task_id": task_id, "started_at": started_at, "finished_at": "", "status": "running", "exit_code": None, "trigger": "manual", "log_path": ""}
+    record = {
+        "run_id": "run-1",
+        "task_id": task_id,
+        "started_at": started_at,
+        "finished_at": "",
+        "status": "running",
+        "exit_code": None,
+        "trigger": "manual",
+        "log_path": "",
+    }
     with service._db_connect() as connection:
         connection.execute(
             "INSERT INTO scheduled_task_runs (run_id, task_id, started_at, finished_at, status, exit_code, trigger, log_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -780,12 +977,20 @@ def test_cancelled_run_is_not_reopened_by_the_runner_record(monkeypatch, tmp_pat
 
 
 def test_cancelled_prewarm_imports_late_success_as_cancelled(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     task_id = task["task_id"]
     service._write_task(task_id, queue_state="cancelled", last_status="cancelled")
     service._state_path(task_id).write_text("run_id=late-run\nstatus=success\n")
-    service._sync_task_run_records(service._get_task("operator-1", task_id), [{"run_id": "late-run", "task_id": task_id, "started_at": service._now_iso(), "status": "success", "exit_code": 0}])
+    service._sync_task_run_records(
+        service._get_task("operator-1", task_id),
+        [{"run_id": "late-run", "task_id": task_id, "started_at": service._now_iso(), "status": "success", "exit_code": 0}],
+    )
     with service._db_connect() as connection:
         run = connection.execute("SELECT status FROM scheduled_task_runs WHERE run_id = 'late-run'").fetchone()
     assert run["status"] == "cancelled"
@@ -794,7 +999,12 @@ def test_cancelled_prewarm_imports_late_success_as_cancelled(tmp_path):
 
 def test_cancel_prewarm_closes_the_running_run_and_annotates_its_log(monkeypatch, tmp_path):
     """A cancelled pull never writes its own result, so the history must not stay on `running`."""
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     service._write_task(task["task_id"], queue_state="running", runner_pgid=999)
     log_path = tmp_path / "tasks" / "run.log"
@@ -811,7 +1021,9 @@ def test_cancel_prewarm_closes_the_running_run_and_annotates_its_log(monkeypatch
     service.cancel_prewarm("valid-session", task["task_id"])
 
     with service._db_connect() as connection:
-        run = connection.execute("SELECT status, finished_at FROM scheduled_task_runs WHERE run_id = 'run-cancelled'").fetchone()
+        run = connection.execute(
+            "SELECT status, finished_at FROM scheduled_task_runs WHERE run_id = 'run-cancelled'"
+        ).fetchone()
     assert run["status"] == "cancelled"
     assert run["finished_at"]
     assert "CANCELLED by operator" in log_path.read_text(encoding="utf-8")
@@ -854,12 +1066,20 @@ def test_scheduled_task_defaults_and_history_retention(tmp_path):
 
 
 def test_prewarm_dispatch_migrates_to_internal_cron(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     service._ensure_storage()
     real_task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
     legacy_id = "system:image-prewarm-dispatch"
     with service._db_connect() as connection:
-        connection.execute("INSERT INTO scheduled_tasks SELECT ?, operator_id, 'Image prewarm dispatch', target, profile_id, schedule, timezone, command, execution_mode, script_path, script_name, timeout_seconds, retry_count, enabled, last_run_at, last_status, sync_status, next_run_at, created_at, updated_at, origin, category, subject_app, subject_version, queue_state, claimed_at, claimed_by, runner_pgid FROM scheduled_tasks WHERE task_id = 'system:appstore-sync'", (legacy_id,))
+        connection.execute(
+            "INSERT INTO scheduled_tasks SELECT ?, operator_id, 'Image prewarm dispatch', target, profile_id, schedule, timezone, command, execution_mode, script_path, script_name, timeout_seconds, retry_count, enabled, last_run_at, last_status, sync_status, next_run_at, created_at, updated_at, origin, category, subject_app, subject_version, queue_state, claimed_at, claimed_by, runner_pgid FROM scheduled_tasks WHERE task_id = 'system:appstore-sync'",
+            (legacy_id,),
+        )
         connection.commit()
     service._runner_path(legacy_id).write_text("old runner")
     service.reconcile_local_schedule()
@@ -873,6 +1093,7 @@ def test_prewarm_dispatch_migrates_to_internal_cron(monkeypatch, tmp_path):
 
 def test_prewarm_dispatch_cli_quiet(monkeypatch):
     from click.testing import CliRunner
+
     from src.cli import apphub_cli
 
     monkeypatch.setattr(ScheduledTaskService, "dispatch_prewarm", lambda self: {"status": "idle"})
@@ -886,13 +1107,31 @@ def test_task_history_uses_shared_count_retention(tmp_path, prewarm):
     import json
     from datetime import datetime, timedelta, timezone
 
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
-    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3") if prewarm else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+    task = (
+        service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+        if prewarm
+        else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
+    )
     task_id = task["task_id"]
     for index in range(22):
         run_id = f"run-{index:02}"
         started_at = (datetime.now(timezone.utc) - timedelta(seconds=30 - index)).isoformat()
-        record = {"run_id": run_id, "task_id": task_id, "started_at": started_at, "finished_at": started_at, "status": "success", "exit_code": 0, "trigger": "manual", "log_path": str(service._task_logs_dir(task_id) / f"{run_id}.log")}
+        record = {
+            "run_id": run_id,
+            "task_id": task_id,
+            "started_at": started_at,
+            "finished_at": started_at,
+            "status": "success",
+            "exit_code": 0,
+            "trigger": "manual",
+            "log_path": str(service._task_logs_dir(task_id) / f"{run_id}.log"),
+        }
         (service._runs_dir(task_id) / f"{run_id}.json").write_text(json.dumps(record))
         (service._task_logs_dir(task_id) / f"{run_id}.log").write_text("END")
     response = service.list_runs("valid-session", task_id)
@@ -906,9 +1145,29 @@ def test_task_history_uses_shared_count_retention(tmp_path, prewarm):
 
 @pytest.mark.parametrize("prewarm", [False, True])
 def test_task_history_uses_shared_age_retention(tmp_path, prewarm):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
-    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3") if prewarm else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
-    service._sync_task_run_records(service._get_task("operator-1", task["task_id"]), [{"run_id": "old-run", "task_id": task["task_id"], "started_at": "2020-01-01T00:00:00+00:00", "status": "success", "exit_code": 0}])
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+    task = (
+        service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+        if prewarm
+        else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
+    )
+    service._sync_task_run_records(
+        service._get_task("operator-1", task["task_id"]),
+        [
+            {
+                "run_id": "old-run",
+                "task_id": task["task_id"],
+                "started_at": "2020-01-01T00:00:00+00:00",
+                "status": "success",
+                "exit_code": 0,
+            }
+        ],
+    )
     assert service.list_runs("valid-session", task["task_id"])["runs"] == []
     assert "-mtime +7" in service._runner_path(task["task_id"]).read_text()
 
@@ -933,7 +1192,11 @@ def test_task_runner_uses_shared_file_retention(monkeypatch, tmp_path, prewarm):
         os.utime(old, (0, 0))
     service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService())
     runner = tmp_path / "runner.sh"
-    runner.write_text(service._runner_content(str(tmp_path / "state"), str(tmp_path / "lock"), str(logs), str(runs), "task-1", "true", prewarm=prewarm))
+    runner.write_text(
+        service._runner_content(
+            str(tmp_path / "state"), str(tmp_path / "lock"), str(logs), str(runs), "task-1", "true", prewarm=prewarm
+        )
+    )
     subprocess.run(["bash", str(runner)], check=True)
     assert len(list(runs.glob("*.json"))) == 50
     assert len(list(logs.glob("*.log"))) == 50
@@ -943,14 +1206,26 @@ def test_task_runner_uses_shared_file_retention(monkeypatch, tmp_path, prewarm):
 
 @pytest.mark.parametrize("prewarm", [False, True])
 def test_deleting_task_removes_history_and_logs(tmp_path, prewarm):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
-    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3") if prewarm else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+    task = (
+        service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+        if prewarm
+        else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
+    )
     task_id = task["task_id"]
     if prewarm:
         service._write_task(task_id, queue_state="success")
     (service._runs_dir(task_id) / "run-1.json").write_text("{}")
     (service._task_logs_dir(task_id) / "run-1.log").write_text("END")
-    service._sync_task_run_records(service._get_task("operator-1", task_id), [{"run_id": "run-1", "task_id": task_id, "started_at": service._now_iso(), "status": "success", "exit_code": 0}])
+    service._sync_task_run_records(
+        service._get_task("operator-1", task_id),
+        [{"run_id": "run-1", "task_id": task_id, "started_at": service._now_iso(), "status": "success", "exit_code": 0}],
+    )
     service.delete_task("valid-session", task_id)
     assert not service._runs_dir(task_id).exists()
     assert not service._task_logs_dir(task_id).exists()
@@ -988,12 +1263,23 @@ def test_host_uploaded_task_marks_unreachable_when_upload_fails(monkeypatch, tmp
         cron_reloader=lambda: None,
         host_access_service=FakeHostTaskAccessService(),
     )
-    monkeypatch.setattr(service, "_store_uploaded_script", lambda *_args: (_ for _ in ()).throw(CustomException(503, "Scheduled Task Upload Failed", "Host unavailable")))
+    monkeypatch.setattr(
+        service,
+        "_store_uploaded_script",
+        lambda *_args: (_ for _ in ()).throw(CustomException(503, "Scheduled Task Upload Failed", "Host unavailable")),
+    )
 
     with pytest.raises(CustomException):
         service.create_task(
             "valid-session",
-            {"name": "Remote upload", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "execution_mode": "upload", "script_content": "echo task"},
+            {
+                "name": "Remote upload",
+                "target": "host",
+                "profile_id": "profile-1",
+                "schedule": "* * * * *",
+                "execution_mode": "upload",
+                "script_content": "echo task",
+            },
         )
 
     task = service._list_tasks("operator-1")[0]
@@ -1015,7 +1301,9 @@ def test_delete_host_task_succeeds_when_host_is_unreachable(monkeypatch, tmp_pat
     monkeypatch.setattr(
         service,
         "_sync_host_tasks",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(CustomException(503, "Scheduled Task Host Unavailable", "Host is unavailable")),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            CustomException(503, "Scheduled Task Host Unavailable", "Host is unavailable")
+        ),
     )
 
     service.delete_task("valid-session", task["task_id"])
@@ -1025,7 +1313,10 @@ def test_delete_host_task_succeeds_when_host_is_unreachable(monkeypatch, tmp_pat
 
 def test_platform_task_rejects_profile_on_container_target(monkeypatch, tmp_path):
     service = ScheduledTaskService(
-        data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
     )
     monkeypatch.setattr(scheduled_tasks_router, "_scheduled_task_service", service)
 
@@ -1033,7 +1324,13 @@ def test_platform_task_rejects_profile_on_container_target(monkeypatch, tmp_path
         response = client.post(
             "/scheduled-tasks",
             headers={"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"},
-            json={"name": "Remote", "target": "container", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"},
+            json={
+                "name": "Remote",
+                "target": "container",
+                "profile_id": "profile-1",
+                "schedule": "* * * * *",
+                "command": "date",
+            },
         )
 
     assert response.status_code == 400
@@ -1041,10 +1338,15 @@ def test_platform_task_rejects_profile_on_container_target(monkeypatch, tmp_path
 
 def test_platform_task_accepts_multiline_shell_command(tmp_path):
     service = ScheduledTaskService(
-        data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
     )
 
-    task = service.create_task("valid-session", {"name": "Multiline", "schedule": "* * * * *", "command": "echo first\necho second"})
+    task = service.create_task(
+        "valid-session", {"name": "Multiline", "schedule": "* * * * *", "command": "echo first\necho second"}
+    )
 
     runner = (tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh").read_text(encoding="utf-8")
     assert "echo first\necho second" in runner
@@ -1077,7 +1379,10 @@ def test_delete_restores_cron_file_when_reload_fails(tmp_path):
 
 def test_public_task_always_returns_a_future_next_run(tmp_path):
     service = ScheduledTaskService(
-        data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
     )
     task = service.create_task("valid-session", {"name": "Date", "schedule": "* * * * *", "command": "date"})
 
@@ -1086,13 +1391,19 @@ def test_public_task_always_returns_a_future_next_run(tmp_path):
 
 def test_public_task_exposes_execution_path(tmp_path):
     service = ScheduledTaskService(
-        data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
     )
     task = service.create_task("valid-session", {"name": "Date", "schedule": "* * * * *", "command": "date"})
     published = service.list_tasks("valid-session")["tasks"][0]
     assert published["execution_path"] == str(tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh")
 
-    service.create_task("valid-session", {"name": "PathMode", "schedule": "* * * * *", "execution_mode": "path", "script_path": "/usr/local/bin/backup.sh"})
+    service.create_task(
+        "valid-session",
+        {"name": "PathMode", "schedule": "* * * * *", "execution_mode": "path", "script_path": "/usr/local/bin/backup.sh"},
+    )
     tasks = service.list_tasks("valid-session")["tasks"]
     path_task = next(item for item in tasks if item["name"] == "PathMode")
     assert path_task["execution_path"] == "/usr/local/bin/backup.sh"
@@ -1100,15 +1411,27 @@ def test_public_task_exposes_execution_path(tmp_path):
 
 def test_execution_path_for_host_tasks_uses_remote_scheduled_tasks_root(tmp_path):
     service = ScheduledTaskService(
-        data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
     )
-    assert service._execution_path({"task_id": "t-1", "target": "host", "execution_mode": "command", "script_path": None}) == "~/.local/state/websoft9/scheduled-tasks/scripts/t-1.sh"
-    assert service._execution_path({"task_id": "t-1", "target": "host", "execution_mode": "upload", "script_path": None}) == "~/.local/state/websoft9/scheduled-tasks/uploads/t-1.sh"
+    assert (
+        service._execution_path({"task_id": "t-1", "target": "host", "execution_mode": "command", "script_path": None})
+        == "~/.local/state/websoft9/scheduled-tasks/scripts/t-1.sh"
+    )
+    assert (
+        service._execution_path({"task_id": "t-1", "target": "host", "execution_mode": "upload", "script_path": None})
+        == "~/.local/state/websoft9/scheduled-tasks/uploads/t-1.sh"
+    )
 
 
 def test_task_list_orders_by_creation_time_descending(tmp_path):
     service = ScheduledTaskService(
-        data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
     )
     first = service.create_task("valid-session", {"name": "First", "schedule": "* * * * *", "command": "date"})
     second = service.create_task("valid-session", {"name": "Second", "schedule": "* * * * *", "command": "date"})
@@ -1138,7 +1461,9 @@ def test_system_tasks_are_seeded_once_visible_and_read_only(tmp_path):
 
     tasks = service.list_tasks("valid-session")
     system_tasks = tasks["system_tasks"]
-    assert [task["task_id"] for task in system_tasks] == [definition["task_id"] for definition in SYSTEM_TASKS] + ["system:image-prewarm"]
+    assert [task["task_id"] for task in system_tasks] == [definition["task_id"] for definition in SYSTEM_TASKS] + [
+        "system:image-prewarm"
+    ]
     assert all(task["enabled"] for task in system_tasks)
     assert all(task["target"] == "container" for task in system_tasks)
     # They are not part of an operator's own task list.
@@ -1172,7 +1497,12 @@ class FakeSystemAuthService(FakeAuthService):
 
 
 def test_log_cleanup_schedule_and_toggle_survive_restart(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeSystemAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeSystemAuthService(),
+        cron_reloader=lambda: None,
+    )
     task_id = "system:log-cleanup"
     task = service._get_task("operator-1", task_id)
     assert task["schedule"] == "0 4 * * 0"
@@ -1184,14 +1514,24 @@ def test_log_cleanup_schedule_and_toggle_survive_restart(tmp_path):
     service.toggle_task("valid-session", task_id, False)
     assert original_command not in (tmp_path / "cron").read_text()
     assert service._runner_path(task_id).exists()
-    restarted = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeSystemAuthService(), cron_reloader=lambda: None)
+    restarted = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeSystemAuthService(),
+        cron_reloader=lambda: None,
+    )
     saved = restarted._get_task("operator-1", task_id)
     assert saved["schedule"] == "0 2 * * 1" and not saved["enabled"]
     assert restarted.list_cached_tasks("valid-session")["can_manage_log_cleanup"] is True
 
 
 def test_log_cleanup_controls_require_system_administrator(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
     task_id = "system:log-cleanup"
     for action in (
         lambda: service.update_system_schedule("valid-session", task_id, "0 2 * * 1"),
@@ -1205,7 +1545,12 @@ def test_log_cleanup_controls_require_system_administrator(tmp_path):
 
 
 def test_log_cleanup_manual_run_is_available_when_disabled(tmp_path, monkeypatch):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeSystemAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeSystemAuthService(),
+        cron_reloader=lambda: None,
+    )
     task_id = "system:log-cleanup"
     service.toggle_task("valid-session", task_id, False)
     launched = []
@@ -1215,16 +1560,50 @@ def test_log_cleanup_manual_run_is_available_when_disabled(tmp_path, monkeypatch
 
 
 def test_log_cleanup_schedule_api_rejects_command_or_other_fields(tmp_path, monkeypatch):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeSystemAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "cron"),
+        auth_service=FakeSystemAuthService(),
+        cron_reloader=lambda: None,
+    )
     monkeypatch.setattr(scheduled_tasks_router, "_scheduled_task_service", service)
     headers = {"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"}
     with TestClient(create_test_app()) as client:
-        assert client.put("/scheduled-tasks/system:log-cleanup/schedule", headers=headers, json={"schedule": "0 2 * * 1", "command": "rm -rf /"}).status_code == 422
-        assert client.put("/scheduled-tasks/system:log-cleanup/schedule", headers=headers, json={"schedule": "invalid"}).status_code == 400
-        assert client.put("/scheduled-tasks/system:log-cleanup/schedule", headers=headers, json={"schedule": "0 2 * * 1"}).status_code == 200
-        assert client.put("/scheduled-tasks/system:appstore-sync/schedule", headers=headers, json={"schedule": "0 2 * * 1"}).status_code == 403
+        assert (
+            client.put(
+                "/scheduled-tasks/system:log-cleanup/schedule",
+                headers=headers,
+                json={"schedule": "0 2 * * 1", "command": "rm -rf /"},
+            ).status_code
+            == 422
+        )
+        assert (
+            client.put(
+                "/scheduled-tasks/system:log-cleanup/schedule", headers=headers, json={"schedule": "invalid"}
+            ).status_code
+            == 400
+        )
+        assert (
+            client.put(
+                "/scheduled-tasks/system:log-cleanup/schedule", headers=headers, json={"schedule": "0 2 * * 1"}
+            ).status_code
+            == 200
+        )
+        assert (
+            client.put(
+                "/scheduled-tasks/system:appstore-sync/schedule", headers=headers, json={"schedule": "0 2 * * 1"}
+            ).status_code
+            == 403
+        )
         assert client.delete("/scheduled-tasks/system:log-cleanup", headers=headers).status_code == 403
-        assert client.put("/scheduled-tasks/system:log-cleanup", headers=headers, json={"name": "Changed", "schedule": "0 2 * * 1", "command": "date"}).status_code == 403
+        assert (
+            client.put(
+                "/scheduled-tasks/system:log-cleanup",
+                headers=headers,
+                json={"name": "Changed", "schedule": "0 2 * * 1", "command": "date"},
+            ).status_code
+            == 403
+        )
 
 
 def test_system_task_runner_reports_a_skip_instead_of_a_failure():
@@ -1246,7 +1625,11 @@ def test_platform_maintenance_is_not_also_scheduled_by_the_image_crontab():
     # Both jobs now run from the platform task store; a leftover entry here would run them twice.
     assert "appstore sync" not in crontab
     assert "check-update" not in crontab
-    assert not [line for line in crontab.splitlines() if line.strip() and not line.strip().startswith("#") and _looks_like_cron_entry(line)]
+    assert not [
+        line
+        for line in crontab.splitlines()
+        if line.strip() and not line.strip().startswith("#") and _looks_like_cron_entry(line)
+    ]
 
 
 def _looks_like_cron_entry(line: str) -> bool:
@@ -1298,7 +1681,10 @@ def test_host_task_saves_while_unreachable_and_refresh_resynchronizes(tmp_path):
         host_access_service=host_access_service,
     )
 
-    task = service.create_task("valid-session", {"name": "Remote", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"})
+    task = service.create_task(
+        "valid-session",
+        {"name": "Remote", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"},
+    )
 
     assert task["sync_status"] == "unreachable"
     host_access_service.available = True
@@ -1309,7 +1695,9 @@ def test_host_task_saves_while_unreachable_and_refresh_resynchronizes(tmp_path):
 
 
 def test_background_sync_runs_different_host_profiles_concurrently(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
     tasks = [
         {"task_id": "task-1", "target": "host", "profile_id": "profile-1", "sync_status": "synced"},
         {"task_id": "task-2", "target": "host", "profile_id": "profile-2", "sync_status": "synced"},
@@ -1336,6 +1724,8 @@ def test_background_sync_runs_different_host_profiles_concurrently(monkeypatch, 
     release_syncs.set()
     worker.join(timeout=1)
     assert not worker.is_alive()
+
+
 def test_host_capability_uses_utc_for_non_iana_timezone(tmp_path):
     service = ScheduledTaskService(
         data_dir=str(tmp_path / "tasks"),
@@ -1397,7 +1787,12 @@ def test_host_capability_closes_a_timed_out_remote_command(monkeypatch, tmp_path
     monotonic_values = iter([0.0, 0.0, 16.0])
     monkeypatch.setattr("src.services.scheduled_tasks.time.monotonic", lambda: next(monotonic_values))
     monkeypatch.setattr("src.services.scheduled_tasks.time.sleep", lambda _seconds: None)
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None, host_access_service=host_access)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+        host_access_service=host_access,
+    )
 
     try:
         service.check_host_capability("valid-session", "profile-1")
@@ -1426,9 +1821,13 @@ def test_host_crontab_rejects_unmatched_or_nested_profile_markers():
 
 
 def test_host_runner_overlap_does_not_overwrite_active_state(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
 
-    runner = service._runner_content("/tmp/task.state", "/tmp/task.lock", "/tmp/task.logs", "/tmp/task.runs", "task-1", "sleep 1")
+    runner = service._runner_content(
+        "/tmp/task.state", "/tmp/task.lock", "/tmp/task.logs", "/tmp/task.runs", "task-1", "sleep 1"
+    )
 
     assert service._runner_version_marker in runner
     assert "write_state skipped" not in runner
@@ -1436,7 +1835,9 @@ def test_host_runner_overlap_does_not_overwrite_active_state(tmp_path):
 
 
 def test_container_runner_overlap_does_not_overwrite_active_state(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
     task = service.create_task("valid-session", {"name": "Overlap", "schedule": "* * * * *", "command": "sleep 1"})
 
     runner = (tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh").read_text(encoding="utf-8")
@@ -1446,11 +1847,20 @@ def test_container_runner_overlap_does_not_overwrite_active_state(tmp_path):
 
 
 def test_container_task_supports_script_path_timeout_and_retry(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
 
     task = service.create_task(
         "valid-session",
-        {"name": "Path", "schedule": "* * * * *", "execution_mode": "path", "script_path": "/opt/jobs/backup.sh", "timeout_seconds": 60, "retry_count": 2},
+        {
+            "name": "Path",
+            "schedule": "* * * * *",
+            "execution_mode": "path",
+            "script_path": "/opt/jobs/backup.sh",
+            "timeout_seconds": 60,
+            "retry_count": 2,
+        },
     )
 
     runner = (tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh").read_text(encoding="utf-8")
@@ -1463,10 +1873,16 @@ def test_container_task_supports_script_path_timeout_and_retry(tmp_path):
 
 
 def test_container_runner_writes_execution_boundaries(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
-    task = service.create_task("valid-session", {"name": "Boundaries", "schedule": "* * * * *", "command": "printf 'task output\\n'"})
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
+    task = service.create_task(
+        "valid-session", {"name": "Boundaries", "schedule": "* * * * *", "command": "printf 'task output\\n'"}
+    )
 
-    result = subprocess.run([str(tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh"), "manual"], capture_output=True, text=True)
+    result = subprocess.run(
+        [str(tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh"), "manual"], capture_output=True, text=True
+    )
     log = next((tmp_path / "tasks" / "logs" / task["task_id"]).glob("*.log")).read_text(encoding="utf-8")
 
     assert result.returncode == 0
@@ -1476,10 +1892,16 @@ def test_container_runner_writes_execution_boundaries(tmp_path):
 
 
 def test_container_runner_logs_retry_and_failure(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
-    task = service.create_task("valid-session", {"name": "Retry", "schedule": "* * * * *", "command": "exit 7", "retry_count": 1})
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
+    task = service.create_task(
+        "valid-session", {"name": "Retry", "schedule": "* * * * *", "command": "exit 7", "retry_count": 1}
+    )
 
-    result = subprocess.run([str(tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh"), "manual"], capture_output=True, text=True)
+    result = subprocess.run(
+        [str(tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh"), "manual"], capture_output=True, text=True
+    )
     log = next((tmp_path / "tasks" / "logs" / task["task_id"]).glob("*.log")).read_text(encoding="utf-8")
 
     assert result.returncode == 7
@@ -1488,8 +1910,12 @@ def test_container_runner_logs_retry_and_failure(tmp_path):
 
 
 def test_container_run_history_indexes_individual_log(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
-    task = service.create_task("valid-session", {"name": "History", "schedule": "* * * * *", "command": "printf 'history output\\n'"})
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
+    task = service.create_task(
+        "valid-session", {"name": "History", "schedule": "* * * * *", "command": "printf 'history output\\n'"}
+    )
 
     subprocess.run([str(tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh"), "manual"], check=True)
     service.refresh_status("valid-session", task["task_id"])
@@ -1503,8 +1929,12 @@ def test_container_run_history_indexes_individual_log(tmp_path):
 
 
 def test_download_run_log_returns_an_attachment(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
-    task = service.create_task("valid-session", {"name": "Download", "schedule": "* * * * *", "command": "printf 'download output\\n'"})
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
+    task = service.create_task(
+        "valid-session", {"name": "Download", "schedule": "* * * * *", "command": "printf 'download output\\n'"}
+    )
     subprocess.run([str(tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh"), "manual"], check=True)
     service.refresh_status("valid-session", task["task_id"])
     run = service.list_runs("valid-session", task["task_id"])["runs"][0]
@@ -1515,10 +1945,16 @@ def test_download_run_log_returns_an_attachment(tmp_path):
 
 
 def test_list_runs_reads_sqlite_without_synchronizing_source_files(monkeypatch, tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
     task = service.create_task("valid-session", {"name": "Cached history", "schedule": "* * * * *", "command": "date"})
 
-    monkeypatch.setattr(service, "_sync_task_runs", lambda *_args: (_ for _ in ()).throw(AssertionError("list_runs must not synchronize source files")))
+    monkeypatch.setattr(
+        service,
+        "_sync_task_runs",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("list_runs must not synchronize source files")),
+    )
 
     result = service.list_runs("valid-session", task["task_id"])
 
@@ -1526,11 +1962,19 @@ def test_list_runs_reads_sqlite_without_synchronizing_source_files(monkeypatch, 
 
 
 def test_container_task_stores_uploaded_script(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
 
     task = service.create_task(
         "valid-session",
-        {"name": "Upload", "schedule": "* * * * *", "execution_mode": "upload", "script_name": "backup.sh", "script_content": "#!/bin/bash\necho backup"},
+        {
+            "name": "Upload",
+            "schedule": "* * * * *",
+            "execution_mode": "upload",
+            "script_name": "backup.sh",
+            "script_content": "#!/bin/bash\necho backup",
+        },
     )
 
     uploaded_script = tmp_path / "tasks" / "uploads" / f"{task['task_id']}.sh"
@@ -1540,7 +1984,9 @@ def test_container_task_stores_uploaded_script(tmp_path):
 
 
 def test_new_uploaded_task_requires_script_content(tmp_path):
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
 
     try:
         service.create_task("valid-session", {"name": "Missing upload", "schedule": "* * * * *", "execution_mode": "upload"})
@@ -1568,7 +2014,7 @@ def test_host_task_writes_profile_scoped_runner_and_crontab(tmp_path):
     commands = "\n".join(host_access.client.commands)
     assert task["target"] == "host"
     assert task["profile_id"] == "profile-1"
-    assert f"# >>> websoft9-tasks:profile-1" in commands
+    assert "# >>> websoft9-tasks:profile-1" in commands
     assert f"{task['task_id']}.sh" in commands
 
 
@@ -1588,10 +2034,24 @@ def test_list_tasks_refreshes_ssh_task_execution_status(monkeypatch, tmp_path):
     monkeypatch.setattr(
         service,
         "_read_host_runs",
-        lambda *_args: [{"run_id": "remote-run-1", "task_id": task["task_id"], "status": "success", "started_at": "2026-08-20T08:00:00+00:00", "finished_at": "2026-08-20T08:00:01+00:00", "exit_code": 0, "trigger": "cron", "log_path": "/remote/run.log"}],
+        lambda *_args: [
+            {
+                "run_id": "remote-run-1",
+                "task_id": task["task_id"],
+                "status": "success",
+                "started_at": "2026-08-20T08:00:00+00:00",
+                "finished_at": "2026-08-20T08:00:01+00:00",
+                "exit_code": 0,
+                "trigger": "cron",
+                "log_path": "/remote/run.log",
+            }
+        ],
     )
 
-    listed_task = service.list_tasks("valid-session")["tasks"][0]
+    # Listing only queues a background sync for host tasks, so the run sync is driven explicitly here.
+    service._sync_task_runs("valid-session", service._get_task("operator-1", task["task_id"]))
+
+    listed_task = service.list_cached_tasks("valid-session")["tasks"][0]
 
     assert listed_task["task_id"] == task["task_id"]
     assert listed_task["last_status"] == "success"
@@ -1609,7 +2069,13 @@ def test_host_run_sync_accepts_an_empty_remote_runs_directory(tmp_path):
     )
     task = service.create_task(
         "valid-session",
-        {"name": "Empty remote history", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"},
+        {
+            "name": "Empty remote history",
+            "target": "host",
+            "profile_id": "profile-1",
+            "schedule": "* * * * *",
+            "command": "date",
+        },
     )
 
     service.list_tasks("valid-session")
@@ -1619,33 +2085,76 @@ def test_host_run_sync_accepts_an_empty_remote_runs_directory(tmp_path):
 
 def test_switching_away_from_host_removes_remote_task_files(tmp_path):
     host_access = FakeHostTaskAccessService()
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None, host_access_service=host_access)
-    task = service.create_task("valid-session", {"name": "Move", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"})
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+        host_access_service=host_access,
+    )
+    task = service.create_task(
+        "valid-session",
+        {"name": "Move", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"},
+    )
 
-    service.update_task("valid-session", task["task_id"], {"name": "Move", "target": "container", "schedule": "* * * * *", "command": "date"})
+    service.update_task(
+        "valid-session", task["task_id"], {"name": "Move", "target": "container", "schedule": "* * * * *", "command": "date"}
+    )
 
-    assert f"rm -rf /home/operator/.local/state/websoft9/scheduled-tasks/scripts/{task['task_id']}.sh" in "\n".join(host_access.client.commands)
+    assert f"rm -rf /home/operator/.local/state/websoft9/scheduled-tasks/scripts/{task['task_id']}.sh" in "\n".join(
+        host_access.client.commands
+    )
 
 
 def test_container_cron_excludes_ssh_tasks(tmp_path):
     host_access = FakeHostTaskAccessService()
     cron_file = tmp_path / "websoft9-tasks"
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(cron_file), auth_service=FakeAuthService(), cron_reloader=lambda: None, host_access_service=host_access)
-    host_task = service.create_task("valid-session", {"name": "Host", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"})
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(cron_file),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+        host_access_service=host_access,
+    )
+    host_task = service.create_task(
+        "valid-session",
+        {"name": "Host", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"},
+    )
     service.create_task("valid-session", {"name": "Container", "schedule": "* * * * *", "command": "date"})
 
     assert host_task["task_id"] not in cron_file.read_text(encoding="utf-8")
 
 
-def test_switching_away_from_unreachable_host_is_rejected(monkeypatch, tmp_path):
+def test_switching_away_from_unreachable_host_still_moves_the_task(monkeypatch, tmp_path):
     host_access = FakeHostTaskAccessService()
-    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None, host_access_service=host_access)
-    task = service.create_task("valid-session", {"name": "Unavailable", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"})
-    monkeypatch.setattr(service, "_sync_host_tasks", lambda *_args, **_kwargs: (_ for _ in ()).throw(CustomException(503, "Scheduled Task Host Unavailable", "Host is unavailable")))
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+        host_access_service=host_access,
+    )
+    task = service.create_task(
+        "valid-session",
+        {"name": "Unavailable", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"},
+    )
+    monkeypatch.setattr(
+        service,
+        "_sync_host_tasks",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            CustomException(503, "Scheduled Task Host Unavailable", "Host is unavailable")
+        ),
+    )
+    removed = []
+    monkeypatch.setattr(service, "_remove_host_task_files", lambda *_args, **_kwargs: removed.append(True))
 
-    try:
-        service.update_task("valid-session", task["task_id"], {"name": "Unavailable", "target": "container", "schedule": "* * * * *", "command": "date"})
-    except CustomException as exc:
-        assert exc.status_code == 503
-    else:
-        raise AssertionError("Expected an unreachable old host to block task migration")
+    # An unreachable old host must not lock the operator in: the task moves to the container and the
+    # remote cleanup is skipped, because it cannot reach the host anyway.
+    updated = service.update_task(
+        "valid-session",
+        task["task_id"],
+        {"name": "Unavailable", "target": "container", "schedule": "* * * * *", "command": "date"},
+    )
+
+    assert updated["target"] == "container"
+    assert removed == []

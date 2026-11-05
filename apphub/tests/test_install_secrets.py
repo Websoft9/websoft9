@@ -19,26 +19,43 @@ def _template(tmp_path, monkeypatch, values, fields=None, name="template"):
     monkeypatch.setenv("WEBSOFT9_DATA_ROOT", str(tmp_path / "data"))
     directory = tmp_path / name
     directory.mkdir()
-    (directory / ".env").write_text("# retained comment\n" + "\n".join(f"{key}={value}" for key, value in values.items()) + "\n")
+    (directory / ".env").write_text(
+        "# retained comment\n" + "\n".join(f"{key}={value}" for key, value in values.items()) + "\n"
+    )
     (directory / "variables.json").write_text(json.dumps({"env": {"secrets": list(values) if fields is None else fields}}))
     return directory
 
 
-@pytest.mark.parametrize("template,pattern", [
-    ("a1" * 32, r"[0-9a-f]{64}"),
-    ("A1" * 16, r"[0-9A-F]{32}"),
-    ("sk-" + "a1" * 32, r"sk-[0-9a-f]{64}"),
-    ("1234-45687-12312", r"[0-9]{4}-[0-9]{5}-[0-9]{5}"),
-    ("AbZ19x" * 6, r"[A-Za-z0-9]{36}"),
-    ("abcdef12-abcdef12", r"[0-9a-f]{8}-[0-9a-f]{8}"),
-])
+@pytest.mark.parametrize(
+    "template,pattern",
+    [
+        ("a1" * 32, r"[0-9a-f]{64}"),
+        ("A1" * 16, r"[0-9A-F]{32}"),
+        ("sk-" + "a1" * 32, r"sk-[0-9a-f]{64}"),
+        ("1234-45687-12312", r"[0-9]{4}-[0-9]{5}-[0-9]{5}"),
+        ("AbZ19x" * 6, r"[A-Za-z0-9]{36}"),
+        ("abcdef12-abcdef12", r"[0-9a-f]{8}-[0-9a-f]{8}"),
+    ],
+)
 def test_generate_preserves_format(template, pattern):
     generated = generate_secret("SECRET", template)
     assert generated != template
     assert re.fullmatch(pattern, generated)
 
 
-@pytest.mark.parametrize("template", ["tiny", "abc-1234567890123456", "longprefix-1234567890123456", "sk-", "eyJhbGc.eyJzdWI.signature", "123e4567-e89b-12d3-a456-426614174000", "-----BEGIN PRIVATE KEY-----", "YWJjZGVmZ2hpamtsbW5vcA=="])
+@pytest.mark.parametrize(
+    "template",
+    [
+        "tiny",
+        "abc-1234567890123456",
+        "longprefix-1234567890123456",
+        "sk-",
+        "eyJhbGc.eyJzdWI.signature",
+        "123e4567-e89b-12d3-a456-426614174000",
+        "-----BEGIN PRIVATE KEY-----",
+        "YWJjZGVmZ2hpamtsbW5vcA==",
+    ],
+)
 def test_generate_rejects_unknown_or_short_formats(template):
     with pytest.raises(CustomException) as error:
         generate_secret("SECRET", template)
@@ -75,15 +92,18 @@ def test_explicit_settings_win_and_survive_retry(tmp_path, monkeypatch):
     assert dotenv_values(retry / ".env")["KEY"] == override
 
 
-@pytest.mark.parametrize("values,fields", [
-    ({"OTHER": "a1" * 32}, ["MISSING"]),
-    ({"KEY": ""}, ["KEY"]),
-    ({"KEY": "${MISSING}"}, ["KEY"]),
-    ({"KEY": "${OTHER}", "OTHER": "${KEY}"}, ["KEY"]),
-    ({"KEY": "${OTHER:-fallback}"}, ["KEY"]),
-    ({"KEY": "a1" * 32}, "KEY"),
-    ({"KEY": "a1" * 32}, [123]),
-])
+@pytest.mark.parametrize(
+    "values,fields",
+    [
+        ({"OTHER": "a1" * 32}, ["MISSING"]),
+        ({"KEY": ""}, ["KEY"]),
+        ({"KEY": "${MISSING}"}, ["KEY"]),
+        ({"KEY": "${OTHER}", "OTHER": "${KEY}"}, ["KEY"]),
+        ({"KEY": "${OTHER:-fallback}"}, ["KEY"]),
+        ({"KEY": "a1" * 32}, "KEY"),
+        ({"KEY": "a1" * 32}, [123]),
+    ],
+)
 def test_invalid_declaration_or_reference_leaves_env_unchanged(tmp_path, monkeypatch, values, fields):
     directory = _template(tmp_path, monkeypatch, values, fields)
     original = (directory / ".env").read_bytes()
@@ -223,7 +243,9 @@ def test_changed_template_reference_does_not_use_stale_literal(tmp_path, monkeyp
     retry = _template(tmp_path, monkeypatch, {"KEY": "${W9_POWER_PASSWORD}", "W9_POWER_PASSWORD": ""}, name="retry")
     initialize_install_secrets(retry, "app", "demo")
     assert dotenv_values(retry / ".env", interpolate=False)["KEY"] == "${W9_POWER_PASSWORD}"
-    later_retry = _template(tmp_path, monkeypatch, {"KEY": "${W9_POWER_PASSWORD}", "W9_POWER_PASSWORD": ""}, name="later-retry")
+    later_retry = _template(
+        tmp_path, monkeypatch, {"KEY": "${W9_POWER_PASSWORD}", "W9_POWER_PASSWORD": ""}, name="later-retry"
+    )
     initialize_install_secrets(later_retry, "app", "demo")
     assert dotenv_values(later_retry / ".env", interpolate=False)["KEY"] == "${W9_POWER_PASSWORD}"
 
@@ -238,12 +260,15 @@ def test_explicit_reference_override_survives_retry(tmp_path, monkeypatch):
     assert dotenv_values(retry / ".env", interpolate=False)["KEY"] == override
 
 
-@pytest.mark.parametrize("extra,ambient,expected", [
-    ("", None, "fallback"),
-    ("OTHER=\n", None, ""),
-    ("OTHER=defined\n", None, "defined"),
-    ("", "ambient", "ambient"),
-])
+@pytest.mark.parametrize(
+    "extra,ambient,expected",
+    [
+        ("", None, "fallback"),
+        ("OTHER=\n", None, ""),
+        ("OTHER=defined\n", None, "defined"),
+        ("", "ambient", "ambient"),
+    ],
+)
 def test_env_helper_preserves_non_secret_default_expressions(tmp_path, monkeypatch, extra, ambient, expected):
     from src.core.envHelper import EnvHelper
 

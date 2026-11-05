@@ -1,4 +1,5 @@
 fastapi
+pydantic>=2,<3
 uvicorn
 websockets
 keyring

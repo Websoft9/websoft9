@@ -12,7 +12,6 @@ from src.services.overview_service import OverviewService
 from src.services.overview_stream_cache import overview_stream_cache
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 
-
 router = APIRouter()
 _overview_service = OverviewService()
 
@@ -52,7 +51,11 @@ def get_overview(
     "/overview/stream",
     summary="Stream homepage overview summary",
     description="Server-sent events stream for dashboard overview snapshots.",
-    responses={200: {"description": "Overview stream established"}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"description": "Overview stream established"},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 async def stream_overview(
     request: Request,

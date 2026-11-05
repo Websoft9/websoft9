@@ -38,7 +38,7 @@ class AppsStreamCache:
         with self._lock:
             entry = self._entries.get(cache_key)
             should_refresh = force_refresh or entry is None or now >= entry['next_refresh_at']
-            if not should_refresh:
+            if not should_refresh and entry is not None:
                 return self._entry_to_snapshot(entry)
 
             try:

@@ -80,7 +80,13 @@ def _load_store_apps(locale: str, source: str) -> tuple[list[dict[str, Any]], li
 def register_appstore_commands(appstore_group: click.Group) -> None:
     @appstore_group.command(name="search")
     @click.argument("query", required=False, default="")
-    @click.option("--locale", type=click.Choice(["en", "zh"], case_sensitive=False), default="en", show_default=True, help="Catalog language.")
+    @click.option(
+        "--locale",
+        type=click.Choice(["en", "zh"], case_sensitive=False),
+        default="en",
+        show_default=True,
+        help="Catalog language.",
+    )
     @click.option(
         "--source",
         type=click.Choice(["all", "official", "local"], case_sensitive=False),
@@ -88,22 +94,30 @@ def register_appstore_commands(appstore_group: click.Group) -> None:
         show_default=True,
         help="Catalog source to search.",
     )
-    @click.option("--limit", type=click.IntRange(min=1, max=500), default=50, show_default=True, help="Maximum matching templates to return.")
+    @click.option(
+        "--limit",
+        type=click.IntRange(min=1, max=500),
+        default=50,
+        show_default=True,
+        help="Maximum matching templates to return.",
+    )
     @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
     def appstore_search(query: str, locale: str, source: str, limit: int, as_json: bool) -> None:
         """Search available application templates in the App Store."""
+
         def action() -> dict[str, Any]:
             apps, warnings = _load_store_apps(locale.lower(), source.lower())
             needle = str(query or "").strip().lower()
             matched: list[dict[str, Any]] = []
             for item in apps:
                 haystack = " ".join(
-                    str(item.get(field) or "")
-                    for field in ("key", "trademark", "summary", "overview", "description")
+                    str(item.get(field) or "") for field in ("key", "trademark", "summary", "overview", "description")
                 ).lower()
                 if not needle or needle in haystack:
                     matched.append(_summarize_store_app(item, detailed=False))
-            matched.sort(key=lambda entry: (0 if str(entry.get("key") or "").lower() == needle else 1, str(entry.get("key") or "")))
+            matched.sort(
+                key=lambda entry: (0 if str(entry.get("key") or "").lower() == needle else 1, str(entry.get("key") or ""))
+            )
             total = len(matched)
             return {
                 "query": query,
@@ -128,7 +142,13 @@ def register_appstore_commands(appstore_group: click.Group) -> None:
 
     @appstore_group.command(name="info")
     @click.argument("app_key")
-    @click.option("--locale", type=click.Choice(["en", "zh"], case_sensitive=False), default="en", show_default=True, help="Catalog language.")
+    @click.option(
+        "--locale",
+        type=click.Choice(["en", "zh"], case_sensitive=False),
+        default="en",
+        show_default=True,
+        help="Catalog language.",
+    )
     @click.option(
         "--source",
         type=click.Choice(["all", "official", "local"], case_sensitive=False),
@@ -139,12 +159,15 @@ def register_appstore_commands(appstore_group: click.Group) -> None:
     @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
     def appstore_info(app_key: str, locale: str, source: str, as_json: bool) -> None:
         """Inspect template versions, required settings, profiles, and memory requirements."""
+
         def action() -> dict[str, Any]:
             apps, warnings = _load_store_apps(locale.lower(), source.lower())
             normalized_key = app_key.strip().lower()
             target = next((item for item in apps if str(item.get("key") or "").strip().lower() == normalized_key), None)
             if target is None:
-                raise CLIError("APP_TEMPLATE_NOT_FOUND", f"Application template '{app_key}' not found", details={"app_key": app_key})
+                raise CLIError(
+                    "APP_TEMPLATE_NOT_FOUND", f"Application template '{app_key}' not found", details={"app_key": app_key}
+                )
             return {
                 "template": _summarize_store_app(target, detailed=True),
                 "warnings": warnings,
@@ -174,6 +197,7 @@ def register_appstore_commands(appstore_group: click.Group) -> None:
     @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
     def appstore_state(as_json: bool) -> None:
         """Inspect the current App Store dataset synchronization state."""
+
         def action() -> dict[str, Any]:
             from src.services.appstore_sync_manager import AppStoreSyncManager
 

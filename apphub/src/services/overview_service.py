@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import contextlib
 import json
-import logging
 import os
-import socket
 import shutil
+import socket
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Callable, Literal, Optional, Sequence, cast
 
 from src.core.logger import logger
 from src.schemas.coreServices import CoreServiceSummary
@@ -97,7 +97,9 @@ class OverviewService:
             alerts=self._build_alerts(apps=apps, services=services, tasks=tasks),
         )
 
-    def _safe_product_summary(self, apps: OverviewAppsSummary, locale: str = "en", *, readonly: bool = False) -> OverviewProductSummary:
+    def _safe_product_summary(
+        self, apps: OverviewAppsSummary, locale: str = "en", *, readonly: bool = False
+    ) -> OverviewProductSummary:
         try:
             payload = (
                 self._load_product_metadata(readonly=True)
@@ -184,9 +186,7 @@ class OverviewService:
                     "health_state": service.health_state,
                     "runtime_detail": service.runtime_detail,
                     "indicators": [
-                        indicator.model_dump(exclude_none=True)
-                        for indicator in service.indicators
-                        if indicator.status != "ok"
+                        indicator.model_dump(exclude_none=True) for indicator in service.indicators if indicator.status != "ok"
                     ],
                 }
                 for service in non_healthy_services
@@ -205,7 +205,7 @@ class OverviewService:
             return OverviewTasksSummary(available=False, unavailable_reason=str(apps))
 
         try:
-            if apps is not None and self._uses_default_tasks_loader:
+            if apps is not None and not isinstance(apps, Exception) and self._uses_default_tasks_loader:
                 items = list(self._load_recent_tasks_from_apps(apps))
             else:
                 items = list(self._tasks_loader() or [])
@@ -228,7 +228,7 @@ class OverviewService:
     ) -> list[OverviewAlert]:
         alerts: list[OverviewAlert] = []
         if apps.available and (apps.error_count > 0 or apps.installing_count > 0):
-            level = "error" if apps.error_count > 0 else "info"
+            level: Literal["info", "warning", "error"] = "error" if apps.error_count > 0 else "info"
             detail_parts = []
             if apps.error_count > 0:
                 detail_parts.append(f"{apps.error_count} app(s) need attention")
@@ -328,10 +328,8 @@ class OverviewService:
             if client is not None:
                 close_client = getattr(client, "close", None)
                 if callable(close_client):
-                    try:
+                    with contextlib.suppress(Exception):
                         close_client()
-                    except Exception:
-                        pass
 
         payload = {
             "hostname": info.get("Name") or None,
@@ -628,12 +626,12 @@ class OverviewService:
                 except ValueError:
                     pass
 
-        quota_raw = self._read_text_file(Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"))
-        period_raw = self._read_text_file(Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us"))
-        if quota_raw and period_raw:
+        quota_file_raw = self._read_text_file(Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"))
+        period_file_raw = self._read_text_file(Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us"))
+        if quota_file_raw and period_file_raw:
             try:
-                quota_us = int(quota_raw)
-                period_us = int(period_raw)
+                quota_us = int(quota_file_raw)
+                period_us = int(period_file_raw)
                 if quota_us > 0 and period_us > 0:
                     return quota_us / period_us
             except ValueError:
@@ -796,7 +794,9 @@ class OverviewService:
             raw_status = str(task.get("status") or "").strip().lower()
             if raw_status not in {"running", "completed", "failed"}:
                 continue
-            normalized_status = "success" if raw_status == "completed" else raw_status
+            normalized_status: Literal["running", "success", "failed"] = (
+                "success" if raw_status == "completed" else cast(Literal["running", "failed"], raw_status)
+            )
             proxy_host = task.get("proxy_host") or {}
             domain_names = proxy_host.get("domain_names") if isinstance(proxy_host, dict) else None
             primary_domain = domain_names[0] if isinstance(domain_names, list) and domain_names else None
@@ -804,7 +804,9 @@ class OverviewService:
                 OverviewTaskItem(
                     key=f"proxy-{task_id}",
                     kind="proxy",
-                    title=f"Proxy change for {primary_domain}" if isinstance(primary_domain, str) and primary_domain else "Proxy change task",
+                    title=f"Proxy change for {primary_domain}"
+                    if isinstance(primary_domain, str) and primary_domain
+                    else "Proxy change task",
                     status=normalized_status,
                     detail=task.get("error") or None,
                     updated_at=self._coerce_task_timestamp(task.get("updated_at")),
@@ -853,11 +855,7 @@ class OverviewService:
                 }
             )
 
-        apps_by_id = {
-            app.get("app_id"): app
-            for app in apps
-            if isinstance(app.get("app_id"), str) and app.get("app_id")
-        }
+        apps_by_id = {app.get("app_id"): app for app in apps if isinstance(app.get("app_id"), str) and app.get("app_id")}
 
         for app_uuid, app in list_install_tasks_readonly((3,)):
             app_id = app.get("app_id")
@@ -887,14 +885,15 @@ class OverviewService:
 
         return list(apps_by_id.values())
 
-    def _resolve_overview_stack_runtime_state(self, stack_status: int, stack_containers: Sequence[dict] | None) -> tuple[int, str | None]:
+    def _resolve_overview_stack_runtime_state(
+        self, stack_status: int, stack_containers: Sequence[dict] | None
+    ) -> tuple[int, str | None]:
         if stack_status == 1 and not stack_containers:
             return 4, "No containers were created for this stack."
 
         if stack_status == 1 and stack_containers:
             normalized_states = {
-                str(container.get("State") or container.get("Status") or "").strip().lower()
-                for container in stack_containers
+                str(container.get("State") or container.get("Status") or "").strip().lower() for container in stack_containers
             }
             running_states = {"running", "healthy"}
             if normalized_states and normalized_states.isdisjoint(running_states):
@@ -913,6 +912,7 @@ class OverviewService:
     def _load_proxy_tasks(self) -> list[dict]:
         try:
             from src.services.proxy_task_manager import ProxyTaskManager
+
             return list(ProxyTaskManager._tasks.values())
         except Exception:
             return []

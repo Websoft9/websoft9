@@ -32,6 +32,7 @@ def settings_upgrade_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def settings_summary_command(as_json: bool) -> None:
     """Read masked platform settings summary."""
+
     def action() -> dict[str, Any]:
         from src.services.settings_manager import SettingsManager
 
@@ -53,6 +54,7 @@ def settings_summary_command(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_mirrors_command(as_json: bool) -> None:
     """List configured and default Docker registry accelerators."""
+
     def action() -> dict[str, Any]:
         from src.services.mirror_registry import MirrorRegistry
 
@@ -79,6 +81,7 @@ def list_mirrors_command(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def test_mirrors_command(url: str | None, as_json: bool) -> None:
     """Probe reachability and usability of configured or specified Docker mirror(s)."""
+
     def action() -> dict[str, Any]:
         from src.services.docker_mirror_store import validate_mirror_url
         from src.services.mirror_registry import Accelerator, MirrorRegistry
@@ -117,6 +120,7 @@ def test_mirrors_command(url: str | None, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def refresh_mirrors_command(yes: bool, as_json: bool) -> None:
     """Refresh the channel's default Docker mirror list and export host-visible list."""
+
     def action() -> dict[str, Any]:
         from src.services.mirror_registry import MirrorRegistry
 
@@ -148,6 +152,7 @@ def refresh_mirrors_command(yes: bool, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def set_mirrors_command(mirrors: tuple[str, ...], clear: bool, yes: bool, as_json: bool) -> None:
     """Configure ordered Docker registry accelerators."""
+
     def action() -> dict[str, Any]:
         from src.services.docker_mirror_store import validate_mirror_url
         from src.services.mirror_registry import MirrorRegistry
@@ -171,7 +176,9 @@ def set_mirrors_command(mirrors: tuple[str, ...], clear: bool, yes: bool, as_jso
                     "Updating Docker mirrors requires --yes confirmation",
                     details={"mirrors": prepared_urls, "clear": clear},
                 )
-            if not click.confirm(f"Update Docker mirrors to {prepared_urls if not clear else 'default (clear custom entries)'}?"):
+            if not click.confirm(
+                f"Update Docker mirrors to {prepared_urls if not clear else 'default (clear custom entries)'}?"
+            ):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
         registry = MirrorRegistry()
@@ -193,6 +200,7 @@ def set_mirrors_command(mirrors: tuple[str, ...], clear: bool, yes: bool, as_jso
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def get_smtp_command(as_json: bool) -> None:
     """Read masked SMTP configuration."""
+
     def action() -> dict[str, Any]:
         from src.services.smtp_service import SmtpService
 
@@ -211,7 +219,13 @@ def get_smtp_command(as_json: bool) -> None:
 @click.option("--enabled/--disabled", default=True, show_default=True, help="Enable or disable SMTP delivery.")
 @click.option("--host", required=True, help="SMTP server hostname or IP.")
 @click.option("--port", type=click.IntRange(min=1, max=65535), default=587, show_default=True, help="SMTP server port.")
-@click.option("--encryption", type=click.Choice(["starttls", "ssl", "none"], case_sensitive=False), default="starttls", show_default=True, help="SMTP transport encryption.")
+@click.option(
+    "--encryption",
+    type=click.Choice(["starttls", "ssl", "none"], case_sensitive=False),
+    default="starttls",
+    show_default=True,
+    help="SMTP transport encryption.",
+)
 @click.option("--from-email", required=True, help="Sender email address.")
 @click.option("--from-name", default="Websoft9", show_default=True, help="Sender display name.")
 @click.option("--username", default="", help="Optional SMTP username.")
@@ -231,6 +245,7 @@ def set_smtp_command(
     as_json: bool,
 ) -> None:
     """Update platform SMTP settings."""
+
     def action() -> dict[str, Any]:
         from src.services.smtp_service import SmtpService
 
@@ -273,6 +288,7 @@ def set_smtp_command(
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def test_smtp_command(to_email: str, yes: bool, as_json: bool) -> None:
     """Send a test email using the configured SMTP server."""
+
     def action() -> dict[str, Any]:
         from src.services.smtp_service import SmtpService
 
@@ -302,6 +318,7 @@ def test_smtp_command(to_email: str, yes: bool, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def upgrade_status_command(as_json: bool) -> None:
     """Inspect current platform upgrade state without refreshing remote artifacts."""
+
     def action() -> dict[str, Any]:
         from src.api.v1.routers.settings import _upgrade_status_payload
 
@@ -320,6 +337,7 @@ def upgrade_status_command(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def upgrade_check_command(as_json: bool) -> None:
     """Check artifact channel for the latest release version without starting a download."""
+
     def action() -> dict[str, Any]:
         from src.api.v1.routers.settings import _is_newer_stable_version
         from src.services.product_runtime_state import read_release_channel, read_release_version
@@ -352,6 +370,7 @@ def upgrade_check_command(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def upgrade_prepare_command(yes: bool, as_json: bool) -> None:
     """Stage upgrade artifacts in the background without replacing the running container."""
+
     def action() -> dict[str, Any]:
         from src.cli.upgrade_dispatch import dispatch_upgrade_preparation
 
@@ -371,10 +390,13 @@ def upgrade_prepare_command(yes: bool, as_json: bool) -> None:
 
 @settings_upgrade_group.command(name="logs")
 @click.argument("run_id")
-@click.option("--tail", type=click.IntRange(min=1, max=1000), default=200, show_default=True, help="Number of tail lines to read.")
+@click.option(
+    "--tail", type=click.IntRange(min=1, max=1000), default=200, show_default=True, help="Number of tail lines to read."
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def upgrade_logs_command(run_id: str, tail: int, as_json: bool) -> None:
     """Read tail lines of a platform upgrade run log."""
+
     def action() -> dict[str, Any]:
         from src.services.upgrade_manager import UpgradeManager
 

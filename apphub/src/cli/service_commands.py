@@ -4,8 +4,7 @@ from typing import Any
 
 import click
 
-from src.cli.cli_output import CLIError, MAX_TEXT_BUDGET_BYTES, mask_sensitive_text, run_cli_action, truncate_utf8_text
-
+from src.cli.cli_output import MAX_TEXT_BUDGET_BYTES, CLIError, mask_sensitive_text, run_cli_action, truncate_utf8_text
 
 SUPPORTED_SERVICES = ["platform-gateway", "apphub-api", "gitea", "portainer", "nginx-proxy-manager"]
 
@@ -46,6 +45,7 @@ def _bound_log_entries(raw_entries: list[dict[str, Any]]) -> tuple[list[dict[str
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_services_command(as_json: bool) -> None:
     """List core Websoft9 control-plane services and health indicators."""
+
     def action() -> dict[str, Any]:
         from src.services.core_services import CoreServicesService
 
@@ -86,7 +86,9 @@ def list_services_command(as_json: bool) -> None:
 
 @service_group.command(name="logs")
 @click.argument("service_key", type=click.Choice(SUPPORTED_SERVICES, case_sensitive=False))
-@click.option("--limit", type=click.IntRange(min=1, max=1000), default=200, show_default=True, help="Maximum log entries to return.")
+@click.option(
+    "--limit", type=click.IntRange(min=1, max=1000), default=200, show_default=True, help="Maximum log entries to return."
+)
 @click.option(
     "--level",
     type=click.Choice(["all", "info", "warning", "error", "fatal"], case_sensitive=False),
@@ -113,6 +115,7 @@ def service_logs_command(
     as_json: bool,
 ) -> None:
     """Read filtered logs for a core platform service."""
+
     def action() -> tuple[dict[str, Any], bool]:
         from src.schemas.coreServices import ServiceLogsQuery
         from src.services.core_services import CoreServicesService
@@ -165,7 +168,9 @@ def service_logs_command(
 
 
 @service_group.command(name="runtime-logs")
-@click.option("--limit", type=click.IntRange(min=1, max=1000), default=200, show_default=True, help="Maximum log entries to return.")
+@click.option(
+    "--limit", type=click.IntRange(min=1, max=1000), default=200, show_default=True, help="Maximum log entries to return."
+)
 @click.option(
     "--level",
     type=click.Choice(["info", "warning", "error"], case_sensitive=False),
@@ -187,6 +192,7 @@ def runtime_logs_command(
     as_json: bool,
 ) -> None:
     """Read standardized platform runtime logs (excludes apphub-api)."""
+
     def action() -> tuple[dict[str, Any], bool]:
         from src.core.exception import CustomException
         from src.schemas.runtimeLogs import RuntimeLogsQuery

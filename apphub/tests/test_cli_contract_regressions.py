@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import sqlite3
@@ -12,23 +13,25 @@ import pytest
 from click.testing import CliRunner
 from starlette.requests import Request
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-@pytest.mark.parametrize("content", [
-    "password: fixture-value",
-    '{"password": "fixture-value", "safe": "visible"}',
-    'prefix {"credentials": {"first": "fixture-value", "second": "another-value"}}',
-    "DB_PASSWORD='fixture-value'",
-    'PASSWORD="fixture-value with spaces"',
-    "password: |\n  fixture-value\n  another-value\nsafe: visible\n",
-    "credentials:\n  first: fixture-value\n  second: another-value\nsafe: visible\n",
-    "+  password: >-\n+    fixture-value\n+    another-value\n+  safe: visible\n",
-    'prefix {"message": "password: fixture-value"}',
-])
+@pytest.mark.parametrize(
+    "content",
+    [
+        "password: fixture-value",
+        '{"password": "fixture-value", "safe": "visible"}',
+        'prefix {"credentials": {"first": "fixture-value", "second": "another-value"}}',
+        "DB_PASSWORD='fixture-value'",
+        'PASSWORD="fixture-value with spaces"',
+        "password: |\n  fixture-value\n  another-value\nsafe: visible\n",
+        "credentials:\n  first: fixture-value\n  second: another-value\nsafe: visible\n",
+        "+  password: >-\n+    fixture-value\n+    another-value\n+  safe: visible\n",
+        'prefix {"message": "password: fixture-value"}',
+    ],
+)
 def test_text_secrets_are_masked_before_display(content):
     from src.cli.cli_output import mask_sensitive_text, sanitize_value
 
@@ -56,8 +59,8 @@ def test_dependency_status_is_not_reclassified_by_message():
 
 
 def test_upgrade_prepare_is_dispatched_to_authenticated_apphub(tmp_path, monkeypatch):
-    from src.cli.settings_commands import settings_group
     from src.cli import upgrade_dispatch
+    from src.cli.settings_commands import settings_group
     from src.services.upgrade_manager import UpgradeManager
 
     secret = tmp_path / "trust_key"
@@ -102,9 +105,11 @@ def test_upgrade_dispatch_rejects_http_and_invalid_responses(tmp_path, monkeypat
     secret = tmp_path / "trust_key"
     secret.write_text("fixture-key", encoding="utf-8")
     monkeypatch.setenv("WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE", str(secret))
-    monkeypatch.setattr(upgrade_dispatch, "urlopen", MagicMock(side_effect=HTTPError(
-        upgrade_dispatch.UPGRADE_PREPARE_URL, 409, "Conflict", {}, io.BytesIO(b"")
-    )))
+    monkeypatch.setattr(
+        upgrade_dispatch,
+        "urlopen",
+        MagicMock(side_effect=HTTPError(upgrade_dispatch.UPGRADE_PREPARE_URL, 409, "Conflict", {}, io.BytesIO(b""))),
+    )
     result = CliRunner().invoke(settings_group, ["upgrade", "prepare", "--yes", "--json"])
     assert result.exit_code == 1
     assert json.loads(result.stdout)["ok"] is False
@@ -159,6 +164,7 @@ def test_upgrade_internal_route_requires_dispatch_credential(tmp_path, monkeypat
 
 def test_upgrade_internal_route_is_reachable_through_production_app(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
+
     from src.api.v1.routers import settings
     from src.main import app
 
@@ -180,8 +186,8 @@ def test_upgrade_internal_route_is_reachable_through_production_app(tmp_path, mo
 
 
 def test_install_state_readonly_fails_explicitly_without_creating_storage(tmp_path):
-    from src.services.app_status import InstallStateStore
     from src.core.exception import CustomException
+    from src.services.app_status import InstallStateStore
 
     store = InstallStateStore(str(tmp_path / "tracking"), initialize=False)
     with pytest.raises(FileNotFoundError):
@@ -223,19 +229,25 @@ def test_db_list_is_readonly_and_propagates_upstream_failure(monkeypatch):
 
 def test_container_stats_uses_selected_portainer_endpoint(monkeypatch):
     from src.cli import docker_commands
-    from src.services.portainer_manager import PortainerManager
     from src.external.portainer_api import PortainerAPI
+    from src.services.portainer_manager import PortainerManager
 
     api = MagicMock()
-    api.get_container_stats.return_value = MagicMock(status_code=200, json=lambda: {
-        "memory_stats": {"usage": 256, "limit": 1024}, "pids_stats": {"current": 2},
-    })
+    api.get_container_stats.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {
+            "memory_stats": {"usage": 256, "limit": 1024},
+            "pids_stats": {"current": 2},
+        },
+    )
     manager = object.__new__(PortainerManager)
     manager.portainer = api
     manager.get_containers = MagicMock(return_value=[{"Id": "remote-id", "Names": ["/remote"]}])
     monkeypatch.setattr("src.services.portainer_manager.PortainerManager", lambda: manager)
     monkeypatch.setattr(docker_commands, "_resolve_endpoint_id", lambda *_args: 77)
-    result = CliRunner().invoke(docker_commands.docker_group, ["container", "stats", "remote", "--endpoint-id", "77", "--json"])
+    result = CliRunner().invoke(
+        docker_commands.docker_group, ["container", "stats", "remote", "--endpoint-id", "77", "--json"]
+    )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["data"]["memory_percent"] == 25.0
     api.get_container_stats.assert_called_once_with(77, "remote-id")
@@ -249,8 +261,8 @@ def test_container_stats_uses_selected_portainer_endpoint(monkeypatch):
 
 
 def test_task_collectors_are_readonly_and_do_not_reconcile(tmp_path, monkeypatch):
-    from src.services.scheduled_tasks import ScheduledTaskService
     from src.core.exception import CustomException
+    from src.services.scheduled_tasks import ScheduledTaskService
 
     service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=MagicMock(), host_access_service=MagicMock())
     with pytest.raises(CustomException) as error:
@@ -273,13 +285,13 @@ def test_task_collectors_are_readonly_and_do_not_reconcile(tmp_path, monkeypatch
     assert service.collect_tasks_local()["system_tasks"]
     assert service.collect_runs_local(task_id)["runs"][0]["status"] == "running"
     assert service.collect_run_log_local(task_id, "fixture-run")["content"] == "one\ntwo\nthree"
-    with sqlite3.connect(f"{service.database_file.as_uri()}?mode=ro", uri=True) as connection:
+    with contextlib.closing(sqlite3.connect(f"{service.database_file.as_uri()}?mode=ro", uri=True)) as connection:
         assert "\n".join(connection.iterdump()) == before
 
 
 def test_cli_log_scan_is_bounded_and_small_log_pagination_is_preserved(tmp_path, monkeypatch):
-    from src.services.scheduled_tasks import ScheduledTaskService
     from src.core.exception import CustomException
+    from src.services.scheduled_tasks import ScheduledTaskService
 
     service = ScheduledTaskService(data_dir=str(tmp_path), auth_service=MagicMock(), host_access_service=MagicMock())
     log = tmp_path / "large.log"

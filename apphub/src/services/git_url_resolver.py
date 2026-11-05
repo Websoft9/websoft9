@@ -23,7 +23,7 @@ def normalize_runtime_git_url(remote_url: str) -> str:
 
     normalized_path = parsed.path
     if normalized_path.startswith("/w9git/"):
-        normalized_path = normalized_path[len("/w9git"):]
+        normalized_path = normalized_path[len("/w9git") :]
 
     return urlunparse(
         parsed._replace(

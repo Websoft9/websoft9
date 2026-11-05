@@ -9,7 +9,6 @@ from unittest.mock import Mock
 import pytest
 from click.testing import CliRunner
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -25,7 +24,8 @@ def cleanup():
     tree = ast.parse(source.read_text())
     definition = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "AppManger")
     definition.body = [
-        node for node in definition.body
+        node
+        for node in definition.body
         if isinstance(node, ast.FunctionDef) and node.name in {"remove_error_app", "_cleanup_error_app_resources"}
     ]
     portainer = Mock()
@@ -51,9 +51,18 @@ def cleanup():
     }
     exec(compile(ast.Module(body=[definition], type_ignores=[]), str(source), "exec"), namespace)
     manager = object.__new__(namespace["AppManger"])
+    # `remove_error_app` delegates host ACL cleanup to this sibling method, which the extracted
+    # class body does not carry; the cleanup ordering under test does not depend on it.
+    manager._revoke_sftp_grants = Mock()
     return SimpleNamespace(
-        manager=manager, portainer=portainer, gitea=gitea, proxy=proxy,
-        tasks=tasks, deleted=deleted, forgotten=forgotten, namespace=namespace,
+        manager=manager,
+        portainer=portainer,
+        gitea=gitea,
+        proxy=proxy,
+        tasks=tasks,
+        deleted=deleted,
+        forgotten=forgotten,
+        namespace=namespace,
     )
 
 
@@ -142,13 +151,17 @@ def restore(monkeypatch):
 
     manager = object.__new__(module.BackupManager)
     manager._ensure_repository = Mock()
-    manager.list_snapshots = Mock(return_value=[
-        {"id": "full-snapshot", "short_id": "snapshot", "paths": ["/demo_data"]},
-    ])
+    manager.list_snapshots = Mock(
+        return_value=[
+            {"id": "full-snapshot", "short_id": "snapshot", "paths": ["/demo_data"]},
+        ]
+    )
     manager._run_restic_container = Mock(return_value='{"message_type":"summary"}')
     manager._resolve_host_path = lambda path: path
     app = SimpleNamespace(
-        app_id="demo", endpointId=1, status=1,
+        app_id="demo",
+        endpointId=1,
+        status=1,
         volumes=[{"Name": "demo_data", "Mountpoint": "/host/demo_data"}],
     )
     app_manager = SimpleNamespace(get_app_by_id=Mock(return_value=app))
@@ -163,8 +176,12 @@ def restore(monkeypatch):
     filesystem = SimpleNamespace(stat=Mock(return_value=SimpleNamespace(st_uid=0, st_gid=0)), chown=Mock())
     monkeypatch.setattr(module, "os", filesystem)
     return SimpleNamespace(
-        manager=manager, app=app, app_manager=app_manager, portainer=portainer,
-        module=module, filesystem=filesystem,
+        manager=manager,
+        app=app,
+        app_manager=app_manager,
+        portainer=portainer,
+        module=module,
+        filesystem=filesystem,
     )
 
 
@@ -268,7 +285,8 @@ def test_restore_rejects_unsuccessful_restart(monkeypatch, restore, containers):
 
 def test_restore_preserves_non_www_data_volume_owner(restore):
     restore.filesystem.stat.side_effect = [
-        SimpleNamespace(st_uid=999, st_gid=999), SimpleNamespace(st_uid=0, st_gid=0),
+        SimpleNamespace(st_uid=999, st_gid=999),
+        SimpleNamespace(st_uid=0, st_gid=0),
     ]
     restore.manager.restore_backup("demo", "snapshot")
     restore.filesystem.chown.assert_called_once_with("/host/demo_data", 999, 999)

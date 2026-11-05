@@ -7,7 +7,6 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -33,7 +32,13 @@ def test_app_diagnose_aggregates_oom_and_logs(monkeypatch):
                 status=4,
                 error="Container exited unexpectedly",
                 containers=[
-                    {"Id": "cid111", "Names": [f"/{app_id}"], "Image": "wordpress:6", "State": "exited", "Status": "Exited (137)"},
+                    {
+                        "Id": "cid111",
+                        "Names": [f"/{app_id}"],
+                        "Image": "wordpress:6",
+                        "State": "exited",
+                        "Status": "Exited (137)",
+                    },
                 ],
                 volumes=[],
             )
@@ -129,16 +134,35 @@ def test_git_log_diff_rm_and_rollback_cli(monkeypatch):
 
     class FakeGiteaManager:
         def list_repo_commits(self, repo_name, limit=20):
-            return [{"sha": "abcdef1234567890", "short_sha": "abcdef1234", "message": "Update port", "author": "admin", "date": "2026-10-20T00:00:00Z"}]
+            return [
+                {
+                    "sha": "abcdef1234567890",
+                    "short_sha": "abcdef1234",
+                    "message": "Update port",
+                    "author": "admin",
+                    "date": "2026-10-20T00:00:00Z",
+                }
+            ]
 
         def get_repo_diff(self, repo_name, target_ref=None, base_ref=None):
-            return {"repo": repo_name, "base": base_ref, "target": target_ref or "abcdef1234", "diff": "+DB_PASSWORD=topsecret\n"}
+            return {
+                "repo": repo_name,
+                "base": base_ref,
+                "target": target_ref or "abcdef1234",
+                "diff": "+DB_PASSWORD=topsecret\n",
+            }
 
         def delete_repo_file(self, repo_name, file_path, sha=None):
             return {"path": file_path, "deleted_sha": sha, "head_sha": "newhead123"}
 
         def rollback_repo_to_commit(self, repo_name, target_commit):
-            return {"app_id": repo_name, "target_commit": target_commit, "previous_head_sha": "oldhead", "new_head_sha": "newhead", "changed": True}
+            return {
+                "app_id": repo_name,
+                "target_commit": target_commit,
+                "previous_head_sha": "oldhead",
+                "new_head_sha": "newhead",
+                "changed": True,
+            }
 
     gm_mod = types.ModuleType("src.services.gitea_manager")
     gm_mod.GiteaManager = FakeGiteaManager
@@ -183,8 +207,14 @@ def test_backup_restore_safety_and_cli(monkeypatch):
 
     restic_called = []
     monkeypatch.setattr(manager, "_ensure_repository", lambda: None)
-    monkeypatch.setattr(manager, "list_snapshots", lambda app_id, use_cache=True: [{"id": "snap-1", "short_id": "snap-1", "paths": ["/wp_data"]}])
-    monkeypatch.setattr(manager, "_run_restic_container", lambda cmd, vols: restic_called.append(cmd) or '{"message_type":"summary"}')
+    monkeypatch.setattr(
+        manager,
+        "list_snapshots",
+        lambda app_id, use_cache=True: [{"id": "snap-1", "short_id": "snap-1", "paths": ["/wp_data"]}],
+    )
+    monkeypatch.setattr(
+        manager, "_run_restic_container", lambda cmd, vols: restic_called.append(cmd) or '{"message_type":"summary"}'
+    )
     monkeypatch.setattr(manager, "_resolve_host_path", lambda p: p)
     monkeypatch.setattr(
         back_manager_module,

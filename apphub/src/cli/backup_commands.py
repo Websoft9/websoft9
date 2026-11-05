@@ -35,6 +35,7 @@ def _summarize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_backups_command(app_id: str | None, refresh: bool, as_json: bool) -> None:
     """List Restic volume backup snapshots."""
+
     def action() -> dict[str, Any]:
         from src.services.back_manager import BackupManager
 
@@ -67,6 +68,7 @@ def list_backups_command(app_id: str | None, refresh: bool, as_json: bool) -> No
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def create_backup_command(app_id: str, yes: bool, as_json: bool) -> None:
     """Create a Restic volume snapshot for an application."""
+
     def action() -> dict[str, Any]:
         from src.services.back_manager import BackupManager
 
@@ -103,6 +105,7 @@ def create_backup_command(app_id: str, yes: bool, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def delete_backup_command(snapshot_id: str, yes: bool, as_json: bool) -> None:
     """Delete a Restic backup snapshot by ID."""
+
     def action() -> dict[str, Any]:
         from src.services.back_manager import BackupManager
 
@@ -134,6 +137,7 @@ def delete_backup_command(snapshot_id: str, yes: bool, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def restore_backup_command(app_id: str, snapshot_id: str, yes: bool, as_json: bool) -> None:
     """Overwrite volume data from a matching snapshot; restore inactive stacks with app restore first."""
+
     def action() -> dict[str, Any]:
         from src.services.app_manager import AppManger
         from src.services.back_manager import BackupManager
@@ -152,7 +156,9 @@ def restore_backup_command(app_id: str, snapshot_id: str, yes: bool, as_json: bo
                     f"Restoring snapshot '{snapshot_id}' for '{app_id}' will overwrite volumes {volumes} and requires --yes confirmation",
                     details={"app_id": app_id, "snapshot_id": snapshot_id, "volumes": volumes},
                 )
-            if not click.confirm(f"Stop '{app_id}', overwrite volumes {volumes} with snapshot '{snapshot_id}', and restart containers?"):
+            if not click.confirm(
+                f"Stop '{app_id}', overwrite volumes {volumes} with snapshot '{snapshot_id}', and restart containers?"
+            ):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
         BackupManager().restore_backup(app_id, snapshot_id)

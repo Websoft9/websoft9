@@ -1,11 +1,12 @@
-import stat
-import sqlite3
+import contextlib
 import json
 import os
 import pwd
 import shlex
 import shutil
 import socket
+import sqlite3
+import stat
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -14,7 +15,6 @@ from types import SimpleNamespace
 from typing import Optional
 
 import pytest
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -35,8 +35,8 @@ if "paramiko" not in sys.modules:
     )
 
 from src.core.exception import CustomException
-from src.services.host_access import HostAccessService
 from src.services.app_sftp import AppSftpService, ScopedHostAccess, ScopedSftp
+from src.services.host_access import HostAccessService
 
 
 @pytest.fixture
@@ -58,7 +58,9 @@ def test_automatic_local_host_requires_authentication(automatic_local_host):
 @pytest.mark.parametrize('username', ['root', 'ubuntu', 'ec2-user', 'azureuser'])
 def test_automatic_local_host_reuses_an_existing_connection(automatic_local_host, username):
     service = automatic_local_host
-    first = service.save_profile('valid-session', {'username': username, 'auth_method': 'key', 'private_key': 'TEST-PRIVATE-KEY'})
+    first = service.save_profile(
+        'valid-session', {'username': username, 'auth_method': 'key', 'private_key': 'TEST-PRIVATE-KEY'}
+    )
     service._runtime_profiles.clear()
     response = service.create_local_profile('valid-session')
     profile = service.get_connection_profile('valid-session', response['active_profile_id'])
@@ -73,7 +75,9 @@ def test_automatic_local_host_reuses_an_existing_connection(automatic_local_host
 
 def test_automatic_local_host_reuses_runtime_credentials(automatic_local_host):
     service = automatic_local_host
-    first = service.save_profile('valid-session', {'username': 'ubuntu', 'auth_method': 'password', 'password': 'temporary-secret', 'remember': False})
+    first = service.save_profile(
+        'valid-session', {'username': 'ubuntu', 'auth_method': 'password', 'password': 'temporary-secret', 'remember': False}
+    )
     response = service.create_local_profile('valid-session')
     profile = service.get_connection_profile('valid-session', response['active_profile_id'])
     assert response['active_profile_id'] == first['active_profile_id']
@@ -130,15 +134,19 @@ def test_deleting_local_connection_ends_sessions_and_blocks_automatic_recreation
     monkeypatch.setattr(service, '_revoke_local_ssh_credentials', lambda profile: revoked.append(profile['profile_id']))
     channel_closed = []
     client_closed = []
-    monkeypatch.setattr(service, '_terminal_sessions', {
-        'terminal-session': {
-            'operator_id': 'operator-1',
-            'profile': {'profile_id': connection['active_profile_id']},
-            'channel': SimpleNamespace(close=lambda: channel_closed.append(True)),
-            'client': SimpleNamespace(close=lambda: client_closed.append(True)),
-            'resources_closed': False,
+    monkeypatch.setattr(
+        service,
+        '_terminal_sessions',
+        {
+            'terminal-session': {
+                'operator_id': 'operator-1',
+                'profile': {'profile_id': connection['active_profile_id']},
+                'channel': SimpleNamespace(close=lambda: channel_closed.append(True)),
+                'client': SimpleNamespace(close=lambda: client_closed.append(True)),
+                'resources_closed': False,
+            },
         },
-    })
+    )
 
     service.delete_saved_profile('valid-session', connection['active_profile_id'])
 
@@ -150,10 +158,16 @@ def test_deleting_local_connection_ends_sessions_and_blocks_automatic_recreation
         service.create_local_profile('valid-session')
     assert error.value.message == 'Local SSH Setup Revoked'
 
-    replacement = service.save_profile('valid-session', {
-        'profile_id': 'manual-local', 'host': '127.0.0.1', 'username': 'ubuntu',
-        'auth_method': 'key', 'private_key': 'MANUAL-PRIVATE-KEY',
-    })
+    replacement = service.save_profile(
+        'valid-session',
+        {
+            'profile_id': 'manual-local',
+            'host': '127.0.0.1',
+            'username': 'ubuntu',
+            'auth_method': 'key',
+            'private_key': 'MANUAL-PRIVATE-KEY',
+        },
+    )
     assert service.create_local_profile('valid-session')['active_profile_id'] == replacement['active_profile_id']
 
 
@@ -162,7 +176,10 @@ def test_confirmed_automatic_connection_recreates_deleted_manual_profile(automat
 
     service = automatic_local_host
     prepare_local_credentials(service)
-    previous = service.save_profile('valid-session', {'profile_id': 'manual-local', 'username': 'ubuntu', 'auth_method': 'key', 'private_key': 'MANUAL-KEY'})
+    previous = service.save_profile(
+        'valid-session',
+        {'profile_id': 'manual-local', 'username': 'ubuntu', 'auth_method': 'key', 'private_key': 'MANUAL-KEY'},
+    )
     service.delete_saved_profile('valid-session', previous['active_profile_id'])
     assert service._is_local_setup_revoked('operator-1')
     with pytest.raises(CustomException) as error:
@@ -192,8 +209,10 @@ def test_confirmed_automatic_connection_requires_valid_reprepared_credentials(au
 
     prepare_local_credentials(service)
     verify = service._verify_profile
+
     def reject(profile):
         raise CustomException(400, 'SSH Authentication Failed', 'Rejected key')
+
     monkeypatch.setattr(service, '_verify_profile', reject)
     with pytest.raises(CustomException) as error:
         service.create_local_profile('valid-session', allow_recreate=True)
@@ -222,13 +241,22 @@ def test_explicit_automatic_connection_prepares_missing_authorization(tmp_path, 
     calls = []
     removed = []
     closed = []
-    container = SimpleNamespace(wait=lambda **kwargs: {'StatusCode': exit_code}, remove=lambda **kwargs: removed.append(kwargs))
+    container = SimpleNamespace(
+        wait=lambda **kwargs: {'StatusCode': exit_code}, remove=lambda **kwargs: removed.append(kwargs)
+    )
+
     def run(**kwargs):
         calls.append(kwargs)
         if exit_code == 0:
             prepare_local_credentials(service)
         return container
-    client = SimpleNamespace(containers=SimpleNamespace(get=lambda identifier: SimpleNamespace(image=SimpleNamespace(id='installed-image')), run=run), close=lambda: closed.append(True))
+
+    client = SimpleNamespace(
+        containers=SimpleNamespace(
+            get=lambda identifier: SimpleNamespace(image=SimpleNamespace(id='installed-image')), run=run
+        ),
+        close=lambda: closed.append(True),
+    )
     monkeypatch.setattr(docker, 'from_env', lambda: client)
     if exit_code:
         with pytest.raises(CustomException) as error:
@@ -255,7 +283,9 @@ def test_deleting_automatic_connection_revokes_only_its_key(automatic_local_host
     authorization = tmp_path / '.ssh/authorized_keys'
     authorization.parent.mkdir(mode=0o700)
     retained = b'# ssh-rsa AUTOMATIC-KEY\nssh-ed25519 OTHER-KEY comment ssh-rsa AUTOMATIC-KEY\n'
-    authorization.write_bytes(retained + b'ssh-rsa AUTOMATIC-KEY platform\ncommand="echo test",no-pty ssh-rsa AUTOMATIC-KEY platform\n')
+    authorization.write_bytes(
+        retained + b'ssh-rsa AUTOMATIC-KEY platform\ncommand="echo test",no-pty ssh-rsa AUTOMATIC-KEY platform\n'
+    )
     original = authorization.read_bytes()
     metadata.write_text(json.dumps({'username': pwd.getpwuid(os.getuid()).pw_name, 'authorization_path': str(authorization)}))
     if defect == 'symlink':
@@ -291,7 +321,9 @@ def test_deleting_automatic_connection_revokes_only_its_key(automatic_local_host
     assert closed == [True]
 
 
-@pytest.mark.parametrize('defect', ['permissions', 'symlink', 'hardlink', 'invalid-json', 'missing-key', 'directory-permissions'])
+@pytest.mark.parametrize(
+    'defect', ['permissions', 'symlink', 'hardlink', 'invalid-json', 'missing-key', 'directory-permissions']
+)
 def test_automatic_local_host_rejects_unsafe_prepared_credentials(automatic_local_host, tmp_path, defect):
     service = automatic_local_host
     metadata, private_key = prepare_local_credentials(service)
@@ -328,14 +360,19 @@ def test_automatic_local_host_does_not_save_unverified_prepared_credentials(auto
     assert service.get_profile('valid-session')['saved_profiles'] == []
 
 
-@pytest.mark.parametrize('message,details', [
-    ('SSH Authentication Failed', 'Authentication rejected; root login disabled'),
-    ('SSH Connection Failed', 'Connection refused'),
-    ('Permission Denied', 'Application volume is not accessible'),
-])
+@pytest.mark.parametrize(
+    'message,details',
+    [
+        ('SSH Authentication Failed', 'Authentication rejected; root login disabled'),
+        ('SSH Connection Failed', 'Connection refused'),
+        ('Permission Denied', 'Application volume is not accessible'),
+    ],
+)
 def test_automatic_local_host_preserves_failure_and_manual_profile(automatic_local_host, monkeypatch, message, details):
     service = automatic_local_host
-    saved = service.save_profile('valid-session', {'username': 'ubuntu', 'auth_method': 'password', 'password': 'manual-secret'})
+    saved = service.save_profile(
+        'valid-session', {'username': 'ubuntu', 'auth_method': 'password', 'password': 'manual-secret'}
+    )
     original = service.database_file.read_bytes()
 
     def reject(profile):
@@ -353,7 +390,10 @@ def test_automatic_local_host_preserves_failure_and_manual_profile(automatic_loc
 
 def test_automatic_local_host_skips_remote_profiles(automatic_local_host, monkeypatch):
     service = automatic_local_host
-    saved = service.save_profile('valid-session', {'host': 'remote.example.com', 'username': 'ubuntu', 'auth_method': 'password', 'password': 'manual-secret'})
+    saved = service.save_profile(
+        'valid-session',
+        {'host': 'remote.example.com', 'username': 'ubuntu', 'auth_method': 'password', 'password': 'manual-secret'},
+    )
     monkeypatch.setattr(service, '_verify_profile', lambda profile: pytest.fail('Remote profiles must not be verified'))
     with pytest.raises(CustomException):
         service.create_local_profile('valid-session')
@@ -362,7 +402,9 @@ def test_automatic_local_host_skips_remote_profiles(automatic_local_host, monkey
 
 def test_automatic_local_host_tries_another_local_account(automatic_local_host, monkeypatch):
     service = automatic_local_host
-    usable = service.save_profile('valid-session', {'username': 'ubuntu', 'auth_method': 'password', 'password': 'valid-secret'})
+    usable = service.save_profile(
+        'valid-session', {'username': 'ubuntu', 'auth_method': 'password', 'password': 'valid-secret'}
+    )
     service.save_profile('valid-session', {'username': 'root', 'auth_method': 'password', 'password': 'invalid-secret'})
 
     def verify(profile):
@@ -386,8 +428,10 @@ def host_ssh_preparer(tmp_path, monkeypatch):
     home = tmp_path / 'host-home'
     home.mkdir(mode=0o700)
     account = SimpleNamespace(pw_name='root', pw_uid=0, pw_gid=0, pw_dir=str(home), pw_shell='/bin/bash')
-    monkeypatch.setattr(namespace['pwd'], 'getpwnam', lambda username: SimpleNamespace(**{**vars(account), 'pw_name': username}))
-    monkeypatch.setattr(namespace['pwd'], 'getpwall', lambda: [])
+    monkeypatch.setattr(
+        namespace['pwd'], 'getpwnam', lambda username: SimpleNamespace(**{**vars(account), 'pw_name': username})
+    )
+    monkeypatch.setattr(namespace['pwd'], 'getpwall', list)
     monkeypatch.delenv('SUDO_USER', raising=False)
     monkeypatch.delenv('WEBSOFT9_HOST_ACCESS_PORT', raising=False)
     return namespace, home
@@ -400,7 +444,9 @@ def test_host_ssh_preparation_preserves_keys_and_is_idempotent(host_ssh_preparer
 
     def run(command, **kwargs):
         if command[0].endswith('sshd'):
-            return SimpleNamespace(stdout='pubkeyauthentication yes\npermitrootlogin prohibit-password\nauthorizedkeysfile .ssh/authorized_keys\nport 22\n')
+            return SimpleNamespace(
+                stdout='pubkeyauthentication yes\npermitrootlogin prohibit-password\nauthorizedkeysfile .ssh/authorized_keys\nport 22\n'
+            )
         if command[0] == 'ssh':
             return SimpleNamespace(returncode=0)
         return original_run(command, **kwargs)
@@ -427,7 +473,9 @@ def test_host_ssh_preparation_preserves_keys_and_is_idempotent(host_ssh_preparer
 
 def test_host_ssh_preparation_rolls_back_failed_login(host_ssh_preparer, tmp_path, monkeypatch):
     preparation, home = host_ssh_preparer
-    monkeypatch.setitem(preparation, 'ssh_policy', lambda username: {'authorizedkeysfile': '.ssh/authorized_keys', 'port': '22'})
+    monkeypatch.setitem(
+        preparation, 'ssh_policy', lambda username: {'authorizedkeysfile': '.ssh/authorized_keys', 'port': '22'}
+    )
     original_run = subprocess.run
 
     def run(command, **kwargs):
@@ -447,7 +495,9 @@ def test_host_ssh_preparation_rolls_back_failed_login(host_ssh_preparer, tmp_pat
 
 def test_host_ssh_preparation_respects_disabled_root_login(host_ssh_preparer, tmp_path, monkeypatch):
     preparation, home = host_ssh_preparer
-    monkeypatch.setattr(subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout='pubkeyauthentication yes\npermitrootlogin no\n'))
+    monkeypatch.setattr(
+        subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(stdout='pubkeyauthentication yes\npermitrootlogin no\n')
+    )
     with pytest.raises(ValueError, match='non-root'):
         preparation['prepare'](str(tmp_path / 'data'), 'root')
     assert not (home / '.ssh/authorized_keys').exists()
@@ -474,7 +524,10 @@ def test_host_ssh_preparation_does_not_guess_between_accounts(host_ssh_preparer,
     authorization = home / '.ssh/authorized_keys'
     authorization.parent.mkdir(mode=0o700)
     authorization.write_text('existing-cloud-key')
-    accounts = [SimpleNamespace(pw_name=username, pw_uid=1000 + index, pw_dir=str(home), pw_shell='/bin/bash') for index, username in enumerate(['ubuntu', 'azureuser'])]
+    accounts = [
+        SimpleNamespace(pw_name=username, pw_uid=1000 + index, pw_dir=str(home), pw_shell='/bin/bash')
+        for index, username in enumerate(['ubuntu', 'azureuser'])
+    ]
     monkeypatch.setattr(preparation['pwd'], 'getpwall', lambda: accounts)
     with pytest.raises(ValueError, match='manual connection'):
         preparation['choose_account']('', tmp_path / 'missing-metadata')
@@ -482,7 +535,9 @@ def test_host_ssh_preparation_does_not_guess_between_accounts(host_ssh_preparer,
 
 def test_host_ssh_preparation_rejects_linked_authorization(host_ssh_preparer, tmp_path, monkeypatch):
     preparation, home = host_ssh_preparer
-    monkeypatch.setitem(preparation, 'ssh_policy', lambda username: {'authorizedkeysfile': '.ssh/authorized_keys', 'port': '22'})
+    monkeypatch.setitem(
+        preparation, 'ssh_policy', lambda username: {'authorizedkeysfile': '.ssh/authorized_keys', 'port': '22'}
+    )
     target = tmp_path / 'unrelated'
     target.write_text('untouched')
     authorization = home / '.ssh/authorized_keys'
@@ -559,7 +614,11 @@ class LocalTestSftp:
         result = []
         for child in Path(path).iterdir():
             entry = child.lstat()
-            result.append(SimpleNamespace(filename=child.name, st_mode=entry.st_mode, st_uid=entry.st_uid, st_gid=entry.st_gid, st_size=entry.st_size))
+            result.append(
+                SimpleNamespace(
+                    filename=child.name, st_mode=entry.st_mode, st_uid=entry.st_uid, st_gid=entry.st_gid, st_size=entry.st_size
+                )
+            )
         return result
 
     def open(self, path, mode='r', *args, **kwargs):
@@ -697,7 +756,15 @@ class FakeSftpAccount:
         return {'state': 'ready'}
 
     def credentials(self):
-        return {'profile_id': 'platform-sftp', 'host': '127.0.0.1', 'port': 22, 'username': 'websoft9-sftp', 'auth_method': 'key', 'private_key': '', 'passphrase': ''}
+        return {
+            'profile_id': 'platform-sftp',
+            'host': '127.0.0.1',
+            'port': 22,
+            'username': 'websoft9-sftp',
+            'auth_method': 'key',
+            'private_key': '',
+            'passphrase': '',
+        }
 
 
 class FakeSftpAuthority:
@@ -768,6 +835,7 @@ def test_app_sftp_http_endpoints_enforce_scope(scoped_files, monkeypatch):
     from fastapi import FastAPI
     from fastapi.responses import JSONResponse
     from fastapi.testclient import TestClient
+
     from src.api.v1.routers import host_access
     from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 
@@ -795,8 +863,18 @@ def test_app_sftp_http_endpoints_enforce_scope(scoped_files, monkeypatch):
         assert client.get(prefix + '/tree', params={'path': str(root)}).status_code == 200
         assert client.get(prefix + '/tree', params={'path': '/etc'}).status_code == 403
         assert client.put(prefix + '/content', json={'path': '/etc/passwd', 'content': 'unsafe'}).status_code == 403
-        assert client.post(prefix + '/upload', json={'parent_path': '/etc', 'file_name': 'unsafe', 'content_base64': 'aGVsbG8='}).status_code == 403
-        assert client.post(prefix + '/upload', json={'parent_path': str(root), 'file_name': 'unsafe', 'content_base64': '!!'}).status_code == 400
+        assert (
+            client.post(
+                prefix + '/upload', json={'parent_path': '/etc', 'file_name': 'unsafe', 'content_base64': 'aGVsbG8='}
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                prefix + '/upload', json={'parent_path': str(root), 'file_name': 'unsafe', 'content_base64': '!!'}
+            ).status_code
+            == 400
+        )
         assert client.request('DELETE', prefix + '/item', json={'path': str(root)}).status_code == 403
         assert client.post(prefix + '/items', json={'parent_path': str(root), 'name': 'notes.txt'}).status_code == 200
         assert client.put(prefix + '/content', json={'path': str(root / 'notes.txt'), 'content': 'safe'}).status_code == 200
@@ -811,30 +889,49 @@ def test_app_sftp_http_endpoints_enforce_scope(scoped_files, monkeypatch):
         assert client.get(prefix + '/tree', params={'path': str(root)}).status_code == 403
 
 
-@pytest.mark.skipif(not shutil.which('sshd') or not shutil.which('ssh-keygen') or os.getuid() != 0, reason='An isolated SSH daemon requires sshd, ssh-keygen and root')
+@pytest.mark.skipif(
+    not shutil.which('sshd') or not shutil.which('ssh-keygen') or os.getuid() != 0,
+    reason='An isolated SSH daemon requires sshd, ssh-keygen and root',
+)
 @pytest.mark.asyncio
 @pytest.mark.parametrize('pty_closed', [False, True])
 async def test_terminal_websocket_refresh_does_not_report_pty_exit(monkeypatch, pty_closed):
     import asyncio
+
     from fastapi import WebSocketDisconnect
+
     from src.api.v1.routers import host_access
 
     messages = []
     detached = []
+
     async def accept():
         pass
+
     async def send_text(payload):
         messages.append(json.loads(payload))
+
     async def receive_text():
         await asyncio.sleep(0)
         raise WebSocketDisconnect()
+
     service = SimpleNamespace(
-        attach_terminal_session=lambda **kwargs: {'profile': {'working_directory': '/root', 'username': 'root'}, 'buffer': '', 'cursor': 0},
+        attach_terminal_session=lambda **kwargs: {
+            'profile': {'working_directory': '/root', 'username': 'root'},
+            'buffer': '',
+            'cursor': 0,
+        },
         read_terminal_updates=lambda **kwargs: ([], 0, pty_closed),
         detach_terminal_session=lambda **kwargs: detached.append(kwargs['session_id']),
     )
     monkeypatch.setattr(host_access, '_get_host_access_service', lambda: service)
-    websocket = SimpleNamespace(accept=accept, send_text=send_text, receive_text=receive_text, cookies={}, query_params={'session_id': 'refresh-session'})
+    websocket = SimpleNamespace(
+        accept=accept,
+        send_text=send_text,
+        receive_text=receive_text,
+        cookies={},
+        query_params={'session_id': 'refresh-session'},
+    )
     await host_access.host_access_terminal_ws(websocket)
     await asyncio.sleep(0)
     assert [message['type'] for message in messages] == (['ready', 'closed'] if pty_closed else ['ready'])
@@ -853,12 +950,40 @@ def test_app_sftp_over_real_ssh(tmp_path, host_ssh_preparer, monkeypatch):
     authorization = home / '.ssh/authorized_keys'
     authorization.parent.mkdir(mode=0o700)
     authorization.write_bytes(Path(str(user_key) + '.pub').read_bytes())
-    command = [shutil.which('sshd'), '-D', '-e', '-f', '/dev/null', '-h', str(host_key), '-p', str(port), '-o', 'ListenAddress=127.0.0.1', '-o', f'AuthorizedKeysFile={authorization}', '-o', 'StrictModes=no', '-o', 'PermitRootLogin=prohibit-password', '-o', 'PasswordAuthentication=no', '-o', 'UsePAM=no', '-o', f'PidFile={tmp_path}/sshd.pid', '-o', 'Subsystem=sftp internal-sftp']
+    command = [
+        shutil.which('sshd'),
+        '-D',
+        '-e',
+        '-f',
+        '/dev/null',
+        '-h',
+        str(host_key),
+        '-p',
+        str(port),
+        '-o',
+        'ListenAddress=127.0.0.1',
+        '-o',
+        f'AuthorizedKeysFile={authorization}',
+        '-o',
+        'StrictModes=no',
+        '-o',
+        'PermitRootLogin=prohibit-password',
+        '-o',
+        'PasswordAuthentication=no',
+        '-o',
+        'UsePAM=no',
+        '-o',
+        f'PidFile={tmp_path}/sshd.pid',
+        '-o',
+        'Subsystem=sftp internal-sftp',
+    ]
     server = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     try:
         startup = server.stderr.readline()
         assert 'Server listening' in startup, startup
-        monkeypatch.setitem(preparation, 'ssh_policy', lambda username: {'authorizedkeysfile': str(authorization), 'port': str(port)})
+        monkeypatch.setitem(
+            preparation, 'ssh_policy', lambda username: {'authorizedkeysfile': str(authorization), 'port': str(port)}
+        )
         preparation['prepare'](str(tmp_path / 'data'), 'root')
         original_authorization = authorization.read_bytes()
         preparation['prepare'](str(tmp_path / 'data'), 'root')
@@ -967,7 +1092,22 @@ except CustomException:
 else:
     raise AssertionError('Old revoked key was restored instead of generating a new key')
 '''
-        result = subprocess.run([sys.executable, '-c', script, str(tmp_path), str(port), str(user_key), str(PROJECT_ROOT / 'src/services/host_access_prepare.py'), str(home)], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(
+            [
+                sys.executable,
+                '-c',
+                script,
+                str(tmp_path),
+                str(port),
+                str(user_key),
+                str(PROJECT_ROOT / 'src/services/host_access_prepare.py'),
+                str(home),
+            ],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
         assert result.returncode == 0, result.stderr
     finally:
         server.terminate()
@@ -1022,12 +1162,18 @@ def test_list_directory_uses_locked_sftp_helper(monkeypatch):
     monkeypatch.setattr(service, "_open_sftp", fake_open_sftp)
     monkeypatch.setattr(service, "_open_file_client", unexpected_open_file_client)
     monkeypatch.setattr(service, "_resolve_directory_path", lambda sftp, path: path)
-    monkeypatch.setattr(service, "_load_identity_labels", lambda sftp, owner_ids, group_ids: ({1002: "websoft9"}, {1002: "websoft9"}))
-    monkeypatch.setattr(service, "_build_path_metadata", lambda sftp, path, entry=None, owner_labels=None, group_labels=None: {"path": path})
+    monkeypatch.setattr(
+        service, "_load_identity_labels", lambda sftp, owner_ids, group_ids: ({1002: "websoft9"}, {1002: "websoft9"})
+    )
+    monkeypatch.setattr(
+        service, "_build_path_metadata", lambda sftp, path, entry=None, owner_labels=None, group_labels=None: {"path": path}
+    )
     monkeypatch.setattr(
         service,
         "_build_file_item",
-        lambda base_path, entry, owner_labels=None, group_labels=None: file_item_calls.append(entry.filename) or {"path": f"{base_path}/{entry.filename}"},
+        lambda base_path, entry, owner_labels=None, group_labels=None: (
+            file_item_calls.append(entry.filename) or {"path": f"{base_path}/{entry.filename}"}
+        ),
     )
 
     payload = service.list_directory("valid-session", "/home/websoft9", profile_id="profile-1")
@@ -1058,7 +1204,7 @@ def test_delete_saved_profile_rejects_a_profile_used_by_scheduled_tasks(monkeypa
 
     scheduled_tasks_dir = data_root / "config" / "scheduled-tasks"
     scheduled_tasks_dir.mkdir(parents=True)
-    with sqlite3.connect(scheduled_tasks_dir / "scheduled-tasks.sqlite") as connection:
+    with contextlib.closing(sqlite3.connect(scheduled_tasks_dir / "scheduled-tasks.sqlite")) as connection:
         connection.execute("CREATE TABLE scheduled_tasks (operator_id TEXT, target TEXT, profile_id TEXT)")
         connection.execute("INSERT INTO scheduled_tasks VALUES (?, ?, ?)", ("operator-1", "host", "profile-1"))
         connection.commit()
@@ -1176,7 +1322,9 @@ def test_file_elevation_is_scoped_per_view(tmp_path):
     assert host._file_elevation_status(profile, host._elevation_key(profile, 'host'))["enabled"] is True
     assert host._file_elevation_status(profile, host._elevation_key(profile, 'app', 'app-1', 'vol-1'))["enabled"] is False
 
-    host.set_file_elevation("valid-session", {"enabled": True, "profile_id": "saved-2", "scope": "app", "app_id": "app-1", "volume_id": "vol-1"})
+    host.set_file_elevation(
+        "valid-session", {"enabled": True, "profile_id": "saved-2", "scope": "app", "app_id": "app-1", "volume_id": "vol-1"}
+    )
     assert host._file_elevation_status(profile, host._elevation_key(profile, 'app', 'app-1', 'vol-1'))["enabled"] is True
     assert host._file_elevation_status(profile, host._elevation_key(profile, 'app', 'app-2', 'vol-1'))["enabled"] is False
 

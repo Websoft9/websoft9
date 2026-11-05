@@ -57,7 +57,7 @@ def _appstore_manifest_paths() -> list[Path]:
 
 def _has_valid_appstore_manifests() -> bool:
     try:
-        for locale, manifest_path in zip(("zh", "en"), _appstore_manifest_paths()):
+        for locale, manifest_path in zip(("zh", "en"), _appstore_manifest_paths(), strict=False):
             with manifest_path.open(encoding="utf-8") as handle:
                 manifest = json.load(handle)
             if (

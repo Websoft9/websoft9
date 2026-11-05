@@ -1,5 +1,5 @@
-import json
 import importlib
+import json
 import sys
 from pathlib import Path
 
@@ -9,9 +9,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-sys.modules.pop('src.services.appstore_sync_manager', None)
-sys.modules.pop('src.core.exception', None)
-
+# Both modules are imported fresh only through normal import semantics. Dropping them from
+# `sys.modules` here would hand this file a second copy of `src.core.exception`, so its
+# `CustomException` would no longer be the class every already-imported service module raises.
 exception_module = importlib.import_module('src.core.exception')
 manager_module = importlib.import_module('src.services.appstore_sync_manager')
 

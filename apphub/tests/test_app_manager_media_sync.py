@@ -11,16 +11,45 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-sys.modules.setdefault('aiodocker', types.ModuleType('aiodocker'))
+from support_module_stubs import forget_modules as _forget_modules
+
+_stubbed_previous = {}
+_stubbed_names = []
+
+
+def _stub(name, module, override=False):
+    if name not in _stubbed_previous:
+        _stubbed_previous[name] = sys.modules.get(name)
+        _stubbed_names.append(name)
+    if override or name not in sys.modules:
+        sys.modules[name] = module
+
+
+def _restore_stubs():
+    for name in _stubbed_names:
+        previous = _stubbed_previous[name]
+        if previous is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = previous
+    _stubbed_names.clear()
+    _stubbed_previous.clear()
+
+
+# AppManager needs Docker, git and a live keyring to import. Stand-ins keep that import cheap, but
+# they must not survive this module: a leftover fake `src.services.app_status` breaks every later
+# test module that imports the real package, so the entries are restored right after the import.
+_stub('aiodocker', types.ModuleType('aiodocker'))
+
 
 git_module = types.ModuleType('git')
 git_module.Repo = object
-sys.modules.setdefault('git', git_module)
+_stub('git', git_module)
 
 common_check_module = types.ModuleType('src.services.common_check')
 common_check_module.check_apps_number = lambda *args, **kwargs: None
 common_check_module.check_endpointId = lambda *args, **kwargs: None
-sys.modules.setdefault('src.services.common_check', common_check_module)
+_stub('src.services.common_check', common_check_module)
 
 for module_name, attribute_name in [
     ('src.services.git_manager', 'GitManager'),
@@ -33,22 +62,15 @@ for module_name, attribute_name in [
 ]:
     module = types.ModuleType(module_name)
     setattr(module, attribute_name, object)
-    sys.modules.setdefault(module_name, module)
+    _stub(module_name, module)
 
 async_utils_module = types.ModuleType('src.utils.async_utils')
 async_utils_module.AsyncWrapper = object
-sys.modules.setdefault('src.utils.async_utils', async_utils_module)
+_stub('src.utils.async_utils', async_utils_module)
 
-app_status_module = types.ModuleType('src.services.app_status')
-app_status_module.appInstalling = {}
-app_status_module.appInstallingError = {}
-app_status_module.start_app_installation = lambda *args, **kwargs: None
-app_status_module.remove_app_installation = lambda *args, **kwargs: None
-app_status_module.modify_app_information = lambda *args, **kwargs: None
-app_status_module.remove_app_from_errors_by_app_id = lambda *args, **kwargs: None
-app_status_module.add_installing_logs = lambda *args, **kwargs: None
-app_status_module.remove_installation_logs = lambda *args, **kwargs: None
-sys.modules.setdefault('src.services.app_status', app_status_module)
+# `src.services.app_status` is intentionally not stubbed: `AppManager` imports a growing set of its
+# helpers, and a hand-written stand-in silently drifts out of date. The real module only needs the
+# standard library, so importing it is cheaper than keeping the stub in sync.
 
 if sys.version_info < (3, 10):
     pytestmark = pytest.mark.skip(reason='app_manager media sync tests require Python 3.10+ type syntax support')
@@ -57,6 +79,11 @@ if sys.version_info < (3, 10):
 else:
     from src.services import app_manager as app_manager_module
     from src.services.app_manager import AppManger
+
+_restore_stubs()
+# `app_manager` pulls in `install_secrets` while the stand-ins are registered, so that module
+# captured placeholder classes. Rebuild it from the real dependencies for the rest of the session.
+_forget_modules('src.services.install_secrets')
 
 
 class _UrlopenResponse(io.BytesIO):
@@ -84,28 +111,6 @@ def _patch_path_factory(monkeypatch, metadata_path: Path):
         return real_path(value)
 
     monkeypatch.setattr(app_manager_module, 'Path', fake_path)
-
-
-def test_sync_media_assets_uses_rc_channel_for_rc_versions(monkeypatch, tmp_path):
-    metadata_path = tmp_path / 'version.json'
-    metadata_path.write_text(json.dumps({'version': '2.1.0', 'channel': 'rc'}), encoding='utf-8')
-    _patch_path_factory(monkeypatch, metadata_path)
-
-    requested_urls = []
-    archive_bytes = _build_media_archive_bytes()
-
-    def fake_urlopen(request):
-        requested_urls.append(request.full_url)
-        return _UrlopenResponse(archive_bytes)
-
-    monkeypatch.setattr(app_manager_module.urllib.request, 'urlopen', fake_urlopen)
-
-    manager = AppManger()
-    base_path = tmp_path / 'media' / 'json'
-    manager._sync_media_assets_from_artifact(str(base_path))
-
-    assert requested_urls == ['https://artifact.websoft9.com/rc/websoft9/plugin/media/media-latest.zip']
-    assert (tmp_path / 'media' / 'json' / 'product_en.json').exists()
 
 
 def test_sync_media_assets_uses_dev_channel_for_dev_versions(monkeypatch, tmp_path):

@@ -6,7 +6,6 @@ import docker
 from src.core.exception import CustomException
 from src.services.product_auth import ProductAuthService
 
-
 TEXT_FILE_LIMIT_BYTES = 1024 * 1024
 DIRECTORY_ITEM_LIMIT = 500
 
@@ -100,7 +99,9 @@ class AppVolumeBrowseService:
         self.auth_service._require_authenticated_operator(session_token)
         volume_name, container, mount_path = self._resolve_container_mount(app_id, volume_id)
         normalized_path = self._normalize_relative_path(relative_path)
-        output = self._exec(container, _LIST_DIRECTORY_SCRIPT, self._join_container_path(mount_path, normalized_path), mount_path)
+        output = self._exec(
+            container, _LIST_DIRECTORY_SCRIPT, self._join_container_path(mount_path, normalized_path), mount_path
+        )
         directory, items, truncated = self._parse_directory_output(output, normalized_path)
         return {
             "volume_name": volume_name,
@@ -115,13 +116,15 @@ class AppVolumeBrowseService:
         self.auth_service._require_authenticated_operator(session_token)
         volume_name, container, mount_path = self._resolve_container_mount(app_id, volume_id)
         normalized_path = self._normalize_relative_path(relative_path, allow_root=False)
-        output = self._exec(container, _READ_TEXT_SCRIPT, self._join_container_path(mount_path, normalized_path), mount_path, read_text=True)
+        output = self._exec(
+            container, _READ_TEXT_SCRIPT, self._join_container_path(mount_path, normalized_path), mount_path, read_text=True
+        )
         if b"\x00" in output:
             raise CustomException(422, "Unsupported File", "Binary files cannot be previewed in the browser")
         try:
             content = output.decode("utf-8")
         except UnicodeDecodeError:
-            raise CustomException(422, "Unsupported File", "Only UTF-8 text files can be previewed in the browser")
+            raise CustomException(422, "Unsupported File", "Only UTF-8 text files can be previewed in the browser") from None
         return {
             "volume_name": volume_name,
             "source_container": self._container_name(container),
@@ -137,7 +140,7 @@ class AppVolumeBrowseService:
         try:
             volume = self._get_docker_client().volumes.get(normalized_volume_id)
         except Exception:
-            raise CustomException(404, "Volume Not Found", "The requested Docker volume does not exist")
+            raise CustomException(404, "Volume Not Found", "The requested Docker volume does not exist") from None
         volume_attrs = self._attrs(volume)
         labels = volume_attrs.get("Labels") or {}
         if labels.get("com.docker.compose.project") != normalized_app_id:
@@ -146,7 +149,7 @@ class AppVolumeBrowseService:
         try:
             containers = self._get_docker_client().containers.list(filters={"status": "running"})
         except Exception as exc:
-            raise CustomException(503, "Docker Unavailable", f"Failed to list application containers: {exc}")
+            raise CustomException(503, "Docker Unavailable", f"Failed to list application containers: {exc}") from exc
 
         matches: list[tuple[str, Any, str]] = []
         for container in containers:
@@ -160,7 +163,9 @@ class AppVolumeBrowseService:
                 if mount.get("Type") == "volume" and mount.get("Name") == normalized_volume_id and mount.get("Destination")
             ]
             if len(mount_paths) > 1:
-                raise CustomException(422, "Unsupported Mount", "The requested volume is mounted multiple times in one application container")
+                raise CustomException(
+                    422, "Unsupported Mount", "The requested volume is mounted multiple times in one application container"
+                )
             if mount_paths:
                 matches.append((self._container_name(container), container, mount_paths[0]))
 
@@ -173,7 +178,9 @@ class AppVolumeBrowseService:
         try:
             result = container.exec_run(["/bin/sh", "-c", script, "websoft9-volume-browse", target_path, mount_path])
         except Exception as exc:
-            raise CustomException(503, "Container Browse Failed", f"Failed to browse the application container: {exc}")
+            raise CustomException(
+                503, "Container Browse Failed", f"Failed to browse the application container: {exc}"
+            ) from exc
         exit_code = int(getattr(result, "exit_code", 1))
         output = bytes(getattr(result, "output", b"") or b"")
         if exit_code == 0:
@@ -182,15 +189,21 @@ class AppVolumeBrowseService:
             raise CustomException(422, "File Too Large", "Only files up to 1 MB can be previewed in the browser")
         if exit_code == 2:
             raise CustomException(404, "File Not Found", "The requested path does not exist or cannot be browsed")
-        raise CustomException(422, "Container Browse Unsupported", "The application container does not support volume file browsing")
+        raise CustomException(
+            422, "Container Browse Unsupported", "The application container does not support volume file browsing"
+        )
 
     @staticmethod
     def _parse_directory_output(output: bytes, current_path: str) -> tuple[dict[str, Any], list[dict[str, Any]], bool]:
         fields = output.split(b"\x00")
         if not fields or fields[0] != b"W9B1":
-            raise CustomException(500, "Container Browse Failed", "The application container returned an invalid directory response")
+            raise CustomException(
+                500, "Container Browse Failed", "The application container returned an invalid directory response"
+            )
         if len(fields) < 9 or fields[1] != b"R":
-            raise CustomException(500, "Container Browse Failed", "The application container returned an invalid directory response")
+            raise CustomException(
+                500, "Container Browse Failed", "The application container returned an invalid directory response"
+            )
         directory = AppVolumeBrowseService._parse_metadata_record(fields[2:9], current_path, "directory")
         items: list[dict[str, Any]] = []
         truncated = False
@@ -202,29 +215,44 @@ class AppVolumeBrowseService:
                 break
             if record_type == b"T":
                 if index >= len(fields):
-                    raise CustomException(500, "Container Browse Failed", "The application container returned an invalid directory response")
+                    raise CustomException(
+                        500, "Container Browse Failed", "The application container returned an invalid directory response"
+                    )
                 truncated = fields[index] == b"true"
                 break
             if record_type not in {b"D", b"F"}:
-                raise CustomException(500, "Container Browse Failed", "The application container returned an invalid directory record")
+                raise CustomException(
+                    500, "Container Browse Failed", "The application container returned an invalid directory record"
+                )
             if index + 6 >= len(fields):
-                raise CustomException(500, "Container Browse Failed", "The application container returned an invalid directory record")
+                raise CustomException(
+                    500, "Container Browse Failed", "The application container returned an invalid directory record"
+                )
             raw_name = fields[index]
             index += 8
             try:
                 name = raw_name.decode("utf-8")
             except UnicodeDecodeError:
-                raise CustomException(500, "Container Browse Failed", "The application container returned an invalid directory record")
+                raise CustomException(
+                    500, "Container Browse Failed", "The application container returned an invalid directory record"
+                ) from None
             path = f"/{name}" if current_path == "/" else f"{current_path}/{name}"
-            items.append(AppVolumeBrowseService._parse_metadata_record(
-                fields[index - 7:index], path, "directory" if record_type == b"D" else "file", name,
-            ))
+            items.append(
+                AppVolumeBrowseService._parse_metadata_record(
+                    fields[index - 7 : index],
+                    path,
+                    "directory" if record_type == b"D" else "file",
+                    name,
+                )
+            )
         return directory, items, truncated
 
     @staticmethod
     def _parse_metadata_record(fields: list[bytes], path: str, item_type: str, name: Optional[str] = None) -> dict[str, Any]:
         if len(fields) != 7:
-            raise CustomException(500, "Container Browse Failed", "The application container returned an invalid directory record")
+            raise CustomException(
+                500, "Container Browse Failed", "The application container returned an invalid directory record"
+            )
         raw_mode, raw_owner, raw_group, raw_size, raw_accessed_at, raw_modified_at, raw_created_at = fields
         try:
             size = int(raw_size.decode("ascii"))
@@ -242,7 +270,9 @@ class AppVolumeBrowseService:
                 "text_viewable": item_type == "file" and size <= TEXT_FILE_LIMIT_BYTES,
             }
         except (UnicodeDecodeError, ValueError):
-            raise CustomException(500, "Container Browse Failed", "The application container returned an invalid directory record")
+            raise CustomException(
+                500, "Container Browse Failed", "The application container returned an invalid directory record"
+            ) from None
 
     def _get_docker_client(self) -> Any:
         if self.docker_client is None:
@@ -278,4 +308,8 @@ class AppVolumeBrowseService:
 
     @staticmethod
     def _container_name(container: Any) -> str:
-        return str(getattr(container, "name", "") or AppVolumeBrowseService._attrs(container).get("Name") or getattr(container, "id", "unknown")).lstrip("/")
+        return str(
+            getattr(container, "name", "")
+            or AppVolumeBrowseService._attrs(container).get("Name")
+            or getattr(container, "id", "unknown")
+        ).lstrip("/")

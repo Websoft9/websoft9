@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -21,7 +22,6 @@ from src.core.exception import CustomException
 from src.core.logger import logger
 from src.services.image_pull import pull_with_fallback, require_local_image
 from src.services.product_runtime_state import read_release_channel, read_release_version
-
 
 ARTIFACT_BASE_URL = "https://artifact.websoft9.com/websoft9"
 REQUIRED_ARTIFACTS = ("version.json", "docker-compose.yml", "runner-upgrade.sh", "manifest.json")
@@ -126,7 +126,7 @@ def maybe_start_auto_download(*, latest_version: Any, current_version: Any = Non
 
 class UpgradeManager:
     def __init__(self, *, data_root: str | None = None, artifact_base_url: str = ARTIFACT_BASE_URL):
-        self.data_root = Path(data_root or os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
+        self.data_root = Path(data_root or os.getenv("WEBSOFT9_DATA_ROOT") or "/opt/websoft9/data")
         self.upgrade_root = self.data_root / "upgrade"
         self.artifact_base_url = artifact_base_url.rstrip("/")
 
@@ -255,7 +255,9 @@ class UpgradeManager:
             container.remove(force=True)
             logger.info(f"Removed the leftover upgrade runner container {name}")
         except Exception as exc:  # noqa: BLE001 - surface it as a clear runner problem
-            raise CustomException(502, "Upgrade Runner Unavailable", f"Unable to clear the previous upgrade runner: {exc}")
+            raise CustomException(
+                502, "Upgrade Runner Unavailable", f"Unable to clear the previous upgrade runner: {exc}"
+            ) from exc
 
     def read_log(self, run_id: str, *, tail: int = 200) -> dict[str, Any]:
         """Return the tail of a run's upgrade log, falling back to the runner container output."""
@@ -286,12 +288,12 @@ class UpgradeManager:
 
     def _acquire_lock(self):
         self.upgrade_root.mkdir(parents=True, exist_ok=True)
-        handle = open(self.upgrade_root / "lock", "a", encoding="utf-8")
+        handle = open(self.upgrade_root / "lock", "a", encoding="utf-8")  # noqa: SIM115
         try:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             handle.close()
-            raise CustomException(409, "Upgrade In Progress", "Another upgrade operation is already active")
+            raise CustomException(409, "Upgrade In Progress", "Another upgrade operation is already active") from None
         return handle
 
     @staticmethod
@@ -305,10 +307,8 @@ class UpgradeManager:
             handle = self._acquire_lock()
         except CustomException:
             return True
-        try:
+        with contextlib.suppress(OSError):
             self._release_lock(handle)
-        except OSError:
-            pass
         return False
 
     def _runner_is_active(self, run_id: str) -> bool | None:
@@ -346,7 +346,7 @@ class UpgradeManager:
             response = requests.get(url, timeout=60, headers={"Cache-Control": "no-cache"})
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise CustomException(502, "Upgrade Artifact Unavailable", f"Unable to download {url}: {exc}")
+            raise CustomException(502, "Upgrade Artifact Unavailable", f"Unable to download {url}: {exc}") from exc
         destination.write_bytes(response.content)
 
     @staticmethod
@@ -370,7 +370,7 @@ class UpgradeManager:
             checksum_response = requests.get(f"{base_url}/SHA256SUMS", timeout=20, headers={"Cache-Control": "no-cache"})
             checksum_response.raise_for_status()
         except requests.RequestException as exc:
-            raise CustomException(502, "Upgrade Artifact Unavailable", f"Unable to download SHA256SUMS: {exc}")
+            raise CustomException(502, "Upgrade Artifact Unavailable", f"Unable to download SHA256SUMS: {exc}") from exc
         checksums = self._checksums(checksum_response.text)
         for filename in REQUIRED_ARTIFACTS:
             expected = checksums.get(filename)
@@ -389,14 +389,19 @@ class UpgradeManager:
     @staticmethod
     def _parse_version(value: str) -> tuple[int, int, int] | None:
         match = re.fullmatch(r"v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+].*)?", value.strip())
-        return tuple(int(part or 0) for part in match.groups()) if match else None
+        if match is None:
+            return None
+        major, minor, patch = (int(part or 0) for part in match.groups())
+        return (major, minor, patch)
 
     def _discover_deployment(self) -> dict[str, str]:
         try:
             client = docker.from_env()
             current = client.containers.get(os.getenv("HOSTNAME", ""))
         except Exception as exc:
-            raise CustomException(500, "Upgrade Precheck Failed", f"Cannot inspect the running product container: {exc}")
+            raise CustomException(
+                500, "Upgrade Precheck Failed", f"Cannot inspect the running product container: {exc}"
+            ) from exc
 
         labels = current.attrs.get("Config", {}).get("Labels", {}) or {}
         install_path = labels.get("com.docker.compose.project.working_dir", "")
@@ -446,12 +451,14 @@ class UpgradeManager:
         lock = self._acquire_lock()
         try:
             run_id = str(uuid4())
-            self._write_state({
-                "run_id": run_id,
-                "state": "downloading",
-                "detail": "Downloading upgrade artifacts",
-                "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
-            })
+            self._write_state(
+                {
+                    "run_id": run_id,
+                    "state": "downloading",
+                    "detail": "Downloading upgrade artifacts",
+                    "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
+                }
+            )
             threading.Thread(target=self._run_prepare, args=(run_id, lock), daemon=True).start()
         except Exception:
             self._release_lock(lock)
@@ -462,19 +469,23 @@ class UpgradeManager:
         try:
             self._prepare_locked(run_id)
         except CustomException as exc:
-            self._write_state({
-                "run_id": run_id,
-                "state": "download_failed",
-                "detail": exc.details,
-                "reason": "download_failed",
-            })
+            self._write_state(
+                {
+                    "run_id": run_id,
+                    "state": "download_failed",
+                    "detail": exc.details,
+                    "reason": "download_failed",
+                }
+            )
         except Exception as exc:  # surface any failure through the persisted state
-            self._write_state({
-                "run_id": run_id,
-                "state": "download_failed",
-                "detail": str(exc),
-                "reason": "download_failed",
-            })
+            self._write_state(
+                {
+                    "run_id": run_id,
+                    "state": "download_failed",
+                    "detail": str(exc),
+                    "reason": "download_failed",
+                }
+            )
         finally:
             self._release_lock(lock)
 
@@ -491,16 +502,19 @@ class UpgradeManager:
         channel = read_release_channel()
         staging_dir = self.upgrade_root / "staging" / run_id
         staging_dir.mkdir(parents=True, mode=0o700)
-        self._write_state({
-            "run_id": run_id,
-            "state": "downloading",
-            "detail": "Downloading upgrade artifacts",
-            "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
-        })
+        self._write_state(
+            {
+                "run_id": run_id,
+                "state": "downloading",
+                "detail": "Downloading upgrade artifacts",
+                "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
+            }
+        )
         try:
             manifest, version_payload = self._download_and_verify_artifacts(channel=channel, staging_dir=staging_dir)
             target_version = str(version_payload.get("version") or "").strip()
-            image = manifest.get("image") if isinstance(manifest.get("image"), dict) else {}
+            image_raw = manifest.get("image")
+            image: dict = image_raw if isinstance(image_raw, dict) else {}
             repository = str(image.get("repository") or "").strip()
             version_tag = str(image.get("version_tag") or "").strip()
             if not target_version or not repository or not version_tag:
@@ -508,7 +522,8 @@ class UpgradeManager:
             current_parsed, target_parsed = self._parse_version(current_version), self._parse_version(target_version)
             if not current_parsed or not target_parsed or target_parsed <= current_parsed:
                 raise CustomException(409, "Upgrade Not Available", "The target version is not newer than the current version")
-            install = manifest.get("install") if isinstance(manifest.get("install"), dict) else {}
+            install_raw = manifest.get("install")
+            install: dict = install_raw if isinstance(install_raw, dict) else {}
             if install.get("runner_upgrade_script") != "runner-upgrade.sh":
                 raise CustomException(502, "Invalid Upgrade Artifact", "The release does not support in-console upgrade")
             deployment = self._discover_deployment()
@@ -527,7 +542,7 @@ class UpgradeManager:
                 )
                 pull_with_fallback(docker_client, RUNNER_IMAGE, use_ecr_public=True)
             except Exception as exc:
-                raise CustomException(502, "Upgrade Image Unavailable", f"Unable to pull an upgrade image: {exc}")
+                raise CustomException(502, "Upgrade Image Unavailable", f"Unable to pull an upgrade image: {exc}") from exc
             digest = pulled.digest
             if not digest:
                 raise CustomException(502, "Upgrade Image Unavailable", "The pulled image has no repository digest")
@@ -552,13 +567,15 @@ class UpgradeManager:
             temporary_file = task_file.with_suffix(".tmp")
             temporary_file.write_text("".join(f"{key}={value}\n" for key, value in task.items()), encoding="utf-8")
             os.replace(temporary_file, task_file)
-            self._write_state({
-                "run_id": run_id,
-                "state": "ready",
-                "target_version": target_version,
-                "detail": "Upgrade is prepared",
-                "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
-            })
+            self._write_state(
+                {
+                    "run_id": run_id,
+                    "state": "ready",
+                    "target_version": target_version,
+                    "detail": "Upgrade is prepared",
+                    "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
+                }
+            )
             return self.status(run_id=run_id)
         except Exception:
             shutil.rmtree(staging_dir, ignore_errors=True)
@@ -567,14 +584,23 @@ class UpgradeManager:
     @staticmethod
     def _read_task(task_file: Path) -> dict[str, str]:
         allowed = {
-            "RUN_ID", "DATA_ROOT", "STAGING_DIR", "INSTALL_PATH", "COMPOSE_FILE", "COMPOSE_PROJECT",
-            "TARGET_IMAGE_REPO", "TARGET_IMAGE_TAG", "TARGET_IMAGE_DIGEST", "TARGET_VERSION", "CONTAINER_NAME",
+            "RUN_ID",
+            "DATA_ROOT",
+            "STAGING_DIR",
+            "INSTALL_PATH",
+            "COMPOSE_FILE",
+            "COMPOSE_PROJECT",
+            "TARGET_IMAGE_REPO",
+            "TARGET_IMAGE_TAG",
+            "TARGET_IMAGE_DIGEST",
+            "TARGET_VERSION",
+            "CONTAINER_NAME",
         }
         values: dict[str, str] = {}
         try:
             lines = task_file.read_text(encoding="utf-8").splitlines()
         except OSError as exc:
-            raise CustomException(409, "Upgrade Not Ready", f"Unable to read prepared task: {exc}")
+            raise CustomException(409, "Upgrade Not Ready", f"Unable to read prepared task: {exc}") from exc
         for line in lines:
             if not line or line.startswith("#") or "=" not in line:
                 raise CustomException(409, "Upgrade Not Ready", "The prepared task is invalid")
@@ -606,13 +632,15 @@ class UpgradeManager:
             raise CustomException(409, "Upgrade Not Retryable", "The staged release is no longer available")
         # Raises when the staged task is missing or tampered with, before any state changes.
         self._read_task(staging_dir / "task.env")
-        self._write_state({
-            "run_id": run_id,
-            "state": "ready",
-            "target_version": state.get("target_version"),
-            "detail": "Upgrade is prepared",
-            "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
-        })
+        self._write_state(
+            {
+                "run_id": run_id,
+                "state": "ready",
+                "target_version": state.get("target_version"),
+                "detail": "Upgrade is prepared",
+                "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
+            }
+        )
         logger.info(f"Upgrade {run_id} retried after {state.get('reason') or 'a failure'}")
         return self.apply()
 
@@ -650,13 +678,15 @@ class UpgradeManager:
                     labels={"owner": "websoft9", "websoft9.upgrade.run_id": run_id},
                 )
             except Exception as exc:
-                raise CustomException(502, "Upgrade Runner Unavailable", f"Unable to start the upgrade runner: {exc}")
-            self._write_state({
-                **state,
-                "state": "applying",
-                "detail": "Upgrade runner started",
-                "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
-            })
+                raise CustomException(502, "Upgrade Runner Unavailable", f"Unable to start the upgrade runner: {exc}") from exc
+            self._write_state(
+                {
+                    **state,
+                    "state": "applying",
+                    "detail": "Upgrade runner started",
+                    "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
+                }
+            )
             return self.status(run_id=run_id)
         finally:
             self._release_lock(lock)

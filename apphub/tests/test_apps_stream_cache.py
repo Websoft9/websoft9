@@ -6,16 +6,20 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-sys.modules.setdefault('aiodocker', types.ModuleType('aiodocker'))
-sys.modules.setdefault('jwt', types.ModuleType('jwt'))
-sys.modules.setdefault('keyring', types.ModuleType('keyring'))
+from support_module_stubs import restore_module_stubs, stub_module
+
+stub_module('aiodocker', types.ModuleType('aiodocker'))
+stub_module('jwt', types.ModuleType('jwt'))
+stub_module('keyring', types.ModuleType('keyring'))
 
 git_module = types.ModuleType('git')
 git_module.Repo = object
-sys.modules.setdefault('git', git_module)
+stub_module('git', git_module)
 
 from src.services import apps_stream_cache as apps_stream_cache_module
 from src.services.apps_stream_cache import AppsStreamCache
+
+restore_module_stubs()
 
 
 def test_apps_stream_cache_reuses_snapshot_before_refresh_deadline(monkeypatch):

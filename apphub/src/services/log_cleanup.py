@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-
 LOG_RETENTION_DAYS = 7
 MAX_LOG_BYTES = 100 * 1024 * 1024
 
@@ -39,7 +38,10 @@ def _default_targets() -> list[LogTarget]:
         gitea_logs = Path(config.get("log", "ROOT_PATH", fallback=str(gitea_logs)))
     return [
         LogTarget(apphub_root, r"apphub(?:_access|_error|_install)?\.log", False),
-        LogTarget(service_root, r"(?:platform-gateway-(?:access|error)|platform-runtime|fallback_(?:access|error)|proxy-host-\d+_(?:access|error))\.log"),
+        LogTarget(
+            service_root,
+            r"(?:platform-gateway-(?:access|error)|platform-runtime|fallback_(?:access|error)|proxy-host-\d+_(?:access|error))\.log",
+        ),
         LogTarget(service_root / "gitea", r"service\.log"),
         LogTarget(gitea_logs, r"(?:gitea|router|access|xorm)\.log", False),
         LogTarget(service_root / "portainer", r"service\.log"),
@@ -49,7 +51,15 @@ def _default_targets() -> list[LogTarget]:
 
 
 class LogCleanupService:
-    def __init__(self, *, targets: list[LogTarget] | None = None, state_dir: Path | None = None, now: float | None = None, max_bytes: int = MAX_LOG_BYTES, on_progress: Callable[[dict], None] | None = None):
+    def __init__(
+        self,
+        *,
+        targets: list[LogTarget] | None = None,
+        state_dir: Path | None = None,
+        now: float | None = None,
+        max_bytes: int = MAX_LOG_BYTES,
+        on_progress: Callable[[dict], None] | None = None,
+    ):
         self.targets = targets
         data_root = Path(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
         self.state_dir = state_dir or data_root / "config/apphub/log-cleanup"
@@ -63,7 +73,11 @@ class LogCleanupService:
 
     def _finish(self, result: dict, started: float) -> dict:
         result["duration_seconds"] = round(time.monotonic() - started, 3)
-        result["result"] = result["status"] if result["status"] != "success" else ("changes_applied" if result["deleted_files"] or result["rotated_files"] else "no_changes")
+        result["result"] = (
+            result["status"]
+            if result["status"] != "success"
+            else ("changes_applied" if result["deleted_files"] or result["rotated_files"] else "no_changes")
+        )
         self._report("summary", **result)
         return result
 
@@ -76,7 +90,16 @@ class LogCleanupService:
 
     def run(self) -> dict:
         started = time.monotonic()
-        result = {"status": "success", "examined_files": 0, "retained_files": 0, "deleted_files": 0, "rotated_files": 0, "freed_bytes": 0, "skipped_files": 0, "errors": []}
+        result = {
+            "status": "success",
+            "examined_files": 0,
+            "retained_files": 0,
+            "deleted_files": 0,
+            "rotated_files": 0,
+            "freed_bytes": 0,
+            "skipped_files": 0,
+            "errors": [],
+        }
         self._report("start", retention_days=LOG_RETENTION_DAYS, max_bytes=self.max_bytes)
         self.state_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
         if self.state_dir.is_symlink() or self.state_dir.resolve() != self.state_dir.absolute():
@@ -92,7 +115,7 @@ class LogCleanupService:
                 self._report("skipped", path=str(self.state_dir / "cleanup.lock"), reason="previous_execution_running")
                 return self._finish(result, started)
             cutoff = (time.time() if self.now is None else self.now) - LOG_RETENTION_DAYS * 86400
-            seen = set()
+            seen: set[str] = set()
             for target in self.targets if self.targets is not None else _default_targets():
                 try:
                     self._clean_target(target, cutoff, seen, result)
@@ -133,7 +156,9 @@ class LogCleanupService:
                         self._report("deleted", path=str(path), size_bytes=metadata.st_size, reason="archive_expired")
                     else:
                         result["retained_files"] += 1
-                        self._report("retained", path=str(path), size_bytes=metadata.st_size, reason="archive_within_retention")
+                        self._report(
+                            "retained", path=str(path), size_bytes=metadata.st_size, reason="archive_within_retention"
+                        )
                 elif target.rotate_active and metadata.st_size > self.max_bytes:
                     self._rotate(path, metadata, result)
                 else:
@@ -168,7 +193,10 @@ class LogCleanupService:
             config.flush()
             process = subprocess.run(
                 ["logrotate", "--state", str(self.state_dir / "logrotate.state"), config.name],
-                capture_output=True, text=True, timeout=300, check=False,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
             )
         if process.returncode != 0:
             result["errors"].append(f"{path}: logrotate exited with code {process.returncode}")
@@ -185,4 +213,11 @@ class LogCleanupService:
         if archive.is_file():
             reclaimed = max(0, reclaimed - archive.stat().st_size)
         result["freed_bytes"] += reclaimed
-        self._report("rotated", path=str(path), archive_path=str(archive), size_bytes=metadata.st_size, after_bytes=after.st_size, freed_bytes=reclaimed)
+        self._report(
+            "rotated",
+            path=str(path),
+            archive_path=str(archive),
+            size_bytes=metadata.st_size,
+            after_bytes=after.st_size,
+            freed_bytes=reclaimed,
+        )

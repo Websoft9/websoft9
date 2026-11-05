@@ -13,18 +13,18 @@ class APIKeyManager:
             return key
         except Exception as error:
             logger.error("Error generating API key" + str(error))
-            raise CustomException()
+            raise CustomException() from error
 
     def get_key(self):
         try:
             return ConfigManager().get_value("api_key", "key")
         except Exception as error:
             logger.error("Error getting API key" + str(error))
-            raise CustomException()
+            raise CustomException() from error
 
     def delete_key(self):
         try:
             ConfigManager().remove_value("api_key", "key")
         except Exception as error:
             logger.error("Error deleting API key" + str(error))
-            raise CustomException()
+            raise CustomException() from error

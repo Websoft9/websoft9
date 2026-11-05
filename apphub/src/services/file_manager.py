@@ -10,7 +10,6 @@ import requests
 from src.core.exception import CustomException
 from src.services.product_auth import ProductAuthService
 
-
 VOLUME_NAME_CACHE_TTL_SECONDS = 5.0
 DEFAULT_FILES_AGENT_URL = "http://127.0.0.1:8091"
 DOCKER_VOLUMES_ROOT_SENTINEL = "__docker_volumes_root__"
@@ -20,7 +19,7 @@ _volume_name_cache: dict[str, Any] = {"expires_at": 0.0, "names": tuple()}
 
 class FilesAgentExecutor:
     def __init__(self, base_url: Optional[str] = None, session: Optional[requests.Session] = None):
-        configured_url = base_url or os.getenv("WEBSOFT9_FILES_AGENT_URL", DEFAULT_FILES_AGENT_URL)
+        configured_url = base_url or os.getenv("WEBSOFT9_FILES_AGENT_URL") or DEFAULT_FILES_AGENT_URL
         self.base_url = configured_url.rstrip("/")
         self.session = session or requests.Session()
 
@@ -41,7 +40,7 @@ class FilesAgentExecutor:
                 timeout=timeout,
             )
         except requests.RequestException as exc:
-            raise CustomException(503, "Files Agent Error", f"Failed to reach internal files agent: {exc}")
+            raise CustomException(503, "Files Agent Error", f"Failed to reach internal files agent: {exc}") from exc
 
         if response.status_code >= 400:
             message = "Files Agent Error"
@@ -61,21 +60,23 @@ class FilesAgentExecutor:
         try:
             return response.json()
         except ValueError as exc:
-            raise CustomException(500, "Files Agent Error", f"Invalid files-agent response: {exc}")
+            raise CustomException(500, "Files Agent Error", f"Invalid files-agent response: {exc}") from exc
 
     def list_directory(self, root_path: str, relative_path: str, display_name: str) -> dict[str, Any]:
-        return self._request(
+        result: dict[str, Any] = self._request(
             "POST",
             "/internal/files/directory",
             json_payload={"root_path": root_path, "path": relative_path, "display_name": display_name},
         )
+        return result
 
     def get_metadata(self, root_path: str, relative_path: str, display_name: str) -> dict[str, Any]:
-        return self._request(
+        result: dict[str, Any] = self._request(
             "POST",
             "/internal/files/metadata",
             json_payload={"root_path": root_path, "path": relative_path, "display_name": display_name},
         )
+        return result
 
     def read_text_file(self, root_path: str, relative_path: str, display_name: str) -> str:
         payload = self._request(
@@ -143,7 +144,7 @@ class FilesAgentExecutor:
         )
 
     def update_attributes(self, root_path: str, payload: dict[str, Any], display_name: str) -> dict[str, Any]:
-        return self._request(
+        result: dict[str, Any] = self._request(
             "PUT",
             "/internal/files/attributes",
             json_payload={
@@ -158,6 +159,7 @@ class FilesAgentExecutor:
                 "display_name": display_name,
             },
         )
+        return result
 
     def delete_path(self, root_path: str, relative_path: str, display_name: str) -> None:
         self._request(
@@ -166,7 +168,9 @@ class FilesAgentExecutor:
             json_payload={"root_path": root_path, "path": relative_path, "display_name": display_name},
         )
 
-    def upload_file(self, root_path: str, parent_relative_path: str, file_name: str, payload: bytes, display_name: str) -> None:
+    def upload_file(
+        self, root_path: str, parent_relative_path: str, file_name: str, payload: bytes, display_name: str
+    ) -> None:
         self._request(
             "POST",
             "/internal/files/upload",
@@ -180,19 +184,25 @@ class FilesAgentExecutor:
         )
 
     def download_file(self, root_path: str, relative_path: str, display_name: str) -> bytes:
-        return self._request(
+        result: bytes = self._request(
             "POST",
             "/internal/files/download",
             json_payload={"root_path": root_path, "path": relative_path, "display_name": display_name},
             expect_binary=True,
         )
+        return result
 
 
 HelperContainerExecutor = FilesAgentExecutor
 
 
 class FileManagerService:
-    def __init__(self, docker_client: Optional[Any] = None, helper_executor: Optional[Any] = None, auth_service: Optional[ProductAuthService] = None):
+    def __init__(
+        self,
+        docker_client: Optional[Any] = None,
+        helper_executor: Optional[Any] = None,
+        auth_service: Optional[ProductAuthService] = None,
+    ):
         self.docker_client = docker_client
         self.helper_executor = helper_executor or FilesAgentExecutor()
         self.auth_service = auth_service or ProductAuthService()
@@ -272,7 +282,9 @@ class FileManagerService:
             "items": directory_payload.get("items", []),
         }
 
-    def write_text_file(self, session_token: Optional[str], volume_id: str, relative_path: str, content: str) -> dict[str, Any]:
+    def write_text_file(
+        self, session_token: Optional[str], volume_id: str, relative_path: str, content: str
+    ) -> dict[str, Any]:
         self.auth_service._require_authenticated_operator(session_token)
         normalized_path = self._normalize_relative_path(relative_path, allow_root=False)
         volume_name, root_path, display_name = self._resolve_scope(volume_id)
@@ -315,7 +327,9 @@ class FileManagerService:
         self.helper_executor.delete_path(root_path, normalized_path, display_name)
         return {"volume_name": volume_name, "path": normalized_path, "operation": "delete"}
 
-    def copy_path(self, session_token: Optional[str], volume_id: str, source_path: str, destination_path: str) -> dict[str, Any]:
+    def copy_path(
+        self, session_token: Optional[str], volume_id: str, source_path: str, destination_path: str
+    ) -> dict[str, Any]:
         self.auth_service._require_authenticated_operator(session_token)
         volume_name, root_path, display_name = self._resolve_scope(volume_id)
         normalized_source = self._normalize_relative_path(source_path, allow_root=False)
@@ -324,7 +338,9 @@ class FileManagerService:
         self.helper_executor.copy_path(root_path, normalized_source, normalized_destination, display_name)
         return {"volume_name": volume_name, "path": target_path, "operation": "copy"}
 
-    def move_path(self, session_token: Optional[str], volume_id: str, source_path: str, destination_path: str) -> dict[str, Any]:
+    def move_path(
+        self, session_token: Optional[str], volume_id: str, source_path: str, destination_path: str
+    ) -> dict[str, Any]:
         self.auth_service._require_authenticated_operator(session_token)
         volume_name, root_path, display_name = self._resolve_scope(volume_id)
         normalized_source = self._normalize_relative_path(source_path, allow_root=False)
@@ -347,15 +363,26 @@ class FileManagerService:
             "other_permissions": payload.get("other_permissions") or {},
         }
         metadata = self.helper_executor.update_attributes(root_path, update_payload, display_name)
-        return {"volume_name": volume_name, "path": metadata.get("path", normalized_source), "operation": "update-attributes", "metadata": {"volume_name": volume_name, **metadata}}
+        return {
+            "volume_name": volume_name,
+            "path": metadata.get("path", normalized_source),
+            "operation": "update-attributes",
+            "metadata": {"volume_name": volume_name, **metadata},
+        }
 
-    def upload_file(self, session_token: Optional[str], volume_id: str, parent_path: str, file_name: str, payload: bytes) -> dict[str, Any]:
+    def upload_file(
+        self, session_token: Optional[str], volume_id: str, parent_path: str, file_name: str, payload: bytes
+    ) -> dict[str, Any]:
         self.auth_service._require_authenticated_operator(session_token)
         volume_name, root_path, display_name = self._resolve_scope(volume_id)
         normalized_parent = self._normalize_relative_path(parent_path)
         normalized_name = self._normalize_name(file_name)
         self.helper_executor.upload_file(root_path, normalized_parent, normalized_name, payload, display_name)
-        return {"volume_name": volume_name, "path": self._join_relative_path(normalized_parent, normalized_name), "operation": "upload"}
+        return {
+            "volume_name": volume_name,
+            "path": self._join_relative_path(normalized_parent, normalized_name),
+            "operation": "upload",
+        }
 
     def download_file(self, session_token: Optional[str], volume_id: str, relative_path: str) -> tuple[str, bytes]:
         self.auth_service._require_authenticated_operator(session_token)
@@ -392,7 +419,11 @@ class FileManagerService:
         if normalized == DOCKER_VOLUMES_ROOT_SENTINEL:
             return "", self._docker_volumes_root_path(), "volumes"
         if normalized == PLATFORM_GATEWAY_CERTIFICATES_SENTINEL:
-            return PLATFORM_GATEWAY_CERTIFICATES_SENTINEL, self._platform_gateway_certificates_root_path(), PLATFORM_GATEWAY_CERTIFICATES_SENTINEL
+            return (
+                PLATFORM_GATEWAY_CERTIFICATES_SENTINEL,
+                self._platform_gateway_certificates_root_path(),
+                PLATFORM_GATEWAY_CERTIFICATES_SENTINEL,
+            )
 
         volume_name = self._require_known_volume(normalized)
         return volume_name, self._resolve_volume_root_path(volume_name), volume_name
@@ -422,7 +453,9 @@ class FileManagerService:
         return "/var/lib/docker/volumes"
 
     def _platform_gateway_certificates_root_path(self) -> str:
-        default_cert = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
+        default_cert = os.getenv(
+            "WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert"
+        )
         return os.path.dirname(default_cert)
 
     def _resolve_volume_root_path(self, volume_name: str) -> str:
@@ -438,13 +471,15 @@ class FileManagerService:
         try:
             if callable(get_volume):
                 return get_volume(volume_name)
+            if volume_manager is None:
+                raise CustomException(500, "File Operation Error", "The Docker client exposes no volumes")
             return next(item for item in volume_manager.list() if self._volume_name(item) == volume_name)
         except StopIteration:
-            raise CustomException(404, "Volume Not Found", "The requested Docker volume does not exist")
+            raise CustomException(404, "Volume Not Found", "The requested Docker volume does not exist") from None
         except CustomException:
             raise
         except Exception as exc:
-            raise CustomException(500, "File Operation Error", f"Failed to resolve Docker volume: {exc}")
+            raise CustomException(500, "File Operation Error", f"Failed to resolve Docker volume: {exc}") from exc
 
     def _delete_volume_root(self, volume_name: str) -> None:
         volume = self._resolve_volume(volume_name)
@@ -455,13 +490,13 @@ class FileManagerService:
             remove_volume(force=True)
             self._invalidate_volume_name_cache()
         except Exception as exc:
-            raise CustomException(500, "File Operation Error", f"Failed to remove Docker volume: {exc}")
+            raise CustomException(500, "File Operation Error", f"Failed to remove Docker volume: {exc}") from exc
 
     def _list_docker_volumes(self, refresh: bool = False) -> list[Any]:
         try:
             return list(self._get_docker_client().volumes.list())
         except Exception as exc:
-            raise CustomException(500, "File Operation Error", f"Failed to list Docker volumes: {exc}")
+            raise CustomException(500, "File Operation Error", f"Failed to list Docker volumes: {exc}") from exc
 
     def _list_known_volume_names(self) -> set[str]:
         now = time.monotonic()
@@ -517,4 +552,4 @@ class FileManagerService:
 
     def _volume_name(self, volume: Any) -> str:
         attrs = self._volume_attrs(volume)
-        return attrs.get("Name") or getattr(volume, "name", "")
+        return str(attrs.get("Name") or getattr(volume, "name", "") or "")

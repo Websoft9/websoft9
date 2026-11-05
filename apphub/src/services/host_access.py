@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import json
 import logging
@@ -7,14 +8,13 @@ import socket
 import sqlite3
 import stat
 import sys
-import threading
 import tempfile
+import threading
 import time
 import uuid
-from contextlib import contextmanager, ExitStack
+from contextlib import ExitStack, contextmanager, suppress
 from datetime import datetime, timezone
-from io import BytesIO
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator, Optional
 
@@ -138,19 +138,29 @@ class HostAccessService:
                 self._set_active_profile_id(operator["id"], str(verified["profile_id"]))
                 return self._get_profile_for_operator(operator["id"])
             if self._is_local_setup_revoked(operator["id"]) and not allow_recreate:
-                raise CustomException(400, "Local SSH Setup Revoked", "The saved local connection was deleted. Add a local SSH connection manually in Terminal before opening application files.")
+                raise CustomException(
+                    400,
+                    "Local SSH Setup Revoked",
+                    "The saved local connection was deleted. Add a local SSH connection manually in Terminal before opening application files.",
+                )
             credentials = self._read_local_ssh_credentials()
             if credentials is None and allow_recreate:
                 self._prepare_local_ssh_credentials()
                 credentials = self._read_local_ssh_credentials()
             if credentials is not None:
                 os.chmod(self.database_file, 0o600)
-                profile = self._normalize_profile_payload({
-                    "profile_id": f'auto-local-{uuid.uuid4().hex}',
-                    "name": credentials["username"], "host": HOST_ACCESS_HOST,
-                    "port": credentials["port"], "username": credentials["username"],
-                    "auth_method": "key", "private_key": credentials["private_key"], "remember": True,
-                })
+                profile = self._normalize_profile_payload(
+                    {
+                        "profile_id": f'auto-local-{uuid.uuid4().hex}',
+                        "name": credentials["username"],
+                        "host": HOST_ACCESS_HOST,
+                        "port": credentials["port"],
+                        "username": credentials["username"],
+                        "auth_method": "key",
+                        "private_key": credentials["private_key"],
+                        "remember": True,
+                    }
+                )
                 self._ensure_unique_profile_username(operator["id"], profile)
                 response = self.save_profile(session_token, profile)
                 if allow_recreate:
@@ -159,15 +169,23 @@ class HostAccessService:
                         connection.commit()
                 return response
             if failure is not None:
-                raise CustomException(failure.status_code, failure.message,
-                    f"{failure.details}. Create or update the local connection in Terminal using the host account and its valid credentials; check SSH reachability and file permissions.") from failure
-            raise CustomException(400, "Local SSH Setup Unavailable",
-                "Local SSH authorization is unavailable. Confirm automatic local connection setup or create a local connection manually in Terminal. Privileged mode alone does not authorize SSH login; AWS and Azure may require a non-root account.")
+                raise CustomException(
+                    failure.status_code,
+                    failure.message,
+                    f"{failure.details}. Create or update the local connection in Terminal using the host account and its valid credentials; check SSH reachability and file permissions.",
+                ) from failure
+            raise CustomException(
+                400,
+                "Local SSH Setup Unavailable",
+                "Local SSH authorization is unavailable. Confirm automatic local connection setup or create a local connection manually in Terminal. Privileged mode alone does not authorize SSH login; AWS and Azure may require a non-root account.",
+            )
 
     def _prepare_local_ssh_credentials(self, requested_username: str = '') -> None:
         data_root = Path(os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data'))
         if self.data_dir != data_root / 'config/host-access':
-            raise CustomException(400, 'Local SSH Setup Unavailable', 'Host SSH preparation requires the configured platform data directory')
+            raise CustomException(
+                400, 'Local SSH Setup Unavailable', 'Host SSH preparation requires the configured platform data directory'
+            )
         username = requested_username
         port = None
         hint = self.data_dir / 'local-ssh-account.json'
@@ -175,7 +193,13 @@ class HostAccessService:
             descriptor = os.open(hint, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
             with os.fdopen(descriptor) as handle:
                 attributes = os.fstat(handle.fileno())
-                if not stat.S_ISREG(attributes.st_mode) or attributes.st_nlink != 1 or attributes.st_uid != os.geteuid() or attributes.st_mode & 0o077 or attributes.st_size > 2048:
+                if (
+                    not stat.S_ISREG(attributes.st_mode)
+                    or attributes.st_nlink != 1
+                    or attributes.st_uid != os.geteuid()
+                    or attributes.st_mode & 0o077
+                    or attributes.st_size > 2048
+                ):
                     raise CustomException(400, 'Local SSH Setup Unavailable', 'Unsafe SSH account preparation record')
                 account = json.load(handle)
             username = username or account['username']
@@ -184,6 +208,7 @@ class HostAccessService:
         client = None
         try:
             import docker
+
             script = Path(__file__).with_name('host_access_prepare.py').read_text()
             command = ['python3', '-c', script, str(data_root), username]
             if port:
@@ -191,17 +216,30 @@ class HostAccessService:
             client = docker.from_env()
             image = client.containers.get(os.environ['HOSTNAME']).image.id
             container = client.containers.run(
-                image=image, command=command,
+                image=image,
+                command=command,
                 entrypoint=['nsenter', '--target', '1', '--mount', '--net', '--pid', '--root', '--wd', '--'],
-                pid_mode='host', network_mode='host', privileged=True, user='0',
-                detach=True, labels={'owner': 'websoft9', 'websoft9.operation': 'prepare-local-ssh'},
+                pid_mode='host',
+                network_mode='host',
+                privileged=True,
+                user='0',
+                detach=True,
+                labels={'owner': 'websoft9', 'websoft9.operation': 'prepare-local-ssh'},
             )
             if container.wait(timeout=90).get('StatusCode') != 0:
-                raise CustomException(400, 'Local SSH Setup Unavailable', 'Host SSH authorization preparation failed; verify the existing account and SSH login policy')
+                raise CustomException(
+                    400,
+                    'Local SSH Setup Unavailable',
+                    'Host SSH authorization preparation failed; verify the existing account and SSH login policy',
+                )
         except CustomException:
             raise
         except Exception as exc:
-            raise CustomException(400, 'Local SSH Setup Unavailable', 'Unable to prepare host SSH authorization using the platform Docker management channel') from exc
+            raise CustomException(
+                400,
+                'Local SSH Setup Unavailable',
+                'Unable to prepare host SSH authorization using the platform Docker management channel',
+            ) from exc
         finally:
             if container is not None:
                 container.remove(force=True)
@@ -221,7 +259,13 @@ class HostAccessService:
                 descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
                 with os.fdopen(descriptor, "r") as handle:
                     attributes = os.fstat(handle.fileno())
-                    if not stat.S_ISREG(attributes.st_mode) or attributes.st_nlink != 1 or attributes.st_uid != os.geteuid() or attributes.st_mode & 0o077 or attributes.st_size > 64 * 1024:
+                    if (
+                        not stat.S_ISREG(attributes.st_mode)
+                        or attributes.st_nlink != 1
+                        or attributes.st_uid != os.geteuid()
+                        or attributes.st_mode & 0o077
+                        or attributes.st_size > 64 * 1024
+                    ):
                         raise ValueError("Unsafe credential file")
                     contents.append(handle.read())
             metadata = json.loads(contents[0])
@@ -231,10 +275,18 @@ class HostAccessService:
             port = metadata.get("port", HOST_ACCESS_PORT)
             if type(port) is not int or not 1 <= port <= 65535:
                 raise ValueError("Invalid SSH port")
-            return {"username": username.strip(), "private_key": contents[1], "port": port, "authorization_path": str(metadata.get('authorization_path') or '')}
+            return {
+                "username": username.strip(),
+                "private_key": contents[1],
+                "port": port,
+                "authorization_path": str(metadata.get('authorization_path') or ''),
+            }
         except (OSError, ValueError, UnicodeError) as exc:
-            raise CustomException(400, "Local SSH Setup Unavailable",
-                "The prepared local SSH credentials are unreadable or unsafe. Re-run the host SSH preparation step or create a connection manually in Terminal.") from exc
+            raise CustomException(
+                400,
+                "Local SSH Setup Unavailable",
+                "The prepared local SSH credentials are unreadable or unsafe. Re-run the host SSH preparation step or create a connection manually in Terminal.",
+            ) from exc
 
     def test_saved_profile(self, session_token: Optional[str], profile_id: str) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
@@ -257,7 +309,15 @@ class HostAccessService:
             self._clear_active_profile_id(operator["id"])
         return self._get_profile_for_operator(operator["id"])
 
-    def activate_saved_profile(self, session_token: Optional[str], profile_id: str, password: str = "", private_key: str = "", passphrase: str = "", remember: bool = False) -> dict[str, Any]:
+    def activate_saved_profile(
+        self,
+        session_token: Optional[str],
+        profile_id: str,
+        password: str = "",
+        private_key: str = "",
+        passphrase: str = "",
+        remember: bool = False,
+    ) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         with self._lock:
             profile = self._load_saved_profile(operator["id"], profile_id)
@@ -279,17 +339,19 @@ class HostAccessService:
     def set_default_profile(self, session_token: Optional[str], profile_id: str) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         self._ensure_storage()
-        with self._lock:
-            with self._db_connect() as connection:
-                row = connection.execute(
-                    "SELECT profile_id FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
-                    (operator["id"], profile_id),
-                ).fetchone()
-                if row is None:
-                    raise CustomException(404, "Host Access Profile Not Found", "The requested saved login does not exist")
-                connection.execute("UPDATE host_profiles SET is_default = 0 WHERE operator_id = ?", (operator["id"],))
-                connection.execute("UPDATE host_profiles SET is_default = 1 WHERE operator_id = ? AND profile_id = ?", (operator["id"], profile_id))
-                connection.commit()
+        with self._lock, self._db_connect() as connection:
+            row = connection.execute(
+                "SELECT profile_id FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
+                (operator["id"], profile_id),
+            ).fetchone()
+            if row is None:
+                raise CustomException(404, "Host Access Profile Not Found", "The requested saved login does not exist")
+            connection.execute("UPDATE host_profiles SET is_default = 0 WHERE operator_id = ?", (operator["id"],))
+            connection.execute(
+                "UPDATE host_profiles SET is_default = 1 WHERE operator_id = ? AND profile_id = ?",
+                (operator["id"], profile_id),
+            )
+            connection.commit()
         return self._get_profile_for_operator(operator["id"])
 
     def delete_saved_profile(self, session_token: Optional[str], profile_id: str) -> dict[str, Any]:
@@ -299,7 +361,11 @@ class HostAccessService:
 
         with self._lock:
             if self._has_scheduled_tasks(str(operator["id"]), profile_id):
-                raise CustomException(409, "Host Access Profile In Use", "Delete or move the scheduled tasks that use this SSH host before deleting it")
+                raise CustomException(
+                    409,
+                    "Host Access Profile In Use",
+                    "Delete or move the scheduled tasks that use this SSH host before deleting it",
+                )
             with self._db_connect() as connection:
                 row = connection.execute(
                     "SELECT is_default, payload FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
@@ -325,11 +391,10 @@ class HostAccessService:
                 deleted_cache_entry = self._file_browser_clients.get(self._build_file_client_cache_key(deleted_profile))
                 deleted_elevated_sftp = deleted_cache_entry.get("elevated_sftp") if deleted_cache_entry else None
                 if deleted_elevated_sftp is not None:
-                    try:
+                    with suppress(Exception):
                         deleted_elevated_sftp.close()
-                    except Exception:
-                        pass
-                    deleted_cache_entry["elevated_sftp"] = None
+                    if isinstance(deleted_cache_entry, dict):
+                        deleted_cache_entry["elevated_sftp"] = None
 
                 remaining_rows = connection.execute(
                     "SELECT profile_id, is_default, updated_at FROM host_profiles WHERE operator_id = ? ORDER BY is_default DESC, updated_at DESC",
@@ -337,7 +402,9 @@ class HostAccessService:
                 ).fetchall()
 
                 if remaining_rows:
-                    replacement_profile_id = next((str(item["profile_id"]) for item in remaining_rows if item["is_default"]), None)
+                    replacement_profile_id = next(
+                        (str(item["profile_id"]) for item in remaining_rows if item["is_default"]), None
+                    )
                     if replacement_profile_id is None:
                         replacement_profile_id = str(remaining_rows[0]["profile_id"])
                         connection.execute("UPDATE host_profiles SET is_default = 0 WHERE operator_id = ?", (operator["id"],))
@@ -393,7 +460,11 @@ class HostAccessService:
     def _revoke_local_ssh_credentials(self, profile: dict[str, Any]) -> None:
         credentials = self._read_local_ssh_credentials()
         if credentials is None or credentials['private_key'].strip() != str(profile.get('private_key') or '').strip():
-            raise CustomException(400, 'Local SSH Key Cleanup Failed', 'The automatic connection key does not match the prepared host authorization')
+            raise CustomException(
+                400,
+                'Local SSH Key Cleanup Failed',
+                'The automatic connection key does not match the prepared host authorization',
+            )
         key = self._parse_private_key(credentials['private_key'], None)
         script = '''
 import fcntl
@@ -436,7 +507,17 @@ with os.fdopen(descriptor, 'r+b') as handle:
         handle.flush()
         os.fsync(handle.fileno())
 '''
-        command = shlex.join(['python3', '-c', script, credentials['username'], key.get_name(), key.get_base64(), credentials.get('authorization_path', '')])
+        command = shlex.join(
+            [
+                'python3',
+                '-c',
+                script,
+                credentials['username'],
+                key.get_name(),
+                key.get_base64(),
+                credentials.get('authorization_path', ''),
+            ]
+        )
         client = None
         try:
             client = self._connect_client(profile)
@@ -451,9 +532,15 @@ with os.fdopen(descriptor, 'r+b') as handle:
                         sftp.close()
                 except Exception:
                     pass
-            self._run_remote_command(client, command, 'Local SSH Key Cleanup Failed', 'Unable to revoke the automatic SSH public key')
+            self._run_remote_command(
+                client, command, 'Local SSH Key Cleanup Failed', 'Unable to revoke the automatic SSH public key'
+            )
         except CustomException as exc:
-            raise CustomException(400, 'Local SSH Key Cleanup Failed', 'Unable to revoke the automatic SSH public key; check host connectivity and authorization file permissions') from exc
+            raise CustomException(
+                400,
+                'Local SSH Key Cleanup Failed',
+                'Unable to revoke the automatic SSH public key; check host connectivity and authorization file permissions',
+            ) from exc
         finally:
             if client is not None:
                 client.close()
@@ -467,7 +554,11 @@ with os.fdopen(descriptor, 'r+b') as handle:
             (self.data_dir / 'local-ssh.key').unlink()
             (self.data_dir / 'local-ssh.json').unlink()
         except OSError as exc:
-            raise CustomException(400, 'Local SSH Key Cleanup Failed', 'The host key was revoked but the prepared private key could not be removed') from exc
+            raise CustomException(
+                400,
+                'Local SSH Key Cleanup Failed',
+                'The host key was revoked but the prepared private key could not be removed',
+            ) from exc
         with self._lock:
             self._close_file_browser_client_locked(self._build_file_client_cache_key(profile))
 
@@ -478,15 +569,26 @@ with os.fdopen(descriptor, 'r+b') as handle:
         if not database_file.is_file():
             return False
         try:
-            with sqlite3.connect(database_file) as connection:
-                return connection.execute(
-                    "SELECT 1 FROM scheduled_tasks WHERE operator_id = ? AND target = 'host' AND profile_id = ? LIMIT 1",
-                    (operator_id, profile_id),
-                ).fetchone() is not None
+            # `with sqlite3.connect(...)` 只提交事务，不关闭连接；读路径每次调用都会泄漏一个 fd。
+            with contextlib.closing(sqlite3.connect(database_file)) as connection:
+                return (
+                    connection.execute(
+                        "SELECT 1 FROM scheduled_tasks WHERE operator_id = ? AND target = 'host' AND profile_id = ? LIMIT 1",
+                        (operator_id, profile_id),
+                    ).fetchone()
+                    is not None
+                )
         except sqlite3.Error:
             return False
 
-    def file_elevation_status(self, session_token: Optional[str], profile_id: Optional[str] = None, scope: str = 'host', app_id: Optional[str] = None, volume_id: Optional[str] = None) -> dict[str, Any]:
+    def file_elevation_status(
+        self,
+        session_token: Optional[str],
+        profile_id: Optional[str] = None,
+        scope: str = 'host',
+        app_id: Optional[str] = None,
+        volume_id: Optional[str] = None,
+    ) -> dict[str, Any]:
         """Report whether file browsing can run in administrator mode.
 
         Administrator mode is scoped: the host file browser and each application
@@ -497,7 +599,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
         return self._file_elevation_status(profile, key)
 
     @staticmethod
-    def _elevation_key(profile: dict[str, Any], scope: str = 'host', app_id: Optional[str] = None, volume_id: Optional[str] = None) -> str:
+    def _elevation_key(
+        profile: dict[str, Any], scope: str = 'host', app_id: Optional[str] = None, volume_id: Optional[str] = None
+    ) -> str:
         profile_id = str(profile.get('profile_id') or '')
         if scope == 'app':
             return f"app:{app_id or ''}:{volume_id or ''}:{profile_id}"
@@ -511,7 +615,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
         """
         self.auth_service._require_authenticated_operator(session_token)
         profile = self.get_connection_profile(session_token, profile_id=payload.get('profile_id'))
-        key = self._elevation_key(profile, str(payload.get('scope') or 'host'), payload.get('app_id'), payload.get('volume_id'))
+        key = self._elevation_key(
+            profile, str(payload.get('scope') or 'host'), payload.get('app_id'), payload.get('volume_id')
+        )
         enabled = bool(payload.get('enabled'))
         if not self._supports_file_elevation(profile):
             raise CustomException(403, 'SFTP Elevation Unavailable', 'Administrator mode is not available for this connection')
@@ -520,7 +626,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
             return self._file_elevation_status(profile, key)
         status = self._file_elevation_status(profile, key)
         if not status['can_elevate']:
-            raise CustomException(403, 'SFTP Elevation Unavailable', 'The saved SSH account cannot gain administrator privileges')
+            raise CustomException(
+                403, 'SFTP Elevation Unavailable', 'The saved SSH account cannot gain administrator privileges'
+            )
         password = str(payload.get('password') or '')
         if status['requires_password'] and not password:
             raise CustomException(400, 'SFTP Elevation Password Required', 'Enter the sudo password for this SSH account')
@@ -535,11 +643,10 @@ with os.fdopen(descriptor, 'r+b') as handle:
             cache_entry = self._file_browser_clients.get(self._build_file_client_cache_key(profile))
             cached_sftp = cache_entry.get('elevated_sftp') if cache_entry else None
             if cached_sftp is not None:
-                try:
+                with suppress(Exception):
                     cached_sftp.close()
-                except Exception:
-                    pass
-                cache_entry['elevated_sftp'] = None
+                if isinstance(cache_entry, dict):
+                    cache_entry['elevated_sftp'] = None
         return self._file_elevation_status(profile, key)
 
     def _supports_file_elevation(self, profile: dict[str, Any]) -> bool:
@@ -625,15 +732,13 @@ with os.fdopen(descriptor, 'r+b') as handle:
                 if time.time() > deadline:
                     return False
                 time.sleep(0.05)
-            return channel.exit_status == 0
+            return bool(channel.exit_status == 0)
         except Exception:
             return False
         finally:
             if channel is not None:
-                try:
+                with suppress(Exception):
                     channel.close()
-                except Exception:
-                    pass
 
     def _elevated_sftp_works(self, client: paramiko.SSHClient, password: Optional[str]) -> bool:
         try:
@@ -642,10 +747,8 @@ with os.fdopen(descriptor, 'r+b') as handle:
             return False
         except Exception:
             return False
-        try:
+        with suppress(Exception):
             sftp.close()
-        except Exception:
-            pass
         return True
 
     def _clear_file_elevation(self, profile: dict[str, Any], key: str) -> None:
@@ -654,11 +757,10 @@ with os.fdopen(descriptor, 'r+b') as handle:
             cache_entry = self._file_browser_clients.get(self._build_file_client_cache_key(profile))
             cached_sftp = cache_entry.get('elevated_sftp') if cache_entry else None
             if cached_sftp is not None:
-                try:
+                with suppress(Exception):
                     cached_sftp.close()
-                except Exception:
-                    pass
-                cache_entry['elevated_sftp'] = None
+                if isinstance(cache_entry, dict):
+                    cache_entry['elevated_sftp'] = None
 
     def _resolve_file_elevation(self, profile: dict[str, Any], key: Optional[str] = None) -> tuple[bool, str]:
         elevation_key = key or profile.get('_elevation_key') or self._elevation_key(profile, 'host')
@@ -672,12 +774,20 @@ with os.fdopen(descriptor, 'r+b') as handle:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         with self._open_sftp(profile) as sftp:
             resolved = self._resolve_directory_path(sftp, path or profile["working_directory"])
-            directory_entries = sorted(sftp.listdir_attr(resolved), key=lambda item: (not stat.S_ISDIR(item.st_mode), item.filename.lower()))
+            directory_entries = sorted(
+                sftp.listdir_attr(resolved), key=lambda item: (not stat.S_ISDIR(item.st_mode), item.filename.lower())
+            )
             metadata_entry = sftp.stat(resolved)
             owner_labels, group_labels = self._load_identity_labels(
                 sftp,
-                [self._extract_stat_id(metadata_entry, "st_uid"), *[self._extract_stat_id(entry, "st_uid") for entry in directory_entries]],
-                [self._extract_stat_id(metadata_entry, "st_gid"), *[self._extract_stat_id(entry, "st_gid") for entry in directory_entries]],
+                [
+                    self._extract_stat_id(metadata_entry, "st_uid"),
+                    *[self._extract_stat_id(entry, "st_uid") for entry in directory_entries],
+                ],
+                [
+                    self._extract_stat_id(metadata_entry, "st_gid"),
+                    *[self._extract_stat_id(entry, "st_gid") for entry in directory_entries],
+                ],
             )
             metadata = self._build_path_metadata(
                 sftp,
@@ -701,9 +811,8 @@ with os.fdopen(descriptor, 'r+b') as handle:
     def read_text_file(self, session_token: Optional[str], path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_path = self._normalize_remote_path(path)
-        with self._open_sftp(profile) as sftp:
-            with sftp.open(normalized_path, "r") as handle:
-                payload = handle.read(TEXT_FILE_PREVIEW_LIMIT + 1)
+        with self._open_sftp(profile) as sftp, sftp.open(normalized_path, "r") as handle:
+            payload = handle.read(TEXT_FILE_PREVIEW_LIMIT + 1)
         if isinstance(payload, str):
             content = payload
         else:
@@ -712,10 +821,12 @@ with os.fdopen(descriptor, 'r+b') as handle:
             try:
                 content = payload.decode("utf-8")
             except UnicodeDecodeError as exc:
-                raise CustomException(400, "Unsupported File", f"Only UTF-8 text files can be previewed: {exc}")
+                raise CustomException(400, "Unsupported File", f"Only UTF-8 text files can be previewed: {exc}") from exc
         return {"path": normalized_path, "content": content}
 
-    def write_text_file(self, session_token: Optional[str], path: str, content: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+    def write_text_file(
+        self, session_token: Optional[str], path: str, content: str, profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_path = self._normalize_remote_path(path)
         with self._open_sftp(profile) as sftp:
@@ -724,10 +835,12 @@ with os.fdopen(descriptor, 'r+b') as handle:
                 with sftp.open(normalized_path, "w") as handle:
                     handle.write(content)
             except IOError as exc:
-                raise CustomException(400, "Write Failed", f"Failed to save file: {exc}")
+                raise CustomException(400, "Write Failed", f"Failed to save file: {exc}") from exc
         return {"path": normalized_path, "operation": "write"}
 
-    def create_directory(self, session_token: Optional[str], parent_path: str, name: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+    def create_directory(
+        self, session_token: Optional[str], parent_path: str, name: str, profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         with self._open_sftp(profile) as sftp:
             resolved_parent = self._resolve_directory_path(sftp, parent_path)
@@ -735,10 +848,12 @@ with os.fdopen(descriptor, 'r+b') as handle:
             try:
                 sftp.mkdir(target_path)
             except IOError as exc:
-                raise CustomException(400, "Create Directory Failed", f"Failed to create directory: {exc}")
+                raise CustomException(400, "Create Directory Failed", f"Failed to create directory: {exc}") from exc
         return {"path": target_path, "operation": "create-directory"}
 
-    def create_empty_file(self, session_token: Optional[str], parent_path: str, name: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+    def create_empty_file(
+        self, session_token: Optional[str], parent_path: str, name: str, profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         with self._open_sftp(profile) as sftp:
             resolved_parent = self._resolve_directory_path(sftp, parent_path)
@@ -750,12 +865,16 @@ with os.fdopen(descriptor, 'r+b') as handle:
                 try:
                     existing = sftp.stat(target_path)
                 except IOError as exc:
-                    raise CustomException(400, "Create File Failed", f"Failed to create file: {exc}")
+                    raise CustomException(400, "Create File Failed", f"Failed to create file: {exc}") from exc
                 if existing:
-                    raise CustomException(400, "Create File Failed", "A file or directory with the same name already exists")
+                    raise CustomException(
+                        400, "Create File Failed", "A file or directory with the same name already exists"
+                    ) from None
         return {"path": target_path, "operation": "create-file"}
 
-    def rename_item(self, session_token: Optional[str], source_path: str, target_name: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+    def rename_item(
+        self, session_token: Optional[str], source_path: str, target_name: str, profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_source = self._normalize_remote_path(source_path)
         parent_path = str(PurePosixPath(normalized_source).parent) or "/"
@@ -775,7 +894,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
             try:
                 sftp.rename(normalized_source, target_path)
             except IOError as exc:
-                raise CustomException(400, "Rename Failed", f"Failed to rename item: {exc}")
+                raise CustomException(400, "Rename Failed", f"Failed to rename item: {exc}") from exc
 
         return {"path": target_path, "operation": "rename"}
 
@@ -793,7 +912,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
                 else:
                     sftp.remove(normalized_path)
             except IOError as exc:
-                raise CustomException(400, "Delete Failed", f"Failed to delete item: {exc}")
+                raise CustomException(400, "Delete Failed", f"Failed to delete item: {exc}") from exc
 
         return {"path": normalized_path, "operation": "delete"}
 
@@ -803,13 +922,15 @@ with os.fdopen(descriptor, 'r+b') as handle:
         with self._open_sftp(profile) as sftp:
             entry = self._ensure_remote_exists(sftp, normalized_path)
             if stat.S_ISDIR(int(getattr(entry, "st_mode", 0) or 0)):
-                raise CustomException(400, "Download Failed", "Directories cannot be downloaded from the terminal file browser")
+                raise CustomException(
+                    400, "Download Failed", "Directories cannot be downloaded from the terminal file browser"
+                )
 
             try:
                 with sftp.open(normalized_path, "rb") as handle:
                     content = handle.read()
             except IOError as exc:
-                raise CustomException(400, "Download Failed", f"Failed to download file: {exc}")
+                raise CustomException(400, "Download Failed", f"Failed to download file: {exc}") from exc
 
         return {
             "file_name": PurePosixPath(normalized_path).name or "download",
@@ -817,7 +938,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
             "content": content,
         }
 
-    def update_item_attributes(self, session_token: Optional[str], payload: dict[str, Any], profile_id: Optional[str] = None) -> dict[str, Any]:
+    def update_item_attributes(
+        self, session_token: Optional[str], payload: dict[str, Any], profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_source = self._normalize_remote_path(payload.get("source_path"))
         target_name = str(payload.get("target_name") or "").strip() or None
@@ -827,7 +950,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
         with self._open_file_client(profile) as client:
             sftp = client.open_sftp()
             try:
-                entry = self._ensure_remote_exists(sftp, normalized_source)
+                self._ensure_remote_exists(sftp, normalized_source)
                 target_path = normalized_source
 
                 if target_name and target_name != PurePosixPath(normalized_source).name:
@@ -839,11 +962,13 @@ with os.fdopen(descriptor, 'r+b') as handle:
                     except IOError:
                         pass
                     else:
-                        raise CustomException(400, "Update Attributes Failed", "A file or directory with the same name already exists")
+                        raise CustomException(
+                            400, "Update Attributes Failed", "A file or directory with the same name already exists"
+                        )
                     try:
                         sftp.rename(normalized_source, target_path)
                     except IOError as exc:
-                        raise CustomException(400, "Update Attributes Failed", f"Failed to rename item: {exc}")
+                        raise CustomException(400, "Update Attributes Failed", f"Failed to rename item: {exc}") from exc
 
                 permission_mode = self._build_permission_mode(payload)
                 if owner is not None or group is not None:
@@ -882,7 +1007,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
 
         return {"path": target_path, "operation": "update-attributes", "metadata": metadata}
 
-    def copy_item(self, session_token: Optional[str], source_path: str, destination_path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+    def copy_item(
+        self, session_token: Optional[str], source_path: str, destination_path: str, profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_source = self._normalize_remote_path(source_path)
         if normalized_source == "/":
@@ -914,7 +1041,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
 
         return {"path": target_path, "operation": "copy"}
 
-    def move_item(self, session_token: Optional[str], source_path: str, destination_path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+    def move_item(
+        self, session_token: Optional[str], source_path: str, destination_path: str, profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_source = self._normalize_remote_path(source_path)
         if normalized_source == "/":
@@ -936,11 +1065,13 @@ with os.fdopen(descriptor, 'r+b') as handle:
             try:
                 sftp.rename(normalized_source, target_path)
             except IOError as exc:
-                raise CustomException(400, "Move Failed", f"Failed to move item: {exc}")
+                raise CustomException(400, "Move Failed", f"Failed to move item: {exc}") from exc
 
         return {"path": target_path, "operation": "move"}
 
-    def upload_file(self, session_token: Optional[str], parent_path: str, file_name: str, payload: bytes, profile_id: Optional[str] = None) -> dict[str, Any]:
+    def upload_file(
+        self, session_token: Optional[str], parent_path: str, file_name: str, payload: bytes, profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)
         with self._open_sftp(profile) as sftp:
             resolved_parent = self._resolve_directory_path(sftp, parent_path)
@@ -948,7 +1079,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
             try:
                 sftp.putfo(BytesIO(payload), target_path)
             except IOError as exc:
-                raise CustomException(400, "Upload Failed", f"Failed to upload file: {exc}")
+                raise CustomException(400, "Upload Failed", f"Failed to upload file: {exc}") from exc
         return {"path": target_path, "operation": "upload"}
 
     def get_connection_profile(self, session_token: Optional[str], profile_id: Optional[str] = None) -> dict[str, Any]:
@@ -960,11 +1091,15 @@ with os.fdopen(descriptor, 'r+b') as handle:
                 return runtime
             profile = self._load_saved_profile(operator['id'], normalized_profile_id)
             if profile is None:
-                raise CustomException(400, 'Host Access Profile Not Found', 'The requested host profile is unavailable for file operations')
+                raise CustomException(
+                    400, 'Host Access Profile Not Found', 'The requested host profile is unavailable for file operations'
+                )
             return profile
         profile = self._resolve_active_profile(operator["id"])
         if profile is None:
-            raise CustomException(400, "Host Access Not Configured", "Sign in to the local host before browsing files or opening a terminal")
+            raise CustomException(
+                400, "Host Access Not Configured", "Sign in to the local host before browsing files or opening a terminal"
+            )
         return profile
 
     def _get_profile_for_operator(self, operator_id: str) -> dict[str, Any]:
@@ -982,7 +1117,8 @@ with os.fdopen(descriptor, 'r+b') as handle:
         """
         state_file = self.data_dir / "app-sftp-account.json"
         key_file = self.data_dir / "sftp.key"
-        if not state_file.is_file() or not key_file.is_file(): return profiles
+        if not state_file.is_file() or not key_file.is_file():
+            return profiles
         try:
             state = json.loads(state_file.read_text())
         except (OSError, ValueError):
@@ -1035,7 +1171,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
             "shell": active_profile.get("shell"),
         }
 
-    def _resolve_active_profile(self, operator_id: str, saved_profiles: Optional[list[dict[str, Any]]] = None) -> Optional[dict[str, Any]]:
+    def _resolve_active_profile(
+        self, operator_id: str, saved_profiles: Optional[list[dict[str, Any]]] = None
+    ) -> Optional[dict[str, Any]]:
         profiles = saved_profiles if saved_profiles is not None else self._list_operator_profiles(operator_id)
         active_profile_id = self._get_active_profile_id(operator_id)
 
@@ -1074,9 +1212,10 @@ with os.fdopen(descriptor, 'r+b') as handle:
 
         self._runtime_profiles[operator_id] = dict(profile)
         return dict(profile)
-        return None
 
-    def open_terminal_channel(self, session_token: Optional[str], cols: int, rows: int, profile_id: Optional[str] = None) -> tuple[paramiko.SSHClient, Any, dict[str, Any]]:
+    def open_terminal_channel(
+        self, session_token: Optional[str], cols: int, rows: int, profile_id: Optional[str] = None
+    ) -> tuple[paramiko.SSHClient, Any, dict[str, Any]]:
         profile = self.get_connection_profile(session_token, profile_id)
         client = self._connect_client(profile)
         transport = client.get_transport()
@@ -1092,7 +1231,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
             channel.invoke_shell()
         return client, channel, profile
 
-    def attach_terminal_session(self, session_token: Optional[str], session_id: str, cols: int, rows: int, profile_id: Optional[str] = None) -> dict[str, Any]:
+    def attach_terminal_session(
+        self, session_token: Optional[str], session_id: str, cols: int, rows: int, profile_id: Optional[str] = None
+    ) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         normalized_session_id = str(session_id or '').strip()
         if not normalized_session_id:
@@ -1103,7 +1244,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
             existing = self._terminal_sessions.get(normalized_session_id)
             if existing is not None:
                 if existing['operator_id'] != operator['id']:
-                    raise CustomException(403, 'Terminal Session Forbidden', 'The requested terminal session belongs to a different operator')
+                    raise CustomException(
+                        403, 'Terminal Session Forbidden', 'The requested terminal session belongs to a different operator'
+                    )
                 if self._is_terminal_session_alive_locked(existing):
                     existing['detached_at'] = None
                     existing['attachments'] = int(existing.get('attachments', 1)) + 1
@@ -1118,7 +1261,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
                     }
                 self._close_terminal_session_locked(normalized_session_id)
 
-        client, channel, profile = self.open_terminal_channel(session_token=session_token, cols=cols, rows=rows, profile_id=profile_id)
+        client, channel, profile = self.open_terminal_channel(
+            session_token=session_token, cols=cols, rows=rows, profile_id=profile_id
+        )
         terminal_session = {
             'operator_id': operator['id'],
             'client': client,
@@ -1186,7 +1331,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
             if session is None:
                 return
             if session['operator_id'] != operator['id']:
-                raise CustomException(403, 'Terminal Session Forbidden', 'The requested terminal session belongs to a different operator')
+                raise CustomException(
+                    403, 'Terminal Session Forbidden', 'The requested terminal session belongs to a different operator'
+                )
             self._close_terminal_session_locked(normalized_session_id)
 
     def _get_terminal_session_for_io(self, session_id: str) -> dict[str, Any]:
@@ -1390,11 +1537,11 @@ with os.fdopen(descriptor, 'r+b') as handle:
             return sftp
         except Exception as error:
             if channel is not None:
-                try:
+                with suppress(Exception):
                     channel.close()
-                except Exception:
-                    pass
-            raise CustomException(403, "SFTP Elevation Failed", "The saved SSH account could not gain administrator privileges") from error
+            raise CustomException(
+                403, "SFTP Elevation Failed", "The saved SSH account could not gain administrator privileges"
+            ) from error
 
     @contextmanager
     def _open_sftp_impl(self, profile: dict[str, Any]) -> Iterator[paramiko.SFTPClient]:
@@ -1429,10 +1576,8 @@ with os.fdopen(descriptor, 'r+b') as handle:
                             sftp = cached_sftp
                         else:
                             if cached_sftp is not None:
-                                try:
+                                with suppress(Exception):
                                     cached_sftp.close()
-                                except Exception:
-                                    pass
                             sftp = self._open_file_sftp(client, use_elevated, sudo_password)
                             cache_entry[sftp_key] = sftp
                     else:
@@ -1441,14 +1586,17 @@ with os.fdopen(descriptor, 'r+b') as handle:
 
                     yield sftp
                 except Exception:
-                    if cache_entry is not None and sftp is not None:
+                    # Bind the callable up front: this is a generator, so mypy cannot keep the
+                    # `sftp is not None` narrowing from the exception handler across the lock.
+                    current_sftp = sftp
+                    close_sftp = getattr(current_sftp, "close", None) if current_sftp is not None else None
+                    if cache_entry is not None and close_sftp is not None:
                         with self._lock:
-                            if cache_entry.get(sftp_key) is sftp:
-                                try:
-                                    sftp.close()
-                                except Exception:
-                                    pass
-                                cache_entry[sftp_key] = None
+                            if cache_entry.get(sftp_key) is current_sftp:
+                                with suppress(Exception):
+                                    close_sftp()
+                                if isinstance(cache_entry, dict):
+                                    cache_entry[sftp_key] = None
                     raise
                 finally:
                     if cache_entry is not None:
@@ -1461,7 +1609,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
         except CustomException:
             raise
         except Exception as exc:
-            raise CustomException(500, "SFTP Error", f"Failed to open SFTP session: {exc}")
+            raise CustomException(500, "SFTP Error", f"Failed to open SFTP session: {exc}") from exc
         finally:
             if should_close_on_exit and sftp is not None:
                 sftp.close()
@@ -1497,10 +1645,8 @@ with os.fdopen(descriptor, 'r+b') as handle:
         for key in ("sftp", "elevated_sftp"):
             sftp = cache_entry.get(key) if cache_entry else None
             if sftp is not None:
-                try:
+                with suppress(Exception):
                     sftp.close()
-                except Exception:
-                    pass
         client = cache_entry.get("client") if cache_entry else None
         if client is None:
             return
@@ -1541,7 +1687,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
         if profile["auth_method"] == "password":
             connect_kwargs["password"] = profile.get("password") or ""
         else:
-            connect_kwargs["pkey"] = self._parse_private_key(profile.get("private_key") or "", profile.get("passphrase") or None)
+            connect_kwargs["pkey"] = self._parse_private_key(
+                profile.get("private_key") or "", profile.get("passphrase") or None
+            )
             if profile.get("passphrase"):
                 connect_kwargs["password"] = profile["passphrase"]
         try:
@@ -1557,13 +1705,25 @@ with os.fdopen(descriptor, 'r+b') as handle:
                         profile.get("password") or "",
                     )
                 except Exception as fallback_exc:
-                    raise CustomException(400, "SSH Authentication Failed", f"Unable to connect to the local host over SSH ({target_host}:{target_port}): {fallback_exc}") from exc
-            raise CustomException(400, "SSH Authentication Failed", f"Unable to connect to the local host over SSH ({target_host}:{target_port}): {exc}") from exc
+                    raise CustomException(
+                        400,
+                        "SSH Authentication Failed",
+                        f"Unable to connect to the local host over SSH ({target_host}:{target_port}): {fallback_exc}",
+                    ) from exc
+            raise CustomException(
+                400,
+                "SSH Authentication Failed",
+                f"Unable to connect to the local host over SSH ({target_host}:{target_port}): {exc}",
+            ) from exc
         except CustomException:
             raise
         except Exception as exc:
             client.close()
-            raise CustomException(400, "SSH Authentication Failed", f"Unable to connect to the local host over SSH ({target_host}:{target_port}): {exc}")
+            raise CustomException(
+                400,
+                "SSH Authentication Failed",
+                f"Unable to connect to the local host over SSH ({target_host}:{target_port}): {exc}",
+            ) from exc
         return client
 
     def _connect_client_with_password_fallback(self, host: str, port: int, username: str, password: str) -> paramiko.SSHClient:
@@ -1654,7 +1814,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
         )
         try:
             _, stdout, _ = client.exec_command(command, timeout=10)
-            output = stdout.read().decode("utf-8", errors="ignore").strip()
+            output = str(stdout.read().decode("utf-8", errors="ignore")).strip()
         except Exception:
             return ""
 
@@ -1676,7 +1836,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
             sftp.chdir(candidate)
             return str(PurePosixPath(sftp.normalize(".")))
         except IOError as exc:
-            raise CustomException(400, "Invalid Directory", f"The requested working directory is not accessible: {exc}")
+            raise CustomException(
+                400, "Invalid Directory", f"The requested working directory is not accessible: {exc}"
+            ) from exc
 
     def _normalize_profile_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         host = self._normalize_host_value(payload.get("host"))
@@ -1689,7 +1851,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
         working_directory = str(payload.get("working_directory") or "").strip()
         shell = str(payload.get("shell") or "").strip() or "/bin/bash"
         port = self._normalize_port_value(payload.get("port"))
-        profile = {
+        profile: dict[str, Any] = {
             "profile_id": str(payload.get("profile_id") or uuid.uuid4()),
             "name": name,
             "description": description,
@@ -1757,7 +1919,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
         try:
             port = int(str(value).strip())
         except ValueError as exc:
-            raise CustomException(400, "Invalid Request", f"Port must be an integer: {exc}")
+            raise CustomException(400, "Invalid Request", f"Port must be an integer: {exc}") from exc
         if port < 1 or port > 65535:
             raise CustomException(400, "Invalid Request", "Port must be between 1 and 65535")
         return port
@@ -1792,11 +1954,15 @@ with os.fdopen(descriptor, 'r+b') as handle:
         # Use paramiko's built-in key_classes list when available (paramiko ≥5.x),
         # otherwise fall back to a hard-coded tuple compatible with older versions.
         try:
-            candidates = list(paramiko.key_classes) if hasattr(paramiko, "key_classes") else [
-                paramiko.RSAKey,
-                paramiko.Ed25519Key,
-                paramiko.ECDSAKey,
-            ]
+            candidates = (
+                list(paramiko.key_classes)
+                if hasattr(paramiko, "key_classes")
+                else [
+                    paramiko.RSAKey,
+                    paramiko.Ed25519Key,
+                    paramiko.ECDSAKey,
+                ]
+            )
         except AttributeError:
             candidates = [
                 paramiko.RSAKey,
@@ -1857,7 +2023,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
             try:
                 entry = sftp.stat(path)
             except IOError as exc:
-                raise CustomException(400, "Invalid Directory", f"The requested working directory is not accessible: {exc}")
+                raise CustomException(
+                    400, "Invalid Directory", f"The requested working directory is not accessible: {exc}"
+                ) from exc
 
         normalized_path = self._normalize_remote_path(path)
         is_directory = stat.S_ISDIR(int(getattr(entry, "st_mode", 0) or 0))
@@ -1880,7 +2048,8 @@ with os.fdopen(descriptor, 'r+b') as handle:
 
     def _extract_stat_id(self, entry: Any, key: str) -> Optional[int]:
         try:
-            return int(getattr(entry, key, None))
+            value = getattr(entry, key, None)
+            return int(value) if value is not None else None
         except Exception:
             return None
 
@@ -1894,7 +2063,9 @@ with os.fdopen(descriptor, 'r+b') as handle:
                 return f"{label}({identity_value})"
         return identity_value
 
-    def _load_identity_labels(self, sftp: paramiko.SFTPClient, owner_ids: list[Optional[int]], group_ids: list[Optional[int]]) -> tuple[dict[int, str], dict[int, str]]:
+    def _load_identity_labels(
+        self, sftp: paramiko.SFTPClient, owner_ids: list[Optional[int]], group_ids: list[Optional[int]]
+    ) -> tuple[dict[int, str], dict[int, str]]:
         normalized_owner_ids = [identity_id for identity_id in dict.fromkeys(owner_ids) if identity_id is not None]
         normalized_group_ids = [identity_id for identity_id in dict.fromkeys(group_ids) if identity_id is not None]
         return (
@@ -1938,10 +2109,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
         except Exception:
             payload = b""
 
-        if isinstance(payload, bytes):
-            text = payload.decode("utf-8", errors="ignore")
-        else:
-            text = str(payload)
+        text = payload.decode("utf-8", errors="ignore") if isinstance(payload, bytes) else str(payload)
 
         for line in text.splitlines():
             if not line or line.startswith("#"):
@@ -1966,7 +2134,11 @@ with os.fdopen(descriptor, 'r+b') as handle:
     def _build_permission_mode(self, payload: dict[str, Any]) -> Optional[str]:
         def value_for(key: str) -> int:
             bits = payload.get(key) or {}
-            return (4 if bool(bits.get("read")) else 0) + (2 if bool(bits.get("write")) else 0) + (1 if bool(bits.get("execute")) else 0)
+            return (
+                (4 if bool(bits.get("read")) else 0)
+                + (2 if bool(bits.get("write")) else 0)
+                + (1 if bool(bits.get("execute")) else 0)
+            )
 
         owner_bits = value_for("owner_permissions")
         group_bits = value_for("group_permissions")
@@ -1979,7 +2151,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
             exit_code = stdout.channel.recv_exit_status()
             error_text = stderr.read().decode("utf-8", errors="ignore").strip()
         except Exception as exc:
-            raise CustomException(400, title, f"{prefix}: {exc}")
+            raise CustomException(400, title, f"{prefix}: {exc}") from exc
         if exit_code != 0:
             raise CustomException(400, title, f"{prefix}: {error_text or f'Exit code {exit_code}'}")
 
@@ -2013,13 +2185,12 @@ with os.fdopen(descriptor, 'r+b') as handle:
     def _store_file_preferences(self, operator_id: str, preferences: dict[str, Any]) -> None:
         self._ensure_storage()
         normalized = self._normalize_file_preferences(preferences)
-        with self._lock:
-            with self._db_connect() as connection:
-                connection.execute(
-                    "INSERT OR REPLACE INTO host_file_preferences (operator_id, payload, updated_at) VALUES (?, ?, ?)",
-                    (operator_id, json.dumps(normalized), datetime.now(timezone.utc).isoformat()),
-                )
-                connection.commit()
+        with self._lock, self._db_connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO host_file_preferences (operator_id, payload, updated_at) VALUES (?, ?, ?)",
+                (operator_id, json.dumps(normalized), datetime.now(timezone.utc).isoformat()),
+            )
+            connection.commit()
 
     def _format_timestamp(self, value: Optional[float]) -> Optional[str]:
         if value is None:
@@ -2117,7 +2288,7 @@ with os.fdopen(descriptor, 'r+b') as handle:
         try:
             return sftp.stat(path)
         except IOError as exc:
-            raise CustomException(400, "Invalid Path", f"The requested path does not exist: {exc}")
+            raise CustomException(400, "Invalid Path", f"The requested path does not exist: {exc}") from exc
 
     def _remove_directory_tree(self, sftp: paramiko.SFTPClient, path: str) -> None:
         for entry in sftp.listdir_attr(path):
@@ -2149,13 +2320,17 @@ with os.fdopen(descriptor, 'r+b') as handle:
             payload_host = str(payload.get("host") or "").strip().casefold()
             payload_username = str(payload.get("username") or "").strip().casefold()
             if payload_host == normalized_host and payload_username == normalized_username:
-                raise CustomException(400, "Duplicate Host Access Profile", "A saved connection with this host and username already exists")
+                raise CustomException(
+                    400, "Duplicate Host Access Profile", "A saved connection with this host and username already exists"
+                )
 
     def _mark_default_profile(self, operator_id: str, profile_id: str) -> None:
         self._ensure_storage()
         with self._db_connect() as connection:
             connection.execute("UPDATE host_profiles SET is_default = 0 WHERE operator_id = ?", (operator_id,))
-            connection.execute("UPDATE host_profiles SET is_default = 1 WHERE operator_id = ? AND profile_id = ?", (operator_id, profile_id))
+            connection.execute(
+                "UPDATE host_profiles SET is_default = 1 WHERE operator_id = ? AND profile_id = ?", (operator_id, profile_id)
+            )
             connection.commit()
 
     def _ensure_storage(self) -> None:
@@ -2199,16 +2374,18 @@ with os.fdopen(descriptor, 'r+b') as handle:
             ).fetchone()
         return row is not None
 
-    def _db_connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _db_connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.database_file)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def _initialize_schema(self, connection: sqlite3.Connection) -> None:
-        existing_columns = {
-            str(row[1])
-            for row in connection.execute("PRAGMA table_info(host_profiles)").fetchall()
-        }
+        existing_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(host_profiles)").fetchall()}
         if existing_columns and "profile_id" not in existing_columns:
             connection.execute(
                 """

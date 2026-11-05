@@ -1,9 +1,9 @@
+import contextlib
 import json
 import sys
 from pathlib import Path
 
 import pytest
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -16,10 +16,12 @@ from src.services import product_runtime_state as runtime_state_service
 def _configure_runtime_state_paths(tmp_path, monkeypatch, *, version='2.3.0'):
     version_path = tmp_path / 'version.json'
     version_path.write_text(
-        json.dumps({
-            'version': version,
-            'edition_key': 'free',
-        }),
+        json.dumps(
+            {
+                'version': version,
+                'edition_key': 'free',
+            }
+        ),
         encoding='utf-8',
     )
     monkeypatch.setattr(runtime_state_service, 'VERSION_FILE', version_path)
@@ -119,12 +121,14 @@ def test_migrate_product_metadata_clears_existing_app_limit(tmp_path, monkeypatc
 def test_migrate_product_metadata_clears_source_state_app_limit(tmp_path, monkeypatch):
     _configure_runtime_state_paths(tmp_path, monkeypatch, version='3.0.0')
     store = runtime_state_service.ProductRuntimeStateStore()
-    migrated = runtime_state_service.migrate_product_runtime_state(source_state={
-        'edition_key': 'enterprise',
-        'max_apps': 10000,
-        'state_source': 'legacy-migration',
-        'updated_by': 'test',
-    })
+    migrated = runtime_state_service.migrate_product_runtime_state(
+        source_state={
+            'edition_key': 'enterprise',
+            'max_apps': 10000,
+            'state_source': 'legacy-migration',
+            'updated_by': 'test',
+        }
+    )
 
     assert migrated.key == 'enterprise'
     assert migrated.max_apps is None
@@ -150,8 +154,10 @@ def test_migrate_product_metadata_rejects_nonstandard_legacy_max_apps(tmp_path, 
 @pytest.mark.parametrize("query", ["metadata", "edition", "settings", "overview"])
 def test_cli_product_queries_only_open_existing_database_readonly(tmp_path, monkeypatch, query):
     import sqlite3
-    from click.testing import CliRunner
     from unittest.mock import MagicMock
+
+    from click.testing import CliRunner
+
     from src.cli.overview_commands import overview_group
     from src.cli.settings_commands import settings_group
     from src.schemas.overview import OverviewAppsSummary
@@ -198,6 +204,7 @@ def test_cli_product_queries_only_open_existing_database_readonly(tmp_path, monk
 @pytest.mark.parametrize("storage", ["missing", "corrupt", "missing-table", "empty-state"])
 def test_readonly_product_state_errors_do_not_create_or_repair_storage(tmp_path, monkeypatch, storage):
     import sqlite3
+
     from src.core.exception import CustomException
 
     _configure_runtime_state_paths(tmp_path, monkeypatch)
@@ -207,8 +214,9 @@ def test_readonly_product_state_errors_do_not_create_or_repair_storage(tmp_path,
         if storage == "corrupt":
             database.write_bytes(b"invalid sqlite fixture")
         elif storage == "missing-table":
-            with sqlite3.connect(database) as connection:
+            with contextlib.closing(sqlite3.connect(database)) as connection:
                 connection.execute("CREATE TABLE unrelated (id INTEGER)")
+                connection.commit()
         else:
             runtime_state_service.ProductRuntimeStateStore()
     before = database.read_bytes() if database.exists() else None

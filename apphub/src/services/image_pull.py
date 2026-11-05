@@ -14,11 +14,11 @@ ordered plan (`build_pull_plan`) and runs it on either Docker client.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import io
 import json
 import re
 import tarfile
+from dataclasses import dataclass
 from typing import Mapping, Sequence
 
 import yaml
@@ -26,7 +26,6 @@ import yaml
 from src.core.logger import logger
 from src.services.docker_mirror_store import (
     normalize_mirror_url,
-    parse_mirror_entries,
 )
 from src.services.mirror_registry import Accelerator, MirrorRegistry
 
@@ -92,15 +91,10 @@ def describe_pull_failure(reference: str, failures: "Sequence[PullFailure]") -> 
     lines = [f"Unable to pull image '{reference}'."]
     if failures:
         lines.append(f"Tried {len(failures)} source(s), in order:")
-        lines.extend(
-            f"  - {failure.label} [{failure.reference}]: {failure.reason}"
-            for failure in failures
-        )
+        lines.extend(f"  - {failure.label} [{failure.reference}]: {failure.reason}" for failure in failures)
     else:
         lines.append("No pull source was available for this image.")
-    lines.append(
-        "Check the network and the addresses under 'Settings > Image Accelerator', then retry."
-    )
+    lines.append("Check the network and the addresses under 'Settings > Image Accelerator', then retry.")
     return "\n".join(lines)
 
 
@@ -137,9 +131,7 @@ def split_reference(reference: str) -> tuple[str, str]:
     return repository, tag
 
 
-def load_image_accelerators(
-    *, registry: MirrorRegistry | None = None
-) -> list[Accelerator]:
+def load_image_accelerators(*, registry: MirrorRegistry | None = None) -> list[Accelerator]:
     """Accelerators to try, resolved by the registry in one place.
 
     The operator's table wins when it has entries; the default list is used only when nothing
@@ -301,11 +293,7 @@ def read_image_version(client, reference: str) -> str:
 def image_digest_values(image) -> list[str]:
     """Return the digest values recorded for a local image, whoever served it."""
     attributes = getattr(image, "attrs", None) or {}
-    return [
-        str(entry).rsplit("@", 1)[-1]
-        for entry in attributes.get("RepoDigests") or []
-        if "@sha256:" in str(entry)
-    ]
+    return [str(entry).rsplit("@", 1)[-1] for entry in attributes.get("RepoDigests") or [] if "@sha256:" in str(entry)]
 
 
 def require_local_image(client, reference: str, digest: str = ""):
@@ -351,7 +339,7 @@ def ecr_candidates(reference: str, alias_tags: list[str] | None = None) -> list[
     if "/" not in repository:
         # Docker Hub official image (`docker`, `alpine`, ...). The mirror follows the digest, so
         # a pinned reference stays pinned through it.
-        tail = reference[len(repository) + 1:]
+        tail = reference[len(repository) + 1 :]
         return [f"{ECR_PUBLIC_LIBRARY_REPO}/{repository}:{tail}"]
     return []
 
@@ -367,11 +355,7 @@ def _alias_tags(tag: str, alias_tags: list[str] | None) -> list[str]:
         if name:
             names.append(name)
     names.append("latest")
-    return [
-        name
-        for name in dict.fromkeys(names)
-        if ECR_PUBLIC_ALIAS_PATTERN.match(name) and name != tag
-    ]
+    return [name for name in dict.fromkeys(names) if ECR_PUBLIC_ALIAS_PATTERN.match(name) and name != tag]
 
 
 def pull_with_fallback(
@@ -437,9 +421,7 @@ async def pull_with_fallback_async(
         try:
             if log is not None:
                 await log(f"Pulling image: {attempt.reference}")
-            stream = client.images.pull(
-                attempt.reference, stream=True, auth=attempt.auth_config
-            )
+            stream = client.images.pull(attempt.reference, stream=True, auth=attempt.auth_config)
             async for line in stream:
                 if log is not None:
                     await log(line)
@@ -450,9 +432,7 @@ async def pull_with_fallback_async(
                 reason=concise_reason(exc),
             )
             failures.append(failure)
-            logger.warning(
-                f"Image pull failed ({attempt.label}) for {attempt.reference}: {failure.reason}"
-            )
+            logger.warning(f"Image pull failed ({attempt.label}) for {attempt.reference}: {failure.reason}")
             continue
         await _tag_back_async(client, reference, attempt.reference)
         return attempt.reference
@@ -490,9 +470,7 @@ def _pull_checked(
             reason=f"the image declares {declared} instead of {expected_version}",
         )
         failures.append(failure)
-        logger.warning(
-            f"Discarding {attempt.reference}: it carries {declared}, expected {expected_version}"
-        )
+        logger.warning(f"Discarding {attempt.reference}: it carries {declared}, expected {expected_version}")
         try:
             client.images.remove(attempt.reference)
         except Exception:
@@ -513,9 +491,7 @@ def _pull(
         if is_cancelled is not None and is_cancelled():
             raise InstallCancelled()
         if on_progress is None:
-            return client.images.pull(
-                attempt.reference, auth_config=attempt.auth_config
-            )
+            return client.images.pull(attempt.reference, auth_config=attempt.auth_config)
         stream = client.api.pull(
             attempt.reference,
             stream=True,
@@ -539,9 +515,7 @@ def _pull(
             reason=concise_reason(exc),
         )
         failures.append(failure)
-        logger.warning(
-            f"Image pull failed ({attempt.label}) for {attempt.reference}: {failure.reason}"
-        )
+        logger.warning(f"Image pull failed ({attempt.label}) for {attempt.reference}: {failure.reason}")
         return None
     finally:
         close = getattr(stream, "close", None)
@@ -564,7 +538,7 @@ def _accelerated_references(accelerator: str, reference: str) -> list[str]:
     repository, tag = split_reference(reference)
     if not tag:
         return [f"{accelerator}/{reference}"]
-    tail = reference[len(repository) + 1:]
+    tail = reference[len(repository) + 1 :]
     candidates = [f"{accelerator}/{repository}:{tail}"]
     if "/" not in repository:
         # Docker Hub official images need the library/ prefix on some mirrors.

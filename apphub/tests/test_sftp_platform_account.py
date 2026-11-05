@@ -51,10 +51,19 @@ def test_named_volume_data_directory_is_allowed():
 
 
 def test_resolver_rejects_volume_of_another_application():
-    resolver = AppVolumeResolver(docker_client=docker_client(
-        [container("app-1", [{"Type": "volume", "Name": "data", "Source": "/var/lib/docker/volumes/data/_data"}])],
-        {"data": {"Driver": "local", "Options": {}, "Mountpoint": "/var/lib/docker/volumes/data/_data", "Labels": {"com.docker.compose.project": "other"}}},
-    ))
+    resolver = AppVolumeResolver(
+        docker_client=docker_client(
+            [container("app-1", [{"Type": "volume", "Name": "data", "Source": "/var/lib/docker/volumes/data/_data"}])],
+            {
+                "data": {
+                    "Driver": "local",
+                    "Options": {},
+                    "Mountpoint": "/var/lib/docker/volumes/data/_data",
+                    "Labels": {"com.docker.compose.project": "other"},
+                }
+            },
+        )
+    )
     with pytest.raises(CustomException) as error:
         resolver.resolve("example", "data")
     assert error.value.status_code == 403
@@ -62,10 +71,12 @@ def test_resolver_rejects_volume_of_another_application():
 
 def test_resolver_supports_bind_mount_and_container_identity():
     source = "/srv/example"
-    resolver = AppVolumeResolver(docker_client=docker_client(
-        [container("app-1", [{"Type": "bind", "Source": source, "Destination": "/data"}])],
-        {},
-    ))
+    resolver = AppVolumeResolver(
+        docker_client=docker_client(
+            [container("app-1", [{"Type": "bind", "Source": source, "Destination": "/data"}])],
+            {},
+        )
+    )
     target = resolver.resolve("example", bind_volume_id(source))
     assert target["source_path"] == source
     assert target["container_uid"] == 999
@@ -81,15 +92,19 @@ def test_resolver_rejects_missing_volume():
 
 def test_resolver_probes_container_identity_when_image_declares_no_user():
     source = "/srv/wordpress"
-    resolver = AppVolumeResolver(docker_client=docker_client(
-        [container(
-            "app-1",
-            [{"Type": "bind", "Source": source, "Destination": "/var/www/html"}],
-            user="",
-            stat_output="33:33\n",
-        )],
-        {},
-    ))
+    resolver = AppVolumeResolver(
+        docker_client=docker_client(
+            [
+                container(
+                    "app-1",
+                    [{"Type": "bind", "Source": source, "Destination": "/var/www/html"}],
+                    user="",
+                    stat_output="33:33\n",
+                )
+            ],
+            {},
+        )
+    )
     target = resolver.resolve("example", bind_volume_id(source))
     assert target["container_uid"] == 33
     assert target["container_gid"] == 33
@@ -97,15 +112,19 @@ def test_resolver_probes_container_identity_when_image_declares_no_user():
 
 def test_resolver_keeps_unknown_identity_when_probe_fails():
     source = "/srv/distroless"
-    resolver = AppVolumeResolver(docker_client=docker_client(
-        [container(
-            "app-1",
-            [{"Type": "bind", "Source": source, "Destination": "/data"}],
-            user="",
-            stat_output=None,
-        )],
-        {},
-    ))
+    resolver = AppVolumeResolver(
+        docker_client=docker_client(
+            [
+                container(
+                    "app-1",
+                    [{"Type": "bind", "Source": source, "Destination": "/data"}],
+                    user="",
+                    stat_output=None,
+                )
+            ],
+            {},
+        )
+    )
     target = resolver.resolve("example", bind_volume_id(source))
     assert target["container_uid"] == 0
 
@@ -150,9 +169,7 @@ def test_acl_validate_target_resolves_through_the_host_mount(monkeypatch, tmp_pa
 
 
 def test_acl_helpers_detect_traverse_and_ancestors(tmp_path):
-    access, default = app_sftp_acl.parse_acl(
-        "user::rwx\nuser:websoft9-sftp:rwx\nmask::rwx\nother::---\n"
-    )
+    access, default = app_sftp_acl.parse_acl("user::rwx\nuser:websoft9-sftp:rwx\nmask::rwx\nother::---\n")
     assert app_sftp_acl.has_traverse(access, "websoft9-sftp") is True
     assert app_sftp_acl.has_traverse(default, "websoft9-sftp") is False
     assert app_sftp_acl.ancestor_paths(str(tmp_path / "a/b"))[-1] == str(tmp_path / "a")

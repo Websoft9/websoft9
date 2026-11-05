@@ -1,16 +1,16 @@
-import posixpath
 import logging
+import posixpath
 import stat
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
 from src.core.exception import CustomException
 from src.services.app_sftp_account import AppSftpAccountService
 from src.services.host_access import HostAccessService
-from src.services.sftp_path_authorization import AppSftpAuthority, PLATFORM_ACCOUNT_PROFILE_ID, SESSION_TTL_SECONDS
+from src.services.sftp_path_authorization import SESSION_TTL_SECONDS, AppSftpAuthority
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,11 @@ class ScopedSftp:
         return self.sftp.lstat(self.checked(path))
 
     def listdir_attr(self, path):
-        return [entry for entry in self.sftp.listdir_attr(self.checked(path)) if stat.S_ISDIR(entry.st_mode) or stat.S_ISREG(entry.st_mode)]
+        return [
+            entry
+            for entry in self.sftp.listdir_attr(self.checked(path))
+            if stat.S_ISDIR(entry.st_mode) or stat.S_ISREG(entry.st_mode)
+        ]
 
     def open(self, path, mode='r', *args, **kwargs):
         candidate = self.checked(path, mutate=any(flag in mode for flag in 'wax+'))
@@ -137,7 +141,9 @@ class ScopedHostAccess(HostAccessService):
         if stat.S_ISDIR(entry.st_mode):
             sftp.mkdir(target)
             for child in sftp.listdir_attr(source):
-                self._copy_tree(sftp, self._join_remote_path(source, child.filename), self._join_remote_path(target, child.filename))
+                self._copy_tree(
+                    sftp, self._join_remote_path(source, child.filename), self._join_remote_path(target, child.filename)
+                )
         elif stat.S_ISREG(entry.st_mode):
             with sftp.open(source, 'rb') as reader, sftp.open(target, 'wx') as writer:
                 while chunk := reader.read(65536):
@@ -174,7 +180,9 @@ class AppSftpService:
         self.lock = threading.RLock()
         data_dir = str(getattr(host_service, 'data_dir', '') or '') or None
         self.account = account_service or AppSftpAccountService(data_dir=data_dir, docker_client_factory=docker_client_factory)
-        self.authority = authority or AppSftpAuthority(data_dir=Path(data_dir) if data_dir else None, docker_client_factory=docker_client_factory)
+        self.authority = authority or AppSftpAuthority(
+            data_dir=Path(data_dir) if data_dir else None, docker_client_factory=docker_client_factory
+        )
         self._reconciled = False
 
     def _ensure_reconciled(self):
@@ -225,7 +233,9 @@ class AppSftpService:
         if not use_platform and requested_profile_id and local_profile is None:
             # Never silently fall back to another account: the operator picked this
             # connection and must see why it cannot be used.
-            raise CustomException(400, 'Host Access Profile Not Found', 'The requested host profile is unavailable for file operations')
+            raise CustomException(
+                400, 'Host Access Profile Not Found', 'The requested host profile is unavailable for file operations'
+            )
         if local_profile is not None:
             try:
                 self._verify_volume_access(local_profile, target['source_path'], app_id, volume_id)
@@ -333,7 +343,7 @@ class AppSftpService:
             profile = self.host_service._load_saved_profile(str(operator_id), requested)
             if profile is None or not self.host_service._is_local_host_value(profile.get('host')):
                 return None
-            return profile
+            return dict(profile)
         order: list[str] = []
         try:
             active = self.host_service._get_active_profile_id(str(operator_id))
@@ -355,7 +365,7 @@ class AppSftpService:
             except Exception:
                 continue
             if profile is not None and self.host_service._is_local_host_value(profile.get('host')):
-                return profile
+                return dict(profile)
         return None
 
     def _warm_connection(self, profile):
@@ -387,8 +397,12 @@ class AppSftpService:
         text = str(error).lower()
         if isinstance(error, PermissionError) or 'permission denied' in text or 'errno 13' in text:
             # Reported by the file browser instead of blocking the session.
-            return CustomException(403, 'SFTP Directory Permission Denied', f'The connection cannot access the application directory: {error}')
-        return CustomException(403, 'SFTP Directory Unavailable', f'The connection cannot access the application directory: {error}')
+            return CustomException(
+                403, 'SFTP Directory Permission Denied', f'The connection cannot access the application directory: {error}'
+            )
+        return CustomException(
+            403, 'SFTP Directory Unavailable', f'The connection cannot access the application directory: {error}'
+        )
 
     def grant_path(self, session_id, path):
         with self.lock:
@@ -421,12 +435,14 @@ class AppSftpService:
                 self.sessions.pop(identifier, None)
                 session = None
         if not session or session['operator_id'] != operator['id']:
-            raise CustomException(403, 'SFTP Session Expired', 'The application SFTP session is unavailable; reopen it from the application')
-        try:
+            raise CustomException(
+                403, 'SFTP Session Expired', 'The application SFTP session is unavailable; reopen it from the application'
+            )
+        with suppress(Exception):
             self.authority.store.touch(identifier)
-        except Exception:
-            pass
-        return ScopedHostAccess(self.host_service, session['profile'], session['root'], session.get('app_id'), session.get('volume_id'))
+        return ScopedHostAccess(
+            self.host_service, session['profile'], session['root'], session.get('app_id'), session.get('volume_id')
+        )
 
     def close_operator_sessions(self, operator_id):
         """Release every application file session owned by the operator (logout)."""
@@ -437,18 +453,9 @@ class AppSftpService:
         return len(identifiers)
 
     def invalidate_profile(self, operator_id, profile_id):
-        # Application file sessions are not bound to saved host profiles, but the
-        # terminal still uses this hook; drop any legacy matching entries.
         with self.lock:
             self.sessions = {
-                key: session for key, session in self.sessions.items()
-                if session.get('operator_id') != operator_id
-                or (session.get('profile_id') or (session.get('profile') or {}).get('profile_id')) != profile_id
-            }
-
-    def invalidate_profile(self, operator_id, profile_id):
-        with self.lock:
-            self.sessions = {
-                key: session for key, session in self.sessions.items()
+                key: session
+                for key, session in self.sessions.items()
                 if session['operator_id'] != operator_id or session['profile_id'] != profile_id
             }

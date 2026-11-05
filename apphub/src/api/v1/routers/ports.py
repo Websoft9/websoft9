@@ -3,7 +3,6 @@ from fastapi import APIRouter, Query
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.portAllocation import PortCheckResponse, PortSuggestRequest, PortSuggestResponse
-
 from src.services.port_allocator import check_ports, suggest_ports
 
 router = APIRouter()

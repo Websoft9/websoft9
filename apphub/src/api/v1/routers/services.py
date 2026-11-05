@@ -13,7 +13,6 @@ from src.schemas.errorResponse import ErrorResponse
 from src.services.core_services import CoreServicesService
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 
-
 router = APIRouter()
 _core_services_service = CoreServicesService()
 
@@ -22,7 +21,9 @@ def _get_core_services_service() -> CoreServicesService:
     return _core_services_service
 
 
-def _build_service_logs_response(session_token: Optional[str], service_key: str, query: ServiceLogsQuery) -> ServiceLogsResponse:
+def _build_service_logs_response(
+    session_token: Optional[str], service_key: str, query: ServiceLogsQuery
+) -> ServiceLogsResponse:
     return _get_core_services_service().get_service_logs(session_token=session_token, service_key=service_key, query=query)
 
 
@@ -48,7 +49,13 @@ def list_core_services(
     "/services/{service_key}/logs",
     summary="Query service raw logs",
     description="Return recent raw logs for one bundled third-party service.",
-    responses={200: {"model": ServiceLogsResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": ServiceLogsResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def get_service_logs(
     service_key: str = Path(..., description="Supported service key"),
@@ -66,7 +73,13 @@ def get_service_logs(
     "/services/{service_key}/logs/stream",
     summary="Stream service raw logs",
     description="Server-sent events stream for recent bundled third-party service logs.",
-    responses={200: {"description": "Service logs stream established"}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"description": "Service logs stream established"},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 async def stream_service_logs(
     request: Request,
@@ -102,7 +115,9 @@ async def stream_service_logs(
                     yield f"retry: {int(refresh_seconds * 1000)}\n"
                     yield f"event: snapshot\ndata: {event_json}\n\n"
                 else:
-                    delta = _get_core_services_service().poll_service_logs_stream(session_token=session_token, cursor=stream_cursor)
+                    delta = _get_core_services_service().poll_service_logs_stream(
+                        session_token=session_token, cursor=stream_cursor
+                    )
                     if delta.snapshot is not None:
                         refresh_seconds = 5.0
                         payload = {
@@ -130,8 +145,8 @@ async def stream_service_logs(
                         yield ": keep-alive\n\n"
             except Exception as exc:
                 logger.warning(f"Service logs stream failed for {service_key}: {exc}")
-                payload = json.dumps({"message": "Service logs stream refresh failed"}, separators=(",", ":"))
-                yield f"event: error\ndata: {payload}\n\n"
+                error_payload = json.dumps({"message": "Service logs stream refresh failed"}, separators=(",", ":"))
+                yield f"event: error\ndata: {error_payload}\n\n"
                 refresh_seconds = min(refresh_seconds + 2.5, 15.0)
 
             await asyncio.sleep(refresh_seconds)

@@ -1,27 +1,18 @@
 import configparser
-import sys
-import os
 import json
+import os
 import re
+import sys
 from urllib.request import urlopen
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import click
-from src.cli.cli_help import TopicGroup, register_organized_commands
-from src.core.runtime_paths import resolve_apphub_config_path
-from src.services.product_metadata import write_product_edition
-from src.services.settings_manager import SettingsManager
-from src.services.product_auth import ProductAuthService
-from src.core.exception import CustomException
-from src.core.logger import logger
-from src.services.appstore_sync_manager import AppStoreSyncManager
-from src.services.scheduled_tasks import SKIPPED_EXIT_CODE, ScheduledTaskService
-from src.services.product_runtime_state import read_release_channel
-from src.services.release_checker import ReleaseVersionChecker
+
 from src.cli.app_commands import app_group
 from src.cli.appstore_commands import register_appstore_commands
 from src.cli.backup_commands import backup_group
+from src.cli.cli_help import TopicGroup, ensure_short_help_options, register_organized_commands
 from src.cli.cli_output import upgrade_group_commands_to_json_aware
 from src.cli.db_commands import db_group
 from src.cli.docker_commands import docker_group
@@ -32,11 +23,21 @@ from src.cli.overview_commands import overview_group
 from src.cli.service_commands import service_group
 from src.cli.settings_commands import settings_group
 from src.cli.task_commands import task_group
-from src.cli.upgrade_dispatch import (
+from src.cli.upgrade_dispatch import (  # noqa: F401 - re-exported: tests patch these on this module
     UPGRADE_DISPATCH_SECRET_HEADER,
     UPGRADE_DISPATCH_URL,
     dispatch_upgrade_preparation,
 )
+from src.core.exception import CustomException
+from src.core.logger import logger
+from src.core.runtime_paths import resolve_apphub_config_path
+from src.services.appstore_sync_manager import AppStoreSyncManager
+from src.services.product_auth import ProductAuthService
+from src.services.product_metadata import write_product_edition
+from src.services.product_runtime_state import read_release_channel
+from src.services.release_checker import ReleaseVersionChecker
+from src.services.scheduled_tasks import SKIPPED_EXIT_CODE, ScheduledTaskService
+from src.services.settings_manager import SettingsManager
 
 
 def _dispatch_auto_download() -> bool:
@@ -44,6 +45,7 @@ def _dispatch_auto_download() -> bool:
         return bool(dispatch_upgrade_preparation(automatic=True, opener=urlopen).get("started"))
     except CustomException as exc:
         raise click.ClickException(str(exc.details or exc.message)) from exc
+
 
 def _show_version(ctx, _param, value):
     if not value or ctx.resilient_parsing:
@@ -62,7 +64,14 @@ def _show_version(ctx, _param, value):
     context_settings={"help_option_names": ["-h", "--help"]},
     epilog="Use 'websoft9 COMMAND -h' for command help. Legacy command paths remain supported.",
 )
-@click.option("--version", is_flag=True, is_eager=True, expose_value=False, callback=_show_version, help="Show the platform version and exit.")
+@click.option(
+    "--version",
+    is_flag=True,
+    is_eager=True,
+    expose_value=False,
+    callback=_show_version,
+    help="Show the platform version and exit.",
+)
 def cli():
     """Manage Websoft9 applications, infrastructure, and platform services."""
 
@@ -95,17 +104,18 @@ cli.add_command(settings_group)
 
 
 @cli.command()
-@click.option('--section',required=True, help='The section name')
+@click.option('--section', required=True, help='The section name')
 @click.option('--key', required=True, help='The key name')
-@click.option('--value', required=True,help='The value of the key')
+@click.option('--value', required=True, help='The value of the key')
 def setconfig(section, key, value):
     """Set a config value"""
     try:
         SettingsManager().write_section(section, key, value)
     except CustomException as e:
-        raise click.ClickException(e.details)
+        raise click.ClickException(e.details) from e
     except Exception as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
+
 
 # 新增 setsysconfig 方法
 @cli.command()
@@ -125,7 +135,8 @@ def setsysconfig(section, key, value):
             config.write(configfile)
         click.echo(f"Set [{section}] {key}={value} in system.ini successfully.")
     except Exception as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
+
 
 @cli.command()
 @click.option('--section', help='The section name')
@@ -143,12 +154,12 @@ def getconfig(section, key):
             value = dict(config.items(section)) if section in config.sections() else {}
             click.echo(json.dumps(value))
         else:
-            value = config.get(section, key) if config.has_option(section, key) else ""
-            click.echo(f"{value}")
+            single_value = config.get(section, key) if config.has_option(section, key) else ""
+            click.echo(f"{single_value}")
     except CustomException as e:
-        raise click.ClickException(e.details)
+        raise click.ClickException(e.details) from e
     except Exception as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
 
 
 @cli.command(hidden=True)
@@ -159,12 +170,14 @@ def setedition(edition_key):
         edition = write_product_edition(edition_key)
         click.echo(f"Set product edition to {edition.key} (max_apps={edition.max_apps})")
     except Exception as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
 
 
 @cli.command()
 @click.argument('target', required=True, type=click.Choice(['apps'], case_sensitive=False))
-@click.option('--channel', type=click.Choice(['release', 'rc', 'dev'], case_sensitive=False), help='Deprecated; use "appstore sync --channel"')
+@click.option(
+    '--channel', type=click.Choice(['release', 'dev'], case_sensitive=False), help='Deprecated; use "appstore sync --channel"'
+)
 @click.option('--dev', is_flag=True, help='Deprecated; use "appstore sync --dev"')
 @click.option('--force-refresh', is_flag=True, help='Deprecated; use "appstore sync --force-refresh"')
 def upgrade(target, channel, dev, force_refresh):
@@ -251,10 +264,10 @@ def _format_prewarm_event(event, state) -> str:
         state["steps"][key] = percent
         return f"[prewarm]   {layer} {status} {percent}% ({_human_size(current)}/{_human_size(total)})"
 
-    key = (state["image"], layer, status)
-    if key in state["seen"]:
+    dedupe_key = (state["image"], layer, status)
+    if dedupe_key in state["seen"]:
         return ""
-    state["seen"].add(key)
+    state["seen"].add(dedupe_key)
     return f"[prewarm]   {layer} {status}"
 
 
@@ -274,7 +287,11 @@ def images_prewarm(app_name, version, refresh):
             if line:
                 click.echo(line)
 
-        click.echo(json.dumps(ImagePrewarmService().prewarm(app_name, version, on_progress=report, refresh=refresh), ensure_ascii=False))
+        click.echo(
+            json.dumps(
+                ImagePrewarmService().prewarm(app_name, version, on_progress=report, refresh=refresh), ensure_ascii=False
+            )
+        )
     except CustomException as exc:
         raise click.ClickException(exc.details) from exc
     except Exception as exc:
@@ -282,11 +299,19 @@ def images_prewarm(app_name, version, refresh):
 
 
 @appstore.command(name='sync')
-@click.option('--channel', type=click.Choice(['release', 'rc', 'dev'], case_sensitive=False), help='Sync using the specified artifact channel')
+@click.option(
+    '--channel', type=click.Choice(['release', 'dev'], case_sensitive=False), help='Sync using the specified artifact channel'
+)
 @click.option('--dev', is_flag=True, help='Sync using dev environment')
-@click.option('--force-refresh', is_flag=True, help='Force a full App Store sync instead of using incremental update detection')
+@click.option(
+    '--force-refresh', is_flag=True, help='Force a full App Store sync instead of using incremental update detection'
+)
 @click.option('--no-wait', is_flag=True, help='Return immediately and keep the sync running in the background')
-@click.option('--skip-if-running', is_flag=True, help=f'Exit with code {SKIPPED_EXIT_CODE} instead of failing when another sync is already running')
+@click.option(
+    '--skip-if-running',
+    is_flag=True,
+    help=f'Exit with code {SKIPPED_EXIT_CODE} instead of failing when another sync is already running',
+)
 def appstore_sync(channel, dev, force_refresh, no_wait, skip_if_running):
     """Synchronize App Store assets"""
     try:
@@ -324,9 +349,9 @@ def appstore_sync(channel, dev, force_refresh, no_wait, skip_if_running):
     except click.ClickException:
         raise
     except CustomException as e:
-        raise click.ClickException(e.details)
+        raise click.ClickException(e.details) from e
     except Exception as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
 
 
 def _refresh_docker_mirror_list() -> None:
@@ -362,7 +387,7 @@ def check_update():
     except click.ClickException:
         raise
     except Exception as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
 
 
 @cli.command(name="log-cleanup")
@@ -376,7 +401,9 @@ def log_cleanup(verbose, json_output):
         action = event["action"]
         if json_output:
             return
-        if action in {"scan", "retained", "rotating"} or (action == "skipped" and event["reason"] in {"directory_missing", "file_disappeared"}):
+        if action in {"scan", "retained", "rotating"} or (
+            action == "skipped" and event["reason"] in {"directory_missing", "file_disappeared"}
+        ):
             level = "DEBUG"
         elif action == "failed" or (action == "summary" and event["status"] == "failed"):
             level = "ERROR"
@@ -410,7 +437,7 @@ def reconcile_scheduled_tasks():
     try:
         ScheduledTaskService().reconcile_local_schedule()
     except Exception as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
 
 
 @cli.command()
@@ -420,7 +447,12 @@ def resetpwd(password):
     try:
         if len(password) < 8:
             raise click.ClickException("Password must be at least 8 characters")
-        if not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"\d", password) or not re.search(r"[^A-Za-z0-9]", password):
+        if (
+            not re.search(r"[A-Z]", password)
+            or not re.search(r"[a-z]", password)
+            or not re.search(r"\d", password)
+            or not re.search(r"[^A-Za-z0-9]", password)
+        ):
             raise click.ClickException("Password must include uppercase, lowercase, number, and special character")
 
         auth = ProductAuthService()
@@ -440,9 +472,11 @@ def resetpwd(password):
     except click.ClickException:
         raise
     except Exception as e:
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
+
 
 register_organized_commands(cli)
+ensure_short_help_options(cli)
 
 
 if __name__ == "__main__":

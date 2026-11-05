@@ -8,7 +8,6 @@ from ruamel.yaml import YAML
 
 from src.core.exception import CustomException
 
-
 _COMPOSE_YAML = YAML()
 _COMPOSE_YAML.preserve_quotes = True
 _COMPOSE_YAML.width = 4096
@@ -18,13 +17,15 @@ _COMPOSE_YAML.indent(mapping=2, sequence=4, offset=2)
 _PROFILE_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _PROFILE_COMPOSE_PATTERN = re.compile(r"^docker-compose\.([a-z0-9][a-z0-9-]*)\.yml$")
 _PROFILE_ENV_PATTERN = re.compile(r"^\.env\.([a-z0-9][a-z0-9-]*)$")
-EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS = frozenset({
-    "W9_DB_HOST_SET",
-    "W9_DB_PORT_SET",
-    "W9_DB_NAME_SET",
-    "W9_DB_USER_SET",
-    "W9_DB_PASSWORD_SET",
-})
+EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS = frozenset(
+    {
+        "W9_DB_HOST_SET",
+        "W9_DB_PORT_SET",
+        "W9_DB_NAME_SET",
+        "W9_DB_USER_SET",
+        "W9_DB_PASSWORD_SET",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -41,16 +42,10 @@ def get_port_check_settings(profile: str | None, settings: dict | None, app_dire
     if app_directory is not None:
         base_env_path = Path(app_directory) / ".env"
         if base_env_path.is_file():
-            base_port_settings = {
-                key: value
-                for key, value in _read_env_values(base_env_path).items()
-                if "PORT_SET" in key
-            }
+            base_port_settings = {key: value for key, value in _read_env_values(base_env_path).items() if "PORT_SET" in key}
 
     external_profile_settings = {
-        key: value
-        for key, value in (settings or {}).items()
-        if key not in EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS
+        key: value for key, value in (settings or {}).items() if key not in EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS
     }
     return {**base_port_settings, **external_profile_settings}
 
@@ -140,7 +135,9 @@ def _merge_env_profile(base_env_path: Path, profile_env_path: Path) -> None:
 def _service_named_volumes(service: dict, declared_volumes: set[str]) -> set[str]:
     named_volumes: set[str] = set()
     for volume in service.get("volumes") or []:
-        source = volume.split(":", 1)[0] if isinstance(volume, str) else volume.get("source") if isinstance(volume, dict) else None
+        source = (
+            volume.split(":", 1)[0] if isinstance(volume, str) else volume.get("source") if isinstance(volume, dict) else None
+        )
         if isinstance(source, str) and source in declared_volumes:
             named_volumes.add(source)
     return named_volumes
@@ -199,7 +196,9 @@ def validate_profile_settings(app_directory: str | Path, profile: str | None, se
         raise CustomException(400, "Invalid Request", "Profile settings must be strings.")
 
 
-def validate_external_database_connection(database_type: str, host: str, port: int | str, database_name: str | None, username: str, password: str) -> ExternalDatabaseConnection:
+def validate_external_database_connection(
+    database_type: str, host: str, port: int | str, database_name: str | None, username: str, password: str
+) -> ExternalDatabaseConnection:
     if not all(isinstance(value, str) and value.strip() for value in (host, username, password)):
         raise CustomException(400, "Invalid Request", "External database connection information is required.")
     if "://" in host or any(character.isspace() for character in host):
@@ -222,7 +221,9 @@ def validate_external_database_connection(database_type: str, host: str, port: i
     try:
         import pymysql
     except ImportError as exc:
-        raise CustomException(503, "External Database Connection Unavailable", "The database connection test is not available.") from exc
+        raise CustomException(
+            503, "External Database Connection Unavailable", "The database connection test is not available."
+        ) from exc
 
     try:
         connection = pymysql.connect(
@@ -244,7 +245,9 @@ def validate_external_database_connection(database_type: str, host: str, port: i
         finally:
             connection.close()
     except pymysql.MySQLError as exc:
-        raise CustomException(400, "External Database Connection Failed", "Unable to connect to the specified database.") from exc
+        raise CustomException(
+            400, "External Database Connection Failed", "Unable to connect to the specified database."
+        ) from exc
 
     version_text = str(version_row[0] if isinstance(version_row, (tuple, list)) else version_row or "").lower()
     actual_type = "mariadb" if "mariadb" in version_text else "mysql"
@@ -253,7 +256,9 @@ def validate_external_database_connection(database_type: str, host: str, port: i
     return ExternalDatabaseConnection(actual_type, tuple(int(part) for part in version.split(".") if part))
 
 
-def _validate_postgresql_connection(host: str, port: int | str, database_name: str, username: str, password: str) -> ExternalDatabaseConnection:
+def _validate_postgresql_connection(
+    host: str, port: int | str, database_name: str, username: str, password: str
+) -> ExternalDatabaseConnection:
     if not all(isinstance(value, str) and value.strip() for value in (host, database_name, username, password)):
         raise CustomException(400, "Invalid Request", "External database connection information is required.")
     if "://" in host or any(character.isspace() for character in host):
@@ -268,7 +273,9 @@ def _validate_postgresql_connection(host: str, port: int | str, database_name: s
     try:
         import psycopg2
     except ImportError as exc:
-        raise CustomException(503, "External Database Connection Unavailable", "The database connection test is not available.") from exc
+        raise CustomException(
+            503, "External Database Connection Unavailable", "The database connection test is not available."
+        ) from exc
 
     try:
         connection = psycopg2.connect(
@@ -287,9 +294,13 @@ def _validate_postgresql_connection(host: str, port: int | str, database_name: s
         finally:
             connection.close()
     except psycopg2.Error as exc:
-        raise CustomException(400, "External Database Connection Failed", "Unable to connect to the specified database.") from exc
+        raise CustomException(
+            400, "External Database Connection Failed", "Unable to connect to the specified database."
+        ) from exc
     version_number = int(version_row[0] if isinstance(version_row, (tuple, list)) else version_row)
-    return ExternalDatabaseConnection("postgresql", (version_number // 10000, (version_number // 100) % 100, version_number % 100))
+    return ExternalDatabaseConnection(
+        "postgresql", (version_number // 10000, (version_number // 100) % 100, version_number % 100)
+    )
 
 
 def matches_external_database_version(actual_version: tuple[int, ...], compatibility: list) -> bool | None:
@@ -316,7 +327,7 @@ def _compare_versions(left: tuple[int, ...], right: tuple[int, ...]) -> int:
 
 
 def _version_matches_prefix(actual: tuple[int, ...], expected: tuple[int, ...]) -> bool:
-    return len(actual) >= len(expected) and actual[:len(expected)] == expected
+    return len(actual) >= len(expected) and actual[: len(expected)] == expected
 
 
 def materialize_profile_template(workspace_directory: str | Path, profile: str | None) -> None:

@@ -17,9 +17,11 @@ router = APIRouter()
     },
 )
 def sync_appstore_assets(
-    channel: str | None = Query(None, description="Optional artifact channel override", regex="^(release|rc|dev)$"),
+    channel: str | None = Query(None, description="Optional artifact channel override", pattern="^(release|dev)$"),
     package_types: str | None = Query(None, description="Comma-separated package types to sync, for example media,library"),
-    force_refresh: bool = Query(False, description="Force a full sync even when incremental update checks can skip unchanged packages"),
+    force_refresh: bool = Query(
+        False, description="Force a full sync even when incremental update checks can skip unchanged packages"
+    ),
 ):
     manager = AppStoreSyncManager()
     if manager.is_sync_running():

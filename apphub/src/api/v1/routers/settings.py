@@ -4,21 +4,31 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Cookie, Path, Query, Request, Response
-from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest, DockerMirrorEntriesRequest, DockerMirrorEntryPayload, SmtpSettingsPayload, SmtpTestEmailRequest
+
+from src.core.exception import CustomException
+from src.core.logger import logger
+from src.schemas.appSettings import (
+    ApplyLetsEncryptCertRequest,
+    AppSettings,
+    DockerMirrorEntriesRequest,
+    DockerMirrorEntryPayload,
+    GenerateSelfSignedCertRequest,
+    PlatformGatewayBatchUpdateRequest,
+    SmtpSettingsPayload,
+    SmtpTestEmailRequest,
+    UploadCertRequest,
+)
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.productRuntimeState import ProductEditionStateResponse
 from src.schemas.settingsSummary import SettingsSummaryResponse
-
-from src.core.logger import logger
-from src.services.mirror_registry import Accelerator, MirrorRegistry, read_region
+from src.services import upgrade_manager
 from src.services.docker_mirror_store import validate_mirror_url
+from src.services.mirror_registry import Accelerator, MirrorRegistry, read_region
+from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
+from src.services.product_runtime_state import read_product_runtime_state, read_release_channel, read_release_version
+from src.services.release_checker import ARTIFACT_BASE_URL, ReleaseVersionChecker
 from src.services.settings_manager import SettingsManager
 from src.services.smtp_service import SmtpService
-from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
-from src.core.exception import CustomException
-from src.services.product_runtime_state import read_product_runtime_state, read_release_version, read_release_channel
-from src.services.release_checker import ARTIFACT_BASE_URL, ReleaseVersionChecker
-from src.services import upgrade_manager
 from src.services.upgrade_manager import UpgradeManager
 
 router = APIRouter()
@@ -50,7 +60,8 @@ def _parse_version(version: Optional[str]) -> Optional[tuple[int, int, int]]:
     match = re.fullmatch(r"v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+].*)?", str(version or "").strip())
     if not match:
         return None
-    return tuple(int(part or 0) for part in match.groups())
+    major, minor, patch = (int(part or 0) for part in match.groups())
+    return (major, minor, patch)
 
 
 def _is_newer_stable_version(latest_version: Optional[str], current_version: Optional[str]) -> bool:
@@ -87,42 +98,46 @@ def _upgrade_status_payload(*, refresh_latest: bool = False) -> dict:
     }
 
 
-@router.get("/settings",
-            summary="Get settings",
-            description="Get settings",
-            responses={
-                200: {"model": AppSettings},
-                400: {"model": ErrorResponse},
-                500: {"model": ErrorResponse},
-            }
-        )
+@router.get(
+    "/settings",
+    summary="Get settings",
+    description="Get settings",
+    responses={
+        200: {"model": AppSettings},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
 def get_settings():
     settings = SettingsManager().read_all()
     settings.api_key.key = "********"
     return settings
 
-@router.get("/settings/summary",
-            summary="Get masked settings summary",
-            description="Get native console settings summary with masked sensitive values",
-            responses={
-                200: {"model": SettingsSummaryResponse},
-                400: {"model": ErrorResponse},
-                500: {"model": ErrorResponse},
-            }
-        )
+
+@router.get(
+    "/settings/summary",
+    summary="Get masked settings summary",
+    description="Get native console settings summary with masked sensitive values",
+    responses={
+        200: {"model": SettingsSummaryResponse},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
 def get_settings_summary():
     return SettingsManager().read_summary()
 
+
 @router.get(
-            "/settings/{section}",
-            summary="Get settings",
-            description="Get settings by section",
-            responses={
-                200: {"model": AppSettings},
-                400: {"model": ErrorResponse},
-                500: {"model": ErrorResponse},
-            }
-        )
+    "/settings/{section}",
+    summary="Get settings",
+    description="Get settings by section",
+    responses={
+        200: {"model": AppSettings},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
 def get_setting_by_section(
     section: str = Path(..., description="Section name to update settings from"),
 ):
@@ -130,34 +145,35 @@ def get_setting_by_section(
         return {}
     return SettingsManager().read_section(section)
 
+
 @router.put(
-            "/settings/{section}",
-            summary="Update Settings",
-            description="Update settings",
-            responses={
-                200: {"model": AppSettings},
-                400: {"model": ErrorResponse},
-                500: {"model": ErrorResponse},
-            }
-        )
+    "/settings/{section}",
+    summary="Update Settings",
+    description="Update settings",
+    responses={
+        200: {"model": AppSettings},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
 def update_settings(
     section: str = Path(..., description="Section name to update settings from"),
     key: str = Query(..., description="Key name to update settings from"),
     value: str = Query(..., description="Key value to update settings from"),
 ):
-    return SettingsManager().write_section(section,key,value)
+    return SettingsManager().write_section(section, key, value)
 
 
 @router.put(
-            "/settings/platform_gateway/apply",
-            summary="Apply platform gateway settings",
-            description="Update platform gateway domain, HTTPS, and certificate settings in one request",
-            responses={
-                200: {"model": AppSettings},
-                400: {"model": ErrorResponse},
-                500: {"model": ErrorResponse},
-            }
-        )
+    "/settings/platform_gateway/apply",
+    summary="Apply platform gateway settings",
+    description="Update platform gateway domain, HTTPS, and certificate settings in one request",
+    responses={
+        200: {"model": AppSettings},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
 def apply_platform_gateway_settings(
     payload: PlatformGatewayBatchUpdateRequest,
     request: Request,
@@ -422,7 +438,7 @@ def _validated_mirror_url(url: str) -> str:
     try:
         return validate_mirror_url(url)
     except ValueError as exc:
-        raise CustomException(400, "Invalid Request", str(exc))
+        raise CustomException(400, "Invalid Request", str(exc)) from exc
 
 
 @router.get(
@@ -448,10 +464,10 @@ def put_docker_mirror_entries(payload: DockerMirrorEntriesRequest):
     except ValueError as exc:
         # The store rejects an address Docker could not use, and the operator needs that
         # reason rather than a generic failure.
-        raise CustomException(400, "Invalid Request", str(exc))
+        raise CustomException(400, "Invalid Request", str(exc)) from exc
     except Exception as exc:
         logger.error(f"Unable to store the Docker accelerators: {exc}")
-        raise CustomException(400, "Invalid Request", "Unable to store the accelerators")
+        raise CustomException(400, "Invalid Request", "Unable to store the accelerators") from exc
     # The host upgrades pull the platform image on their own, so they read a credential-free
     # copy of this list from the data root.
     registry.export_host_visible_list()
@@ -472,9 +488,7 @@ def test_docker_mirror_entry(payload: DockerMirrorEntryPayload):
         # The console never receives the stored password, so a re-test of an unchanged entry
         # has to use it from the store, found by id so a renamed address still matches.
         password = registry.store.lookup_password(payload.id, url) or None
-    return registry.probe(
-        Accelerator(url=url, username=payload.username, password=password or "")
-    )
+    return registry.probe(Accelerator(url=url, username=payload.username, password=password or ""))
 
 
 @router.post(
@@ -518,7 +532,12 @@ def get_smtp_settings(
     "/settings/smtp/config",
     summary="Update SMTP settings",
     description="Save platform SMTP settings for password recovery and notifications",
-    responses={200: {"model": dict}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+    },
 )
 def put_smtp_settings(
     payload: SmtpSettingsPayload,
@@ -541,7 +560,13 @@ def put_smtp_settings(
     "/settings/smtp/test",
     summary="Send a test email using the provided SMTP settings",
     description="Verify SMTP connectivity and credentials by sending a test email",
-    responses={200: {"model": dict}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 502: {"model": ErrorResponse}},
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        502: {"model": ErrorResponse},
+    },
 )
 def test_smtp_settings(
     payload: SmtpTestEmailRequest,

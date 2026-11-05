@@ -1,11 +1,11 @@
-import sys
-import json
 import io
+import json
+import sys
 import tarfile
-import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -16,13 +16,29 @@ from src.services.app_access_manager import AppAccessManager
 
 
 def test_runtime_credentials_only_discover_supported_sources_and_login_help(monkeypatch):
-    template = {"credentials": {"token": {"source": "container-log"}, "password": {"source": "container-env"}}, "help": {"login": "Use setup token", "db": "Ignore database hint"}}
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
+    template = {
+        "credentials": {"token": {"source": "container-log"}, "password": {"source": "container-env"}},
+        "help": {"login": "Use setup token", "db": "Ignore database hint"},
+    }
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)),
+    )
     rules, help_text = AppAccessManager()._credential_rules("portainer_demo", SimpleNamespace(app_name="portainer"))
     assert list(rules) == ["token"]
     assert help_text == "Use setup token"
-    static_only = {"credentials": {"username": {"source": "inline", "value": "admin"}, "password": {"source": "container-env", "name": "W9_LOGIN_PASSWORD"}}}
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(static_only)))
+    static_only = {
+        "credentials": {
+            "username": {"source": "inline", "value": "admin"},
+            "password": {"source": "container-env", "name": "W9_LOGIN_PASSWORD"},
+        }
+    }
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(static_only)),
+    )
     assert AppAccessManager()._credential_rules("static_demo", SimpleNamespace(app_name="custom")) == ({}, None)
 
 
@@ -48,8 +64,16 @@ def test_staged_initial_and_login_credentials_discover_initial_runtime_rules(mon
     app = SimpleNamespace(app_name="graylog", endpointId=1, containers=[{"Id": "main", "Names": ["/graylog_demo"]}])
     log_payload = b"Initial configuration is accessible at 0.0.0.0:9000, with username 'admin' and password 'temp-secret'.\n"
     monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(graylog_template)))
-    monkeypatch.setattr(app_access_manager_module, "PortainerManager", lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=lambda *args: log_payload)))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(graylog_template)),
+    )
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "PortainerManager",
+        lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=lambda *args: log_payload)),
+    )
     manager = AppAccessManager()
 
     rules, help_text = manager._credential_rules("graylog_demo", app)
@@ -63,15 +87,27 @@ def test_staged_initial_and_login_credentials_discover_initial_runtime_rules(mon
 
 def test_runtime_log_returns_all_original_content_and_reports_missing_initialization(monkeypatch):
     app = SimpleNamespace(app_name="dsh", endpointId=7, containers=[{"Id": "owned", "Names": ["/dsh_demo"]}])
-    template = {"credentials": {"token": {"source": "container-log", "match": "regex", "pattern": "token=([^\\s]+)", "group": 1}}}
+    template = {
+        "credentials": {"token": {"source": "container-log", "match": "regex", "pattern": "token=([^\\s]+)", "group": 1}}
+    }
     output = {"raw": b"startup\ntoken=DEMO\nlater output\n"}
     calls = []
+
     def read_output(*args):
         calls.append(args)
         return output["raw"]
+
     monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
-    monkeypatch.setattr(app_access_manager_module, "PortainerManager", lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=read_output)))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)),
+    )
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "PortainerManager",
+        lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=read_output)),
+    )
     manager = AppAccessManager()
     result = manager.resolve_credential("dsh_demo", "token", 7)
     assert result.status == "ready"
@@ -87,6 +123,7 @@ def test_runtime_log_returns_all_original_content_and_reports_missing_initializa
 def test_runtime_log_decoder_preserves_order_and_handles_tty():
     def frame(stream, payload):
         return bytes([stream, 0, 0, 0]) + len(payload).to_bytes(4, "big") + payload
+
     assert AppAccessManager._decode_container_logs(frame(1, b"hello\n") + frame(2, b"warning\n")) == "hello\nwarning\n"
     assert AppAccessManager._decode_container_logs(b"plain tty output") == "plain tty output"
 
@@ -100,12 +137,22 @@ def test_runtime_file_reads_only_regular_template_file_and_rejects_other_contain
         member.size = len(b"DEMO-PASSWORD\n")
         bundle.addfile(member, io.BytesIO(b"DEMO-PASSWORD\n"))
     calls = []
+
     def read_output(*args):
         calls.append(args)
         return raw.getvalue()
+
     monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps({"credentials": {"password": rule}})))
-    monkeypatch.setattr(app_access_manager_module, "PortainerManager", lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=read_output)))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps({"credentials": {"password": rule}})),
+    )
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "PortainerManager",
+        lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=read_output)),
+    )
     manager = AppAccessManager()
     assert manager.resolve_credential("jenkins_demo", "password").content == "DEMO-PASSWORD"
     assert calls[0][3] == {"path": rule["path"]}
@@ -121,11 +168,21 @@ def test_runtime_file_reads_only_regular_template_file_and_rejects_other_contain
 def test_runtime_errors_do_not_return_partial_content_or_exception_secrets(monkeypatch):
     app = SimpleNamespace(app_name="vault", endpointId=1, containers=[{"Id": "main", "Names": ["/vault_demo"]}])
     rule = {"source": "container-log", "match": "regex", "pattern": "Root Token:"}
+
     def fail_output(*args):
         raise OverflowError("SECRET MUST NOT LEAK")
+
     monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps({"credentials": {"token": rule}})))
-    monkeypatch.setattr(app_access_manager_module, "PortainerManager", lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=fail_output)))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps({"credentials": {"token": rule}})),
+    )
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "PortainerManager",
+        lambda: SimpleNamespace(portainer=SimpleNamespace(read_container_output=fail_output)),
+    )
     result = AppAccessManager().resolve_credential("vault_demo", "token")
     assert result.error_code == "output_too_large"
     assert result.content is None
@@ -134,17 +191,23 @@ def test_runtime_errors_do_not_return_partial_content_or_exception_secrets(monke
 
 def test_runtime_transport_limits_output_and_closes_response(monkeypatch):
     from src.external.portainer_api import PortainerAPI
+
     api = PortainerAPI.__new__(PortainerAPI)
+
     class FakeResponse:
         status_code = 200
         closed = False
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             self.closed = True
+
         def iter_content(self, chunk_size):
             yield b"first"
             yield b"second"
+
     response = FakeResponse()
     monkeypatch.setattr(api, "_container_output_response", lambda *args: response)
     with pytest.raises(OverflowError):
@@ -159,9 +222,12 @@ def test_runtime_transport_limits_output_and_closes_response(monkeypatch):
 
 def test_container_command_transport_uses_tty_and_bounds_output(monkeypatch):
     import sys
+
     from src.external.portainer_api import PortainerAPI
+
     class WebSocketClosed(Exception):
         pass
+
     websocket_stub = SimpleNamespace(WebSocketConnectionClosedException=WebSocketClosed)
     monkeypatch.setitem(sys.modules, "websocket", websocket_stub)
     api = PortainerAPI.__new__(PortainerAPI)
@@ -173,23 +239,28 @@ def test_container_command_transport_uses_tty_and_bounds_output(monkeypatch):
     )
     monkeypatch.setattr("src.external.portainer_api.JWTManager.get_token", lambda: "test-token")
     monkeypatch.setattr("src.external.portainer_api.time.monotonic", lambda: 0)
+
     class FakeSocket:
         def __init__(self):
             self.sent = None
             self.closed = False
             self.chunks = iter([b"token output", WebSocketClosed()])
+
         def send(self, content):
             self.sent = json.loads(content)
+
         def recv(self):
             chunk = next(self.chunks)
             if isinstance(chunk, Exception):
                 raise chunk
             return chunk
+
         def close(self):
             self.closed = True
+
     fake_socket = FakeSocket()
     calls = []
-    websocket_stub.create_connection = lambda *args, **kwargs: (calls.append((args, kwargs)) or fake_socket)
+    websocket_stub.create_connection = lambda *args, **kwargs: calls.append((args, kwargs)) or fake_socket
 
     assert api.run_container_command(3, "owned", ["openclaw", "gateway", "auth-token", "--show"], 100) == "token output"
     assert calls[0][0][0] == "ws://portainer/api/websocket/exec?endpointId=3&id=exec-id"
@@ -200,15 +271,20 @@ def test_container_command_transport_uses_tty_and_bounds_output(monkeypatch):
 
 def test_runtime_route_requires_auth_and_prevents_caching(monkeypatch):
     from fastapi import Response
+
     from src.api.v1.routers import app as router_module
+
     called = []
+
     class FakeAuth:
         def _require_authenticated_operator(self, token):
             if token != "valid":
                 raise app_access_manager_module.CustomException(401, "Authentication Required", "Login required")
+
     def resolve(*args):
         called.append(args)
         return {"field": "token", "source": "container-log", "status": "ready", "content": "DEMO"}
+
     monkeypatch.setattr(router_module, "ProductAuthService", FakeAuth)
     monkeypatch.setattr(router_module, "AppAccessManager", lambda: SimpleNamespace(resolve_credential=resolve))
     with pytest.raises(app_access_manager_module.CustomException):
@@ -222,16 +298,21 @@ def test_runtime_route_requires_auth_and_prevents_caching(monkeypatch):
 
 def test_cli_route_requires_auth_and_prevents_caching(monkeypatch):
     from fastapi import Response
+
     from src.api.v1.routers import app as router_module
     from src.schemas.appAccess import AppCliCommandRequest
+
     called = []
+
     class FakeAuth:
         def _require_authenticated_operator(self, token):
             if token != "valid":
                 raise app_access_manager_module.CustomException(401, "Authentication Required", "Login required")
+
     def execute(*args):
         called.append(args)
         return {"command": args[1], "status": "ready", "output": "TOKEN"}
+
     monkeypatch.setattr(router_module, "ProductAuthService", FakeAuth)
     monkeypatch.setattr(router_module, "AppAccessManager", lambda: SimpleNamespace(execute_cli_command=execute))
     payload = AppCliCommandRequest(command="openclaw gateway auth-token --show")
@@ -247,21 +328,51 @@ def test_cli_route_requires_auth_and_prevents_caching(monkeypatch):
 
 @pytest.mark.parametrize("app_name", ["openclaw", "graylog", "ghost", "metabase", "seafile"])
 def test_apps_without_runtime_credential_rules_return_empty(monkeypatch, app_name):
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: '{"credentials": {"login": {"password": {"source": "container-env", "name": "W9_LOGIN_PASSWORD"}}}}'))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(
+            get_file_raw_from_repo=lambda *args: (
+                '{"credentials": {"login": {"password": {"source": "container-env", "name": "W9_LOGIN_PASSWORD"}}}}'
+            )
+        ),
+    )
     assert AppAccessManager()._credential_rules("example", SimpleNamespace(app_name=app_name)) == ({}, None)
+
 
 def test_openclaw_cli_commands_are_allowlisted_and_run_fixed_argv(monkeypatch):
     app = SimpleNamespace(app_name="openclaw", endpointId=1, containers=[{"Id": "main", "Names": ["/openclaw_demo"]}])
     calls = []
-    template = {"cli_commands": [
-        {"id": "show-token", "command": "openclaw gateway auth-token --show", "argv": ["openclaw", "gateway", "auth-token", "--show"]},
-        {"id": "generate-token", "command": "openclaw doctor --generate-gateway-token", "argv": ["openclaw", "doctor", "--generate-gateway-token"], "action": "generate"},
-    ]}
+    template = {
+        "cli_commands": [
+            {
+                "id": "show-token",
+                "command": "openclaw gateway auth-token --show",
+                "argv": ["openclaw", "gateway", "auth-token", "--show"],
+            },
+            {
+                "id": "generate-token",
+                "command": "openclaw doctor --generate-gateway-token",
+                "argv": ["openclaw", "doctor", "--generate-gateway-token"],
+                "action": "generate",
+            },
+        ]
+    }
     monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
-    monkeypatch.setattr(app_access_manager_module, "PortainerManager", lambda: SimpleNamespace(portainer=SimpleNamespace(
-        run_container_command=lambda *args, **kwargs: (calls.append((args, kwargs)) or "TOKEN"),
-    )))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)),
+    )
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "PortainerManager",
+        lambda: SimpleNamespace(
+            portainer=SimpleNamespace(
+                run_container_command=lambda *args, **kwargs: calls.append((args, kwargs)) or "TOKEN",
+            )
+        ),
+    )
     manager = AppAccessManager()
 
     commands = manager._cli_commands("openclaw_demo", app)
@@ -272,7 +383,12 @@ def test_openclaw_cli_commands_are_allowlisted_and_run_fixed_argv(monkeypatch):
     assert all(item["field"] == "token" for item in commands)
     result = manager.execute_cli_command("openclaw_demo", commands[0]["command"], 1)
     assert result == {"command": commands[0]["command"], "status": "ready", "output": "TOKEN"}
-    assert calls[0][0] == (1, "main", ["openclaw", "gateway", "auth-token", "--show"], app_access_manager_module.MAX_CLI_OUTPUT_BYTES)
+    assert calls[0][0] == (
+        1,
+        "main",
+        ["openclaw", "gateway", "auth-token", "--show"],
+        app_access_manager_module.MAX_CLI_OUTPUT_BYTES,
+    )
     with pytest.raises(app_access_manager_module.CustomException):
         manager.execute_cli_command("openclaw_demo", "openclaw sh -c id", 1)
 
@@ -280,7 +396,11 @@ def test_openclaw_cli_commands_are_allowlisted_and_run_fixed_argv(monkeypatch):
 def test_openclaw_without_declared_cli_commands_has_no_initial_credentials(monkeypatch):
     app = SimpleNamespace(app_name="openclaw")
     monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: SimpleNamespace(get_app_by_id=lambda *args: app))
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: '{"credentials": {}}'))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: '{"credentials": {}}'),
+    )
     manager = AppAccessManager()
 
     assert manager._cli_commands("openclaw_demo", app) == []
@@ -292,7 +412,11 @@ def test_openclaw_without_declared_cli_commands_has_no_initial_credentials(monke
 
 def test_login_help_is_available_without_dynamic_credentials(monkeypatch):
     template = {"help": {"login": "Complete setup before signing in"}}
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)),
+    )
     assert AppAccessManager()._login_help("static_demo") == template["help"]["login"]
 
 
@@ -303,8 +427,16 @@ def test_cli_output_removes_terminal_controls_without_extracting_credentials():
 
 
 def test_cli_template_declares_password_field(monkeypatch):
-    template = {"cli_commands": [{"id": "show-password", "command": "app show-password", "argv": ["app", "show-password"], "field": "password"}]}
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
+    template = {
+        "cli_commands": [
+            {"id": "show-password", "command": "app show-password", "argv": ["app", "show-password"], "field": "password"}
+        ]
+    }
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)),
+    )
     commands = AppAccessManager()._cli_commands("jenkins_demo", SimpleNamespace(app_name="jenkins"))
     assert commands[0]["field"] == "password"
 
@@ -320,6 +452,7 @@ def test_credential_container_selection_uses_service_or_unique_main_container():
     assert manager._credential_containers("demo", app, {"service": ""}) == []
     app.containers.append(dict(init))
     assert len(manager._credential_containers("demo", app, {"service": "init"})) == 2
+
 
 def test_build_candidates_supports_multi_container_and_multi_port_compose_layout():
     manager = AppAccessManager()
@@ -384,9 +517,25 @@ def test_save_domain_binding_updates_existing_single_builtin_proxy_without_proxy
             raise AssertionError('create_proxy_by_app should not be called when a single proxy already exists')
 
     monkeypatch.setattr(app_access_manager_module, 'AppManger', lambda: FakeAppManager())
-    monkeypatch.setattr(manager, '_resolve_profile', lambda app_id, app: SimpleNamespace(enabled=True, forward_host='wordpress_us3f2', forward_port=80, forward_scheme='http', locked=True))
-    monkeypatch.setattr(manager, '_resolve_builtin_profile', lambda app_id, app: SimpleNamespace(enabled=True, forward_host='wordpress_us3f2', forward_port=80, forward_scheme='http', locked=True))
-    monkeypatch.setattr(manager, '_get_proxy_hosts', lambda app_id, profile: [{'id': 7, 'domain_names': ['wp.create.websoft9.cn'], 'forward_host': 'wordpress_us3f2'}])
+    monkeypatch.setattr(
+        manager,
+        '_resolve_profile',
+        lambda app_id, app: SimpleNamespace(
+            enabled=True, forward_host='wordpress_us3f2', forward_port=80, forward_scheme='http', locked=True
+        ),
+    )
+    monkeypatch.setattr(
+        manager,
+        '_resolve_builtin_profile',
+        lambda app_id, app: SimpleNamespace(
+            enabled=True, forward_host='wordpress_us3f2', forward_port=80, forward_scheme='http', locked=True
+        ),
+    )
+    monkeypatch.setattr(
+        manager,
+        '_get_proxy_hosts',
+        lambda app_id, profile: [{'id': 7, 'domain_names': ['wp.create.websoft9.cn'], 'forward_host': 'wordpress_us3f2'}],
+    )
 
     result = manager.save_domain_binding('wordpress_us3f2', ['wp.create.websoft9.cn'], None, False, None, None)
 
@@ -412,8 +561,20 @@ def test_save_domain_binding_rejects_domains_used_by_other_proxy(monkeypatch):
 
     monkeypatch.setattr(app_access_manager_module, 'AppManger', lambda: FakeAppManager())
     monkeypatch.setattr(app_access_manager_module, 'ProxyManager', FakeProxyManager)
-    monkeypatch.setattr(manager, '_resolve_profile', lambda app_id, app: SimpleNamespace(enabled=True, forward_host='wordpress_us3f2', forward_port=80, forward_scheme='http', locked=True))
-    monkeypatch.setattr(manager, '_resolve_builtin_profile', lambda app_id, app: SimpleNamespace(enabled=True, forward_host='wordpress_us3f2', forward_port=80, forward_scheme='http', locked=True))
+    monkeypatch.setattr(
+        manager,
+        '_resolve_profile',
+        lambda app_id, app: SimpleNamespace(
+            enabled=True, forward_host='wordpress_us3f2', forward_port=80, forward_scheme='http', locked=True
+        ),
+    )
+    monkeypatch.setattr(
+        manager,
+        '_resolve_builtin_profile',
+        lambda app_id, app: SimpleNamespace(
+            enabled=True, forward_host='wordpress_us3f2', forward_port=80, forward_scheme='http', locked=True
+        ),
+    )
     monkeypatch.setattr(manager, '_get_proxy_hosts', lambda app_id, profile: [])
 
     try:
@@ -428,7 +589,11 @@ def test_save_domain_binding_rejects_domains_used_by_other_proxy(monkeypatch):
 def test_resolve_profile_reads_access_default_scheme_https(monkeypatch):
     manager = AppAccessManager()
     template = {"access": {"defaultScheme": "https", "web": {"port": 8080, "path": "/"}}}
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)),
+    )
     app = SimpleNamespace(app_dist="community", env={"W9_HTTP_PORT": "8080"})
 
     profile = manager._resolve_profile("rancher_demo", app)
@@ -442,7 +607,11 @@ def test_resolve_profile_reads_access_default_scheme_https(monkeypatch):
 def test_https_required_app_enforces_inner_cert_fallback_and_ssl_forced(monkeypatch):
     manager = AppAccessManager()
     template = {"access": {"defaultScheme": "https"}}
-    monkeypatch.setattr(app_access_manager_module, "GiteaManager", lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)))
+    monkeypatch.setattr(
+        app_access_manager_module,
+        "GiteaManager",
+        lambda: SimpleNamespace(get_file_raw_from_repo=lambda *args: json.dumps(template)),
+    )
     created_calls = []
     updated_calls = []
 
@@ -474,7 +643,11 @@ def test_https_required_app_enforces_inner_cert_fallback_and_ssl_forced(monkeypa
 
     monkeypatch.setattr(app_access_manager_module, "AppManger", lambda: FakeAppManager())
     monkeypatch.setattr(app_access_manager_module, "ProxyManager", FakeProxyManager)
-    monkeypatch.setattr(manager, "_get_proxy_hosts", lambda app_id, profile: [{"id": 11, "domain_names": ["rancher.example.com"], "forward_host": "rancher_demo"}])
+    monkeypatch.setattr(
+        manager,
+        "_get_proxy_hosts",
+        lambda app_id, profile: [{"id": 11, "domain_names": ["rancher.example.com"], "forward_host": "rancher_demo"}],
+    )
 
     binding = manager.save_domain_binding("rancher_demo", ["new.example.com"], None, False, None, None)
     assert created_calls == [("rancher_demo", ["new.example.com"], 99, True)]
@@ -497,7 +670,10 @@ def test_proxy_manager_provision_https_prefers_letsencrypt_and_falls_back_to_inn
         or {"id": proxy_id, "domain_names": domains, "certificate_id": certificate_id, "ssl_forced": ssl_forced}
     )
     pm.ensure_inner_certificate = lambda: {"id": 42, "nice_name": "websoft9-inner"}
-    pm.request_letsencrypt_certificate = lambda email, domains, proxy_id=None, ssl_forced=None: {"id": 77, "nice_name": domains[0]}
+    pm.request_letsencrypt_certificate = lambda email, domains, proxy_id=None, ssl_forced=None: {
+        "id": 77,
+        "nice_name": domains[0],
+    }
 
     res1 = pm.provision_https_for_proxy_host(5, ["app.example.com"], email="ops@example.com")
     assert res1["certificate_id"] == 77
@@ -510,4 +686,3 @@ def test_proxy_manager_provision_https_prefers_letsencrypt_and_falls_back_to_inn
     res2 = pm.provision_https_for_proxy_host(6, ["intranet.local"], email="ops@example.com")
     assert res2["certificate_id"] == 42
     assert res2["ssl_forced"] is True
-

@@ -1,16 +1,25 @@
-import os
+import contextlib
 import json
+import os
+
 import docker
+
 from src.core.config import ConfigManager
-from src.core.logger import logger
 from src.core.exception import CustomException
+from src.core.logger import logger
 from src.schemas.appInstall import appInstall
+from src.services.app_status import appInstalling, appInstallingError
 from src.services.gitea_manager import GiteaManager
+from src.services.install_profile import (
+    get_external_database_type,
+    get_port_check_settings,
+    is_external_database_profile,
+    validate_external_database_connection,
+    validate_profile_settings,
+)
 from src.services.portainer_manager import PortainerManager
-from src.services.proxy_manager import ProxyManager
-from src.services.app_status import appInstalling,appInstallingError
 from src.services.product_metadata import read_product_edition
-from src.services.install_profile import get_external_database_type, get_port_check_settings, is_external_database_profile, validate_external_database_connection, validate_profile_settings
+from src.services.proxy_manager import ProxyManager
 
 
 def _get_host_bound_ports() -> set:
@@ -29,10 +38,8 @@ def _get_host_bound_ports() -> set:
                 for binding in binding_list:
                     host_port = binding.get('HostPort')
                     if host_port:
-                        try:
+                        with contextlib.suppress(ValueError):
                             bound.add(int(host_port))
-                        except ValueError:
-                            pass
     except Exception as e:
         logger.warning(f"Could not scan Docker container ports for conflict check: {e}")
     return bound
@@ -55,16 +62,14 @@ def _read_template_ports(app_name: str) -> dict[str, int]:
                         continue
                     key, _, val = line.partition('=')
                     if 'PORT_SET' in key:
-                        try:
+                        with contextlib.suppress(ValueError):
                             ports[key.strip()] = int(val.strip())
-                        except ValueError:
-                            pass
     except Exception as e:
         logger.warning(f"Could not read template .env for port check ({app_name}): {e}")
     return ports
 
 
-def check_port_conflicts(settings: dict, app_name: str = None):
+def check_port_conflicts(settings: dict, app_name: str | None = None):
     """
     Check whether any port requested (from settings overrides and/or the app template)
     is already in use — either bound by a running Docker container or claimed by an
@@ -81,10 +86,8 @@ def check_port_conflicts(settings: dict, app_name: str = None):
     if settings:
         for key, val in settings.items():
             if 'PORT_SET' in key:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     settings_ports[key] = int(str(val).strip())
-                except (ValueError, TypeError):
-                    pass
 
     # Also collect template default ports not already overridden by settings
     template_ports: dict[str, int] = {}
@@ -105,7 +108,7 @@ def check_port_conflicts(settings: dict, app_name: str = None):
     docker_ports = _get_host_bound_ports()
     all_used = docker_ports | installing_ports
 
-    for key, port in requested.items():
+    for port in requested.values():
         if port in all_used:
             source = 'a running container' if port in docker_ports else 'an app currently being installed'
             logger.error(f"Port conflict: {port} is already claimed by {source}")
@@ -115,48 +118,47 @@ def check_port_conflicts(settings: dict, app_name: str = None):
                 details=f"Port {port} is already in use. Please choose a different port.",
             )
 
-def check_appName_and_appVersion(app_name:str, app_version:str, library_path: str = None):
-        """
-        Check the app_name and app_version is exists in docker library
 
-        Args:
-            app_name (str): App Name
-            app_version (str): App Version
-        Raises:
-            CustomException: If the app_name or app_version is not exists in docker library
-        """
-        try:
-            # Get docker library path
-            library_path = library_path or ConfigManager("system.ini").get_value("docker_library", "path")
+def check_appName_and_appVersion(app_name: str, app_version: str, library_path: str | None = None):
+    """
+    Check the app_name and app_version is exists in docker library
 
-            if not os.path.exists(f"{library_path}/{app_name}"):
-                logger.error(f"When install app:{app_name}, the app is not exists in docker library")
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details=f"app_name:{app_name} not supported",
-                )
-            else:
-                with open(f"{library_path}/{app_name}/variables.json", "r") as f:
-                    variables = json.load(f)
-                    community_editions = [d for d in variables["edition"] if d["dist"] == "community"]
-                    if not any(
-                        app_version in d["version"] for d in community_editions
-                    ):
-                        logger.error(f"When install app:{app_name}, the app version:{app_version} is not exists in docker library")
-                        raise CustomException(
-                            status_code=400,
-                            message="Invalid Request",
-                            details=f"app_version:{app_version} not supported",
-                        )
-        except CustomException as e:
-            raise e
-        except Exception as e:
-            logger.error(f"When install app:{app_name}, validate app_name and app_version error:{e}")
-            raise CustomException()
+    Args:
+        app_name (str): App Name
+        app_version (str): App Version
+    Raises:
+        CustomException: If the app_name or app_version is not exists in docker library
+    """
+    try:
+        # Get docker library path
+        library_path = library_path or ConfigManager("system.ini").get_value("docker_library", "path")
+
+        if not os.path.exists(f"{library_path}/{app_name}"):
+            logger.error(f"When install app:{app_name}, the app is not exists in docker library")
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details=f"app_name:{app_name} not supported",
+            )
+        else:
+            with open(f"{library_path}/{app_name}/variables.json", "r") as f:
+                variables = json.load(f)
+                community_editions = [d for d in variables["edition"] if d["dist"] == "community"]
+                if not any(app_version in d["version"] for d in community_editions):
+                    logger.error(f"When install app:{app_name}, the app version:{app_version} is not exists in docker library")
+                    raise CustomException(
+                        status_code=400,
+                        message="Invalid Request",
+                        details=f"app_version:{app_version} not supported",
+                    )
+    except CustomException:
+        raise
+    except Exception as e:
+        logger.error(f"When install app:{app_name}, validate app_name and app_version error:{e}")
+        raise CustomException() from e
 
 
-def check_appId(app_id:str,endpointId:int,giteaManager:GiteaManager,portainerManager:PortainerManager):
+def check_appId(app_id: str, endpointId: int, giteaManager: GiteaManager, portainerManager: PortainerManager):
     """
     Check the app_id is exists in gitea and portainer
 
@@ -169,44 +171,33 @@ def check_appId(app_id:str,endpointId:int,giteaManager:GiteaManager,portainerMan
     """
 
     # validate the app_id is installing
-    for app_uuid,app in appInstalling.items():
+    for _app_uuid, app in appInstalling.items():
         if app_id == app.get("app_id", None):
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=f"{app_id} is installing"
-            )
-        
+            raise CustomException(status_code=400, message="Invalid Request", details=f"{app_id} is installing")
+
     # validate the app_id is installing error
-    for app_uuid,app in appInstallingError.items():
+    for _app_uuid, app in appInstallingError.items():
         if app_id == app.get("app_id", None):
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=f"The app with the same name has already failed to install. Please check in 'My Apps'."
+                details="The app with the same name has already failed to install. Please check in 'My Apps'.",
             )
 
     # validate the app_id is exists in gitea
     is_repo_exists = giteaManager.check_repo_exists(app_id)
     if is_repo_exists:
         logger.error(f"When install app,the app_id:{app_id} is exists in gitea")
-        raise CustomException(
-            status_code=400,
-            message="Invalid Request",
-            details=f"App_id:{app_id} is exists(in gitea)"
-        )
-    
+        raise CustomException(status_code=400, message="Invalid Request", details=f"App_id:{app_id} is exists(in gitea)")
+
     # validate the app_id is exists in portainer
-    is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
+    is_stack_exists = portainerManager.check_stack_exists(app_id, endpointId)
     if is_stack_exists:
         logger.error(f"When install app, the app_id:{app_id} is exists in portainer")
-        raise CustomException(
-            status_code=400,
-            message="Invalid Request",
-            details=f"app_id:{app_id} is exists(in portainer)"
-        )
+        raise CustomException(status_code=400, message="Invalid Request", details=f"app_id:{app_id} is exists(in portainer)")
 
-def check_domain_names(domain_names:list[str]):
+
+def check_domain_names(domain_names: list[str]):
     """
     Check the domain_names is exists in proxy
 
@@ -218,7 +209,8 @@ def check_domain_names(domain_names:list[str]):
     """
     ProxyManager().check_proxy_host_exists(domain_names)
 
-def check_endpointId(endpointId:int, portainerManager):
+
+def check_endpointId(endpointId: int, portainerManager):
     """
     Check the endpointId is exists
 
@@ -226,7 +218,7 @@ def check_endpointId(endpointId:int, portainerManager):
         endpointId (int): Endpoint Id
         portainerManager (PortainerManager): Portainer Manager
 
-    Raises: 
+    Raises:
         CustomException: If the endpointId is not exists
     """
     # validate the endpointId is exists
@@ -234,14 +226,10 @@ def check_endpointId(endpointId:int, portainerManager):
         is_endpointId_exists = portainerManager.check_endpoint_exists(endpointId)
         if not is_endpointId_exists:
             logger.error(f"EndpointId:{endpointId} Not Found")
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details="EndpointId Not Found"
-            )
+            raise CustomException(status_code=400, message="Invalid Request", details="EndpointId Not Found")
 
 
-def check_apps_number(endpointId:int):
+def check_apps_number(endpointId: int):
     """
     Check the apps number is exceed the maximum number of apps
 
@@ -258,17 +246,14 @@ def check_apps_number(endpointId:int):
         appInstallApps = AppManger().get_apps(endpointId)
 
         # Get the official and  status is 1(Active) or 3(Installing) apps
-        app_official = [app for app in appInstallApps if app.app_official == True and (app.status == 1 or app.status == 3)]
+        app_official = [app for app in appInstallApps if app.app_official and (app.status == 1 or app.status == 3)]
 
         if len(app_official) >= max_apps:
-            logger.error(f"Exceed the maximum number of apps")
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details="Exceed the maximum number of apps"
-            )
+            logger.error("Exceed the maximum number of apps")
+            raise CustomException(status_code=400, message="Invalid Request", details="Exceed the maximum number of apps")
 
-def install_validate(appInstall:appInstall,endpointId:int, library_path: str = None):
+
+def install_validate(appInstall: appInstall, endpointId: int, library_path: str | None = None):
     """
     before install app, check the appInstall is valid
 
@@ -314,15 +299,18 @@ def install_validate(appInstall:appInstall,endpointId:int, library_path: str = N
 
         # Check the domain_names is exists in proxy
         if proxy_enabled:
-            check_domain_names(domain_names)
+            check_domain_names(domain_names or [])
 
         # Check the endpointId is exists
         check_endpointId(endpointId, portainerManager)
 
         port_check_settings = get_port_check_settings(appInstall.profile, appInstall.settings, app_directory)
-        check_port_conflicts(port_check_settings, None if is_external_database_profile(app_directory, appInstall.profile) else app_name)
-    except CustomException as e:
-        raise e
+        check_port_conflicts(
+            port_check_settings,
+            None if is_external_database_profile(app_directory, appInstall.profile) else str(app_name or ""),
+        )
+    except CustomException:
+        raise
     except Exception as e:
         logger.error(f"When install app, validate appInstall error:{e}")
-        raise CustomException()
+        raise CustomException() from e

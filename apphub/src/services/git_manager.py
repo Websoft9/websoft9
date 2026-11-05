@@ -1,12 +1,13 @@
 import os
 from urllib.parse import urlparse, urlunparse
 
-from git import Repo, GitCommandError
+from git import GitCommandError, Repo
 
 from src.core.exception import CustomException
 from src.core.logger import logger
-from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.git_url_resolver import normalize_runtime_git_url
+from src.services.integration_credentials import IntegrationCredentialProvider
+
 
 class GitManager:
     """
@@ -20,7 +21,7 @@ class GitManager:
         push_local_repo_to_remote_repo(remote_url:str,user_name:str,user_pwd:str) -> None: Push a local git repository to a remote origin.
     """
 
-    def __init__(self,local_path:str):
+    def __init__(self, local_path: str):
         """
         Initialize the GitManager instance
         """
@@ -31,7 +32,7 @@ class GitManager:
 
     def init_local_repo_from_dir(self):
         """
-            Initialize a local git repository from a directory.
+        Initialize a local git repository from a directory.
         """
         # Validate the repo path.
         if not os.path.exists(self.local_path):
@@ -42,9 +43,11 @@ class GitManager:
         try:
             repo = Repo.init(self.local_path)
         except GitCommandError as e:
-            logger.error(f"When initializing a local git repository,failed to initialize git repository at {self.local_path}: {str(e)}")
-            raise CustomException()
-        
+            logger.error(
+                f"When initializing a local git repository,failed to initialize git repository at {self.local_path}: {str(e)}"
+            )
+            raise CustomException() from e
+
         # Add all files to the index and commit.
         try:
             config_writer = repo.config_writer()
@@ -55,10 +58,12 @@ class GitManager:
             repo.git.add('.')
             repo.git.commit('-m', 'Initial commit')
         except GitCommandError as e:
-            logger.error(f"When initializing a local git repository,failed to add/commit files in git repository at {self.local_path}: {str(e)}")
-            raise CustomException()
-        
-    def push_local_repo_to_remote_repo(self,remote_url:str,user_name:str,user_pwd:str):
+            logger.error(
+                f"When initializing a local git repository,failed to add/commit files in git repository at {self.local_path}: {str(e)}"
+            )
+            raise CustomException() from e
+
+    def push_local_repo_to_remote_repo(self, remote_url: str, user_name: str, user_pwd: str):
         """
         Push a local git repository to a remote origin.
 
@@ -75,7 +80,7 @@ class GitManager:
         if not os.path.exists(self.local_path):
             logger.error(f"Invalid repo path: {self.local_path}")
             raise CustomException()
-        
+
         remote_url = self._normalize_clone_url(remote_url)
 
         try:
@@ -90,24 +95,26 @@ class GitManager:
             auth_repo_url = urlunparse(auth_parsed)
         except Exception as e:
             logger.error(f"Failed to parse remote URL {remote_url}: {str(e)}")
-            raise CustomException()
+            raise CustomException() from e
 
         # Set remote origin URL.
-        try: 
+        try:
             repo = Repo(self.local_path)
-            repo.create_remote('origin', url=auth_repo_url) 
+            repo.create_remote('origin', url=auth_repo_url)
         except (ValueError, GitCommandError) as e:
             logger.error(f"Failed to set remote origin URL in git repository at {self.local_path}: {str(e)}")
-            raise CustomException()
+            raise CustomException() from e
 
         # Push local code to main branch on remote origin.
         try:
             repo.git.push('origin', 'HEAD:refs/heads/main')
         except GitCommandError as e:
-            logger.error(f"Failed to push from 'main' branch in git repository at {self.local_path} to remote '{remote_url}': {str(e)}")
-            raise CustomException()  
-        
-    def clone_remote_repo_to_local(self,remote_url:str,user_name:str,user_pwd:str):
+            logger.error(
+                f"Failed to push from 'main' branch in git repository at {self.local_path} to remote '{remote_url}': {str(e)}"
+            )
+            raise CustomException() from e
+
+    def clone_remote_repo_to_local(self, remote_url: str, user_name: str, user_pwd: str):
         """
         Clone a remote git repository to a local path.
 
@@ -133,11 +140,11 @@ class GitManager:
             auth_repo_url = urlunparse(auth_parsed)
         except Exception as e:
             logger.error(f"Failed to parse remote URL {remote_url}: {str(e)}")
-            raise CustomException()
-        
+            raise CustomException() from e
+
         # Clone the remote repository to the local path.
         try:
             Repo.clone_from(auth_repo_url, self.local_path)
         except GitCommandError as e:
             logger.error(f"Failed to clone remote repository from {remote_url} to {self.local_path}: {str(e)}")
-            raise CustomException()
+            raise CustomException() from e

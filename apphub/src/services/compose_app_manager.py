@@ -6,6 +6,8 @@ while the user-facing .env remains reserved for user-defined variables only.
 They share the same Portainer/Gitea infrastructure as marketplace apps but require
 a separate management surface because their update, edit, and redeploy flows differ.
 """
+
+import contextlib
 import json
 import os
 import shutil
@@ -26,8 +28,8 @@ from src.services.image_pull import (
 )
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.portainer_manager import PortainerManager
-from src.utils.file_manager import FileHelper
 from src.utils.env_file import format_env_assignment, parse_env_values
+from src.utils.file_manager import FileHelper
 
 _COMPOSE_DIST = "compose"
 _COMPOSE_METADATA_PATH = ".websoft9/compose-metadata.json"
@@ -57,7 +59,11 @@ def _is_compose_app(portainer: PortainerManager, app_id: str, endpoint_id: int) 
     from src.services.app_manager import AppManger
 
     app = AppManger().get_app_by_id(
-        app_id, endpoint_id, reconcile_stale=False, readonly_install_state=True, strict_exists=True,
+        app_id,
+        endpoint_id,
+        reconcile_stale=False,
+        readonly_install_state=True,
+        strict_exists=True,
     )
     return bool(app.is_compose_app)
 
@@ -67,7 +73,7 @@ def _require_stack(portainer: PortainerManager, app_id: str, endpoint_id: int) -
     stack = portainer.get_stack_by_name(app_id, endpoint_id)
     if not stack:
         raise CustomException(404, "Not Found", f"Compose app '{app_id}' not found")
-    return stack
+    return dict(stack)
 
 
 def _require_compose_app(portainer: PortainerManager, app_id: str, endpoint_id: int):
@@ -76,24 +82,21 @@ def _require_compose_app(portainer: PortainerManager, app_id: str, endpoint_id: 
 
     _require_stack(portainer, app_id, endpoint_id)
     app = AppManger().get_app_by_id(
-        app_id, endpoint_id, reconcile_stale=False, readonly_install_state=True, strict_exists=True,
+        app_id,
+        endpoint_id,
+        reconcile_stale=False,
+        readonly_install_state=True,
+        strict_exists=True,
     )
     if not app.is_compose_app:
-        raise CustomException(
-            400, "Invalid Request",
-            f"'{app_id}' is not a custom compose application"
-        )
+        raise CustomException(400, "Invalid Request", f"'{app_id}' is not a custom compose application")
     return app
 
 
 def _parse_user_env(env_content: str) -> list[dict]:
     """Parse .env content into user-visible key-value pairs, excluding W9_* vars."""
     values = parse_env_values(env_content)
-    return [
-        {"key": key, "value": value}
-        for key, value in values.items()
-        if not key.startswith("W9_") and value is not None
-    ]
+    return [{"key": key, "value": value} for key, value in values.items() if not key.startswith("W9_") and value is not None]
 
 
 def _list_src_files(gitea: GiteaManager, app_id: str) -> list[dict]:
@@ -126,14 +129,22 @@ class ComposeAppManager:
     def list_compose_apps(self, endpoint_id: int | None = None, locale: str = "en") -> list:
         """Return AppResponse objects for all apps whose metadata marks them as compose apps."""
         from src.services.app_manager import AppManger
+
         portainer = PortainerManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
         stacks = portainer.get_stacks(eid) or []
-        compose_app_ids = [
-            stack.get("Name")
-            for stack in stacks
-            if stack.get("Name") and _is_compose_app(portainer, stack["Name"], eid)
-        ]
+        # Inspection talks to Portainer and the app inventory, so one unhealthy app must not turn
+        # the whole list into an error: it is skipped and logged like a failed detail load below.
+        compose_app_ids: list[str] = []
+        for stack in stacks:
+            app_id = stack.get("Name")
+            if not app_id:
+                continue
+            try:
+                if _is_compose_app(portainer, app_id, eid):
+                    compose_app_ids.append(app_id)
+            except Exception as exc:
+                logger.warning(f"list_compose_apps: failed to inspect '{app_id}': {exc}")
         result = []
         for app_id in compose_app_ids:
             try:
@@ -145,7 +156,7 @@ class ComposeAppManager:
     def get_compose_app(self, app_id: str, endpoint_id: int | None = None, locale: str = "en"):
         """Return detail for a single compose app (validated via internal metadata)."""
         portainer = PortainerManager()
-        gitea = GiteaManager()
+        GiteaManager()  # constructs and validates the Gitea client; callers rely on that check
         eid = _get_endpoint_id(portainer, endpoint_id)
         return _require_compose_app(portainer, app_id, eid)
 
@@ -179,7 +190,7 @@ class ComposeAppManager:
 
     def start_compose_app(self, app_id: str, endpoint_id: int | None = None) -> None:
         portainer = PortainerManager()
-        gitea = GiteaManager()
+        GiteaManager()  # validates the Gitea client before touching the stack
         eid = _get_endpoint_id(portainer, endpoint_id)
         _require_compose_app(portainer, app_id, eid)
         # start containers one by one (keep Portainer stack Active)
@@ -187,7 +198,7 @@ class ComposeAppManager:
 
     def stop_compose_app(self, app_id: str, endpoint_id: int | None = None) -> None:
         portainer = PortainerManager()
-        gitea = GiteaManager()
+        GiteaManager()  # validates the Gitea client before touching the stack
         eid = _get_endpoint_id(portainer, endpoint_id)
         _require_compose_app(portainer, app_id, eid)
         # stop containers one by one (keep Portainer stack Active)
@@ -195,7 +206,7 @@ class ComposeAppManager:
 
     def restart_compose_app(self, app_id: str, endpoint_id: int | None = None) -> None:
         portainer = PortainerManager()
-        gitea = GiteaManager()
+        GiteaManager()  # validates the Gitea client before touching the stack
         eid = _get_endpoint_id(portainer, endpoint_id)
         _require_compose_app(portainer, app_id, eid)
         # restart containers one by one (keep Portainer stack Active)
@@ -213,14 +224,10 @@ class ComposeAppManager:
         """
         content = gitea.get_file_raw_from_repo(app_id, "docker-compose.yml")
         if not content:
-            logger.warning(
-                f"'{app_id}' has no docker-compose.yml in Gitea: skipping the image pre-pull"
-            )
+            logger.warning(f"'{app_id}' has no docker-compose.yml in Gitea: skipping the image pre-pull")
             return []
         env_content = gitea.get_file_raw_from_repo(app_id, ".env") or ""
-        env_values = {
-            entry["key"]: entry["value"] for entry in _parse_user_env(env_content)
-        }
+        env_values = {entry["key"]: entry["value"] for entry in _parse_user_env(env_content)}
 
         images = collect_compose_images(content, env_values)
         if not images:
@@ -310,8 +317,9 @@ class ComposeAppManager:
         repo_url = git_config.get("URL")
         if not repo_url:
             raise CustomException(
-                500, "Internal Server Error",
-                f"Cannot determine Gitea repository URL for '{app_id}' from Portainer stack GitConfig"
+                500,
+                "Internal Server Error",
+                f"Cannot determine Gitea repository URL for '{app_id}' from Portainer stack GitConfig",
             )
 
         credentials = IntegrationCredentialProvider().get_gitea_credentials()
@@ -321,6 +329,7 @@ class ComposeAppManager:
         workspace = os.path.join(temp_root, app_id)
         try:
             from src.services.git_manager import GitManager
+
             git_mgr = GitManager(workspace)
             git_mgr.clone_remote_repo_to_local(repo_url, credentials.username, credentials.password)
 
@@ -351,7 +360,7 @@ class ComposeAppManager:
             raise
         except Exception as exc:
             logger.error(f"Failed to update compose content for {app_id}: {exc}")
-            raise CustomException(500, "Internal Server Error", f"Failed to push updated compose content: {exc}")
+            raise CustomException(500, "Internal Server Error", f"Failed to push updated compose content: {exc}") from exc
         finally:
             shutil.rmtree(temp_root, ignore_errors=True)
 
@@ -360,7 +369,7 @@ class ComposeAppManager:
         try:
             self._pull_stack_images(app_id, gitea)
         except ImagePullError as exc:
-            raise CustomException(502, "Image Pull Error", str(exc))
+            raise CustomException(502, "Image Pull Error", str(exc)) from exc
         portainer.redeploy_stack(stack_id, eid, False, credentials.username, credentials.password)
 
     # ── Remove ─────────────────────────────────────────────────────────────────
@@ -384,10 +393,8 @@ class ComposeAppManager:
                     portainer.remove_stack_and_volumes(stack_id, eid)
                 except Exception as exc:
                     logger.warning(f"Failed to remove Portainer stack for {app_id}: {exc}")
-                    try:
+                    with contextlib.suppress(Exception):
                         portainer.remove_vloumes(app_id, eid)
-                    except Exception:
-                        pass
 
         if gitea.check_repo_exists(app_id):
             try:

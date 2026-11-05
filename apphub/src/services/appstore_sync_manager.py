@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
-import json
 from pathlib import Path
 
 from src.core.exception import CustomException
-
 
 _SYNC_LOCK_FILE = "/tmp/websoft9-appstore-sync.lock"
 
@@ -116,7 +115,14 @@ class AppStoreSyncManager:
         """Expose the App Store sync lock so callers can avoid overlapping runs."""
         return self._is_sync_running()
 
-    def sync(self, trigger: str = "manual", channel: str | None = None, package_types: str | None = None, force_refresh: bool = False, background: bool = True) -> dict:
+    def sync(
+        self,
+        trigger: str = "manual",
+        channel: str | None = None,
+        package_types: str | None = None,
+        force_refresh: bool = False,
+        background: bool = True,
+    ) -> dict:
         script_path = Path(self._default_script_path)
         if not script_path.exists():
             raise CustomException(
@@ -216,7 +222,7 @@ class AppStoreSyncManager:
             "            pass\n"
             "sys.exit(exit_code)\n"
         )
-        process = subprocess.Popen(
+        background_process = subprocess.Popen(
             [sys.executable, "-c", wrapper_code, str(log_path), _SYNC_LOCK_FILE, str(script_path)],
             env=env,
             stdout=subprocess.DEVNULL,
@@ -224,7 +230,7 @@ class AppStoreSyncManager:
             start_new_session=True,
         )
 
-        self._mark_sync_start(process.pid)
+        self._mark_sync_start(background_process.pid)
 
         return {
             "status": "accepted",

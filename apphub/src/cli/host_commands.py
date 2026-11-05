@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import re
 from typing import Any
 
 import click
 
 from src.cli.cli_output import CLIError, run_cli_action
-
 
 _PORT_RANGE_PATTERN = re.compile(r"^\s*(\d{1,5})\s*-\s*(\d{1,5})\s*$")
 
@@ -62,6 +62,7 @@ def _parse_port_tokens(tokens: tuple[str, ...]) -> list[int]:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def check_ports_command(ports: tuple[str, ...], as_json: bool) -> None:
     """Check whether one or more host ports are free."""
+
     def action() -> dict[str, Any]:
         from src.services.port_allocator import check_ports, read_port_range
 
@@ -87,19 +88,23 @@ def check_ports_command(ports: tuple[str, ...], as_json: bool) -> None:
 
 @host_ports_group.command(name="suggest")
 @click.option("--key", "keys", multiple=True, help="Setting key to allocate a free port for (repeatable).")
-@click.option("--count", type=click.IntRange(min=1, max=50), default=1, show_default=True, help="Number of ports to suggest when --key is omitted.")
+@click.option(
+    "--count",
+    type=click.IntRange(min=1, max=50),
+    default=1,
+    show_default=True,
+    help="Number of ports to suggest when --key is omitted.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def suggest_ports_command(keys: tuple[str, ...], count: int, as_json: bool) -> None:
     """Suggest free host ports from the configured port range."""
+
     def action() -> dict[str, Any]:
         from src.services.port_allocator import read_port_range, suggest_ports
 
         requested_keys = [item.strip() for item in keys if item and item.strip()]
         if not requested_keys:
-            if count == 1:
-                requested_keys = ["W9_HTTP_PORT_SET"]
-            else:
-                requested_keys = [f"PORT_{index + 1}" for index in range(count)]
+            requested_keys = ["W9_HTTP_PORT_SET"] if count == 1 else [f"PORT_{index + 1}" for index in range(count)]
         suggestions = suggest_ports(requested_keys)
         min_port, max_port = read_port_range()
         return {
@@ -110,13 +115,17 @@ def suggest_ports_command(keys: tuple[str, ...], count: int, as_json: bool) -> N
 
     def render_text(payload: dict[str, Any]) -> str:
         items = payload.get("items") or []
-        return "\n".join(f"- {item.get('key')}: {item.get('port') if item.get('port') is not None else 'exhausted'}" for item in items)
+        return "\n".join(
+            f"- {item.get('key')}: {item.get('port') if item.get('port') is not None else 'exhausted'}" for item in items
+        )
 
     run_cli_action(action, as_json=as_json, text_renderer=render_text)
 
 
 @host_group.command(name="env-check")
-@click.option("--path", "check_path", default="/", show_default=True, help="Filesystem path to check disk and inode capacity on.")
+@click.option(
+    "--path", "check_path", default="/", show_default=True, help="Filesystem path to check disk and inode capacity on."
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def host_env_check_command(check_path: str, as_json: bool) -> None:
     """Inspect swap, inode usage, DNS, and kernel parameters in the CLI environment.
@@ -124,6 +133,7 @@ def host_env_check_command(check_path: str, as_json: bool) -> None:
     When run in a container, these checks reflect its visible environment, not
     a complete inspection of a remote host.
     """
+
     def action() -> dict[str, Any]:
         import os
         import shutil
@@ -238,9 +248,11 @@ def host_ssh_profiles_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_ssh_profiles_command(as_json: bool) -> None:
     """List saved SSH host connection profiles without exposing secrets."""
+
     def action() -> dict[str, Any]:
         import json as _json
         import sqlite3
+
         from src.services.host_access import HostAccessService
 
         service = HostAccessService()
@@ -249,7 +261,8 @@ def list_ssh_profiles_command(as_json: bool) -> None:
 
         items: list[dict[str, Any]] = []
         uri = f"{service.database_file.resolve().as_uri()}?mode=ro"
-        with sqlite3.connect(uri, uri=True, timeout=5) as conn:
+        # 同上:`with sqlite3.connect(...)` 不会关闭连接,只读查询要用 closing()。
+        with contextlib.closing(sqlite3.connect(uri, uri=True, timeout=5)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT profile_id, operator_id, is_default, payload, updated_at FROM host_profiles ORDER BY is_default DESC, updated_at DESC"

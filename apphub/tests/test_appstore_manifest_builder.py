@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "docker" / "scripts" / "platform-sync-runtime-assets.py"
 MODULE_SPEC = importlib.util.spec_from_file_location("platform_sync_runtime_assets_test", SCRIPT_PATH)
 assert MODULE_SPEC is not None and MODULE_SPEC.loader is not None
@@ -35,7 +34,9 @@ def _write_product(path: Path, key: str = "wordpress") -> None:
 def _write_wordpress_library(library_root: Path) -> None:
     wordpress = library_root / "apps" / "wordpress"
     wordpress.mkdir(parents=True)
-    (wordpress / ".env").write_text("W9_HTTP_PORT_SET=8080\nW9_URL=http://example.test:${W9_HTTP_PORT_SET}\n", encoding="utf-8")
+    (wordpress / ".env").write_text(
+        "W9_HTTP_PORT_SET=8080\nW9_URL=http://example.test:${W9_HTTP_PORT_SET}\n", encoding="utf-8"
+    )
     (wordpress / ".env.external-db").write_text("W9_DATABASE_MODE=external\nW9_DATABASE_PORT_SET=3306\n", encoding="utf-8")
     (wordpress / "variables.json").write_text(
         json.dumps({"edition": [{"dist": "community", "version": "6.6"}], "help": {"en": "https://example.test/help"}}),
@@ -44,9 +45,26 @@ def _write_wordpress_library(library_root: Path) -> None:
 
 
 def _write_catalogs(media_json: Path) -> None:
-    catalog = [{"key": "collaboration", "title": "Collaboration", "linkedFrom": {"catalogCollection": {"items": [{"key": "document", "title": "Documents", "position": 1}]}}}]
+    catalog = [
+        {
+            "key": "collaboration",
+            "title": "Collaboration",
+            "linkedFrom": {"catalogCollection": {"items": [{"key": "document", "title": "Documents", "position": 1}]}},
+        }
+    ]
     (media_json / "catalog_en.json").write_text(json.dumps(catalog), encoding="utf-8")
-    (media_json / "catalog_zh.json").write_text(json.dumps([{**catalog[0], "title": "协作", "linkedFrom": {"catalogCollection": {"items": [{"key": "document", "title": "文档", "position": 1}]}}}]), encoding="utf-8")
+    (media_json / "catalog_zh.json").write_text(
+        json.dumps(
+            [
+                {
+                    **catalog[0],
+                    "title": "协作",
+                    "linkedFrom": {"catalogCollection": {"items": [{"key": "document", "title": "文档", "position": 1}]}},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_published_manifests_are_valid_only_when_both_locales_match_platform_schema(tmp_path):
@@ -124,12 +142,21 @@ def test_build_manifest_adds_library_catalog_metadata_without_changing_product_e
     official = library_root / "apps" / "official"
     official.mkdir(parents=True)
     (official / ".env").write_text("W9_HTTP_PORT_SET=8080\n", encoding="utf-8")
-    (official / "variables.json").write_text(json.dumps({"edition": [{"dist": "community", "version": "1.0"}]}), encoding="utf-8")
+    (official / "variables.json").write_text(
+        json.dumps({"edition": [{"dist": "community", "version": "1.0"}]}), encoding="utf-8"
+    )
     _write_wordpress_library(library_root)
     metadata_root = library_root / "metadata" / "catalog"
     metadata_root.mkdir(parents=True)
     (metadata_root / "wordpress.json").write_text(
-        json.dumps({"trademark": "WordPress", "summary": "English summary", "catalogBindings": [{"parentKey": "collaboration", "childKey": "document"}], "translations": {"zh": {"summary": "中文简介"}}}),
+        json.dumps(
+            {
+                "trademark": "WordPress",
+                "summary": "English summary",
+                "catalogBindings": [{"parentKey": "collaboration", "childKey": "document"}],
+                "translations": {"zh": {"summary": "中文简介"}},
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -158,12 +185,20 @@ def test_build_manifest_uses_metadata_base_fields_when_translations_are_absent(t
     official = library_root / "apps" / "official"
     official.mkdir(parents=True)
     (official / ".env").write_text("W9_HTTP_PORT_SET=8080\n", encoding="utf-8")
-    (official / "variables.json").write_text(json.dumps({"edition": [{"dist": "community", "version": "1.0"}]}), encoding="utf-8")
+    (official / "variables.json").write_text(
+        json.dumps({"edition": [{"dist": "community", "version": "1.0"}]}), encoding="utf-8"
+    )
     _write_wordpress_library(library_root)
     metadata_root = library_root / "metadata" / "catalog"
     metadata_root.mkdir(parents=True)
     (metadata_root / "wordpress.json").write_text(
-        json.dumps({"trademark": "WordPress", "summary": "Shared summary", "catalogBindings": [{"parentKey": "collaboration", "childKey": "document"}]}),
+        json.dumps(
+            {
+                "trademark": "WordPress",
+                "summary": "Shared summary",
+                "catalogBindings": [{"parentKey": "collaboration", "childKey": "document"}],
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -212,10 +247,12 @@ def test_build_manifest_logs_a_skip_summary_without_app_names(tmp_path, capsys):
     media_json = tmp_path / "media" / "json"
     media_json.mkdir(parents=True)
     (media_json / "product_en.json").write_text(
-        json.dumps([
-            {"key": "wordpress", "title": "WordPress"},
-            {"key": "missing-template", "title": "Missing template"},
-        ]),
+        json.dumps(
+            [
+                {"key": "wordpress", "title": "WordPress"},
+                {"key": "missing-template", "title": "Missing template"},
+            ]
+        ),
         encoding="utf-8",
     )
     library_root = tmp_path / "library"
@@ -751,6 +788,7 @@ def test_replace_and_restore_tree_preserves_symbolic_link_target(tmp_path):
     assert runtime_media.is_symlink()
     assert (runtime_media / "version.txt").read_text(encoding="utf-8") == "old"
 
+
 def test_manifest_build_survives_an_app_without_a_display_logo(tmp_path):
     """A missing logo is cosmetic: the console falls back to its default icon.
 
@@ -760,10 +798,12 @@ def test_manifest_build_survives_an_app_without_a_display_logo(tmp_path):
     media_json = tmp_path / "media" / "json"
     media_json.mkdir(parents=True)
     (media_json / "product_zh.json").write_text(
-        json.dumps([
-            {"key": "wordpress", "title": "WordPress", "logo": {"imageurl": "https://example.test/w.png"}},
-            {"key": "springboot", "title": "SpringBoot", "logo": None},
-        ]),
+        json.dumps(
+            [
+                {"key": "wordpress", "title": "WordPress", "logo": {"imageurl": "https://example.test/w.png"}},
+                {"key": "springboot", "title": "SpringBoot", "logo": None},
+            ]
+        ),
         encoding="utf-8",
     )
     library_root = tmp_path / "library"
@@ -896,4 +936,3 @@ def test_manifest_validity_detects_stale_removed_apps_against_product_and_librar
         manifest_path.write_text(json.dumps(data), encoding="utf-8")
 
     assert runtime_assets.has_valid_published_app_store_manifests(media_root) is False
-

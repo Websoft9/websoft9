@@ -10,7 +10,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.services import image_pull
 from src.services.docker_mirror_store import DockerMirrorStore
 from src.services.image_pull import (
     DEFAULT_IMAGE_REPO,
@@ -147,11 +146,14 @@ def test_direct_pull_wins_and_needs_no_alias():
     assert client.api.tags == [("sha256:local", "websoft9dev/websoft9", "2.4.1")]
 
 
-@pytest.mark.parametrize("error_event", [
-    {"error": "no space left on device"},
-    {"errorDetail": {"message": "no space left on device"}},
-    {"error": "pull failed", "errorDetail": {"message": "no space left on device"}},
-])
+@pytest.mark.parametrize(
+    "error_event",
+    [
+        {"error": "no space left on device"},
+        {"errorDetail": {"message": "no space left on device"}},
+        {"error": "pull failed", "errorDetail": {"message": "no space left on device"}},
+    ],
+)
 def test_stream_pull_preserves_daemon_error_without_inspecting_local_image(monkeypatch, error_event):
     reference = "ubuntu/squid:latest"
     client = FakeClient({})
@@ -174,7 +176,10 @@ def test_stream_pull_preserves_daemon_error_without_inspecting_local_image(monke
 
     with pytest.raises(ImagePullError, match="no space left on device") as error:
         pull_with_fallback(
-            client, reference, accelerators=[], use_ecr_public=False,
+            client,
+            reference,
+            accelerators=[],
+            use_ecr_public=False,
             on_progress=progress.append,
         )
 
@@ -244,9 +249,7 @@ def test_ecr_is_skipped_for_foreign_repositories():
 def test_ecr_candidates_cover_the_docker_hub_official_mirror():
     digest = "sha256:" + "a" * 64
 
-    assert ecr_candidates(f"docker:29.8.0-cli@{digest}") == [
-        f"public.ecr.aws/docker/library/docker:29.8.0-cli@{digest}"
-    ]
+    assert ecr_candidates(f"docker:29.8.0-cli@{digest}") == [f"public.ecr.aws/docker/library/docker:29.8.0-cli@{digest}"]
     assert ecr_candidates("alpine:3.20") == ["public.ecr.aws/docker/library/alpine:3.20"]
     # Namespaced Docker Hub images are not mirrored there.
     assert ecr_candidates("websoft9dev/other:1.0") == []
@@ -279,9 +282,7 @@ def test_accelerated_pull_tries_the_library_prefix_for_official_images():
     mirror_reference = f"mirror.example.test/library/docker:27.3-cli@{digest}"
     client = FakeClient({mirror_reference: FakeImage("sha256:mirror", "sha256:" + "d" * 64)})
 
-    result = pull_with_fallback(
-        client, reference, accelerators=["mirror.example.test"], use_ecr_public=True
-    )
+    result = pull_with_fallback(client, reference, accelerators=["mirror.example.test"], use_ecr_public=True)
 
     assert result.source == mirror_reference
     assert result.digest == "sha256:" + "d" * 64
@@ -407,9 +408,7 @@ def test_pull_error_detail_prefers_the_specific_text_the_exception_carries():
     assert pull_error_detail(RuntimeError("boom")) == "boom"
     # A bare exception carries nothing an operator can act on, so the caller's wording is kept.
     assert pull_error_detail(RuntimeError("")) == "Pulling the application images failed"
-    assert pull_error_detail(RuntimeError("Internal Server Error")) == (
-        "Pulling the application images failed"
-    )
+    assert pull_error_detail(RuntimeError("Internal Server Error")) == ("Pulling the application images failed")
 
 
 def test_an_invalid_reference_names_the_likely_cause():
@@ -437,12 +436,8 @@ def test_an_unreadable_version_probe_does_not_block_the_upgrade():
 
 
 def test_load_image_accelerators_answers_from_the_registry(tmp_path):
-    registry = MirrorRegistry(
-        store=DockerMirrorStore(tmp_path / "platform.sqlite"), data_root=tmp_path
-    )
-    registry.store.replace_entries(
-        [{"url": "registry.example.test", "username": "ops", "password": "s3cret"}]
-    )
+    registry = MirrorRegistry(store=DockerMirrorStore(tmp_path / "platform.sqlite"), data_root=tmp_path)
+    registry.store.replace_entries([{"url": "registry.example.test", "username": "ops", "password": "s3cret"}])
 
     accelerators = load_image_accelerators(registry=registry)
 
@@ -452,13 +447,9 @@ def test_load_image_accelerators_answers_from_the_registry(tmp_path):
 
 @pytest.mark.asyncio
 async def test_async_pull_uses_default_accelerator_when_no_addresses_are_configured(tmp_path):
-    registry = MirrorRegistry(
-        store=DockerMirrorStore(tmp_path / "platform.sqlite"), data_root=tmp_path
-    )
+    registry = MirrorRegistry(store=DockerMirrorStore(tmp_path / "platform.sqlite"), data_root=tmp_path)
     registry.default_list_file.parent.mkdir(parents=True, exist_ok=True)
-    registry.default_list_file.write_text(
-        json.dumps({"mirrors": ["default.example.test"]}), encoding="utf-8"
-    )
+    registry.default_list_file.write_text(json.dumps({"mirrors": ["default.example.test"]}), encoding="utf-8")
     pulled: list[str] = []
     tagged: list[tuple[str, str, str]] = []
 
@@ -517,9 +508,7 @@ def test_application_pull_plan_does_not_try_ecr_public_for_docker_hub_images():
 
 
 def test_accelerated_pull_sends_the_configured_credentials():
-    client = FakeClient(
-        {"mirror.example.test/other/image:1.0": FakeImage("sha256:local")}
-    )
+    client = FakeClient({"mirror.example.test/other/image:1.0": FakeImage("sha256:local")})
 
     pull_with_fallback(
         client,
@@ -535,9 +524,7 @@ def test_progress_callback_receives_the_streamed_lines():
     client.images.local["other/image:1.0"] = FakeImage("sha256:local")
     lines = []
 
-    pull_with_fallback(
-        client, "other/image:1.0", accelerators=[], on_progress=lines.append
-    )
+    pull_with_fallback(client, "other/image:1.0", accelerators=[], on_progress=lines.append)
 
     assert lines == [{"status": "pulling", "id": "other/image:1.0"}]
 
@@ -563,7 +550,13 @@ def test_cancelled_progress_closes_stream_without_trying_fallback():
         return checks > 2
 
     with pytest.raises(InstallCancelled):
-        pull_with_fallback(client, "wordpress:6.3", accelerators=["mirror.example.test"], on_progress=lambda _line: None, is_cancelled=is_cancelled)
+        pull_with_fallback(
+            client,
+            "wordpress:6.3",
+            accelerators=["mirror.example.test"],
+            on_progress=lambda _line: None,
+            is_cancelled=is_cancelled,
+        )
 
     assert stream.closed is True
 

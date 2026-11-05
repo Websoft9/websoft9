@@ -1,14 +1,11 @@
 from src.services.product_runtime_state import (
     ProductRuntimeState as ProductEditionMetadata,
-    infer_product_edition_key_from_max_apps,
-    initialize_product_runtime_state,
+)
+from src.services.product_runtime_state import (
     migrate_product_runtime_state,
-    normalize_product_edition_key,
-    read_legacy_system_ini_max_apps,
     read_product_runtime_state,
-    set_product_runtime_edition,
-    supported_product_edition_keys,
     read_release_version,
+    set_product_runtime_edition,
 )
 
 
@@ -32,14 +29,16 @@ def read_product_metadata_file(_file_path: str) -> dict:
 
 def resolve_product_max_apps(edition_key):
     from src.core.product_catalog import resolve_product_edition_definition
+
     edition = resolve_product_edition_definition(edition_key)
     return edition.max_apps
 
 
 def write_product_metadata(*, edition_key: str, version=None, max_apps=None) -> ProductEditionMetadata:
     if version is not None:
-        from pathlib import Path
         import json
+        from pathlib import Path
+
         version_file = Path(__file__).resolve().parents[3] / 'version.json'
         payload = {}
         if version_file.exists():
@@ -53,6 +52,7 @@ def write_product_metadata(*, edition_key: str, version=None, max_apps=None) -> 
 
     if max_apps is not None:
         from src.services.product_runtime_state import ProductRuntimeStateStore
+
         store = ProductRuntimeStateStore()
         store.write_runtime_state(
             edition_key=edition_key,
@@ -69,11 +69,14 @@ def write_product_edition(edition_key: str, version=None) -> ProductEditionMetad
     return write_product_metadata(edition_key=edition_key, version=version)
 
 
-def migrate_product_metadata(*, version=None, source_metadata_file=None, legacy_system_ini_file=None, fallback_edition_key='free') -> ProductEditionMetadata:
+def migrate_product_metadata(
+    *, version=None, source_metadata_file=None, legacy_system_ini_file=None, fallback_edition_key='free'
+) -> ProductEditionMetadata:
     source_state = None
     if source_metadata_file:
-        from pathlib import Path
         import json
+        from pathlib import Path
+
         source_path = Path(source_metadata_file)
         if source_path.exists():
             try:

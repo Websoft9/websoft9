@@ -7,7 +7,6 @@ from unittest.mock import Mock
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -36,7 +35,11 @@ def test_compose_classification_uses_shared_type_for_active_and_retained_apps(cl
     classification.manager.get_app_by_id.return_value = SimpleNamespace(is_compose_app=is_compose)
     assert classification.service._is_compose_app(classification.portainer, "demo", 7) is is_compose
     classification.manager.get_app_by_id.assert_called_once_with(
-        "demo", 7, reconcile_stale=False, readonly_install_state=True, strict_exists=True,
+        "demo",
+        7,
+        reconcile_stale=False,
+        readonly_install_state=True,
+        strict_exists=True,
     )
 
 

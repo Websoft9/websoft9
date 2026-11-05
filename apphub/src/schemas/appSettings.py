@@ -8,7 +8,7 @@ class ApiKeySetting(BaseModel):
 
 
 class Domain(BaseModel):
-    wildcard_domain: str = Field(None, title="The domain name")
+    wildcard_domain: Optional[str] = Field(None, title="The domain name")
 
 
 class GenerateSelfSignedCertRequest(BaseModel):
@@ -26,6 +26,7 @@ class UploadCertRequest(BaseModel):
     key_pem: str = Field(..., title="Private key PEM content")
     intermediate_pem: str = Field('', title="Optional intermediate/chain certificate PEM")
 
+
 class PlatformGatewaySetting(BaseModel):
     https_enabled: str = Field(..., title="Whether platform gateway HTTPS is enabled")
     ssl_cert: str = Field(..., title="The SSL certificate path for platform gateway")
@@ -38,6 +39,7 @@ class PlatformGatewayBatchUpdateRequest(BaseModel):
     force_https: str = Field(..., title="Whether force HTTPS is enabled for platform gateway")
     ssl_cert: str = Field('', title="The SSL certificate path for platform gateway")
     ssl_key: str = Field('', title="The SSL key path for platform gateway")
+
 
 class ProductAuthSetting(BaseModel):
     enabled: str = Field(..., title="Whether product auth is enabled")

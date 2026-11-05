@@ -6,7 +6,6 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -103,10 +102,20 @@ def test_install_routes_backend_logs_to_stderr_preserving_legacy_json(monkeypatc
     with CliRunner().isolation() as streams:
         handler = logging.StreamHandler(sys.stdout)
         monkeypatch.setattr(log, "handlers", [handler])
-        app_group.main([
-            "install", "wordpress", "--app-id", "mywp", "--version", "latest",
-            "--domain", "192.0.2.10", "--json",
-        ], standalone_mode=False)
+        app_group.main(
+            [
+                "install",
+                "wordpress",
+                "--app-id",
+                "mywp",
+                "--version",
+                "latest",
+                "--domain",
+                "192.0.2.10",
+                "--json",
+            ],
+            standalone_mode=False,
+        )
         assert handler.stream is sys.stdout
         stdout = streams[0].getvalue().decode()
         stderr = streams[1].getvalue().decode()
@@ -129,17 +138,17 @@ def test_install_rejects_empty_settings_key():
     assert "key cannot be empty" in result.output
 
 
-def test_install_json_rejects_installation_options():
+def test_install_json_rejects_installation_options(tmp_path):
     from src.cli.app_commands import app_group
 
-    with CliRunner().isolated_filesystem():
-        with open("install.json", "w", encoding="utf-8") as handle:
-            json.dump({}, handle)
+    runner = CliRunner()
+    install_json = tmp_path / "install.json"
+    install_json.write_text(json.dumps({}), encoding="utf-8")
 
-        result = CliRunner().invoke(
-            app_group,
-            ["install", "--from-json", "install.json", "--profile", "external-db"],
-        )
+    result = runner.invoke(
+        app_group,
+        ["install", "--from-json", str(install_json), "--profile", "external-db"],
+    )
 
     assert result.exit_code != 0
     assert "profile" in result.output
@@ -156,13 +165,19 @@ def test_refresh_outputs_private_app_report_as_json(monkeypatch):
 
     _install_local_app_store_stub(
         monkeypatch,
-        lambda: {"official": {"loaded": {"zh": 2, "en": 2}, "errors": []}, "custom": {"loaded": 2, "skipped": 0, "errors": []}},
+        lambda: {
+            "official": {"loaded": {"zh": 2, "en": 2}, "errors": []},
+            "custom": {"loaded": 2, "skipped": 0, "errors": []},
+        },
     )
 
     result = CliRunner().invoke(app_group, ["refresh", "--json"])
 
     assert result.exit_code == 0
-    assert json.loads(result.output) == {"official": {"loaded": {"zh": 2, "en": 2}, "errors": []}, "custom": {"loaded": 2, "skipped": 0, "errors": []}}
+    assert json.loads(result.output) == {
+        "official": {"loaded": {"zh": 2, "en": 2}, "errors": []},
+        "custom": {"loaded": 2, "skipped": 0, "errors": []},
+    }
 
 
 def test_refresh_returns_nonzero_when_private_apps_are_skipped(monkeypatch):

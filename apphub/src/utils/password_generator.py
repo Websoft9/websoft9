@@ -1,41 +1,40 @@
-import string
 import random
+import string
+
 
 class PasswordGenerator:
     """
     A class that generates a strong password.
     """
+
     @staticmethod
-    def generate_strong_password(length:int=16):
-        lowercase_letters = string.ascii_lowercase      # all lowercase letters
-        uppercase_letters = string.ascii_uppercase      # all uppercase letters
-        digits = string.digits                          # all digits
-        special_symbols = "!"                        # all special symbols
+    def generate_strong_password(length: int = 16):
+        lowercase_letters = string.ascii_lowercase  # all lowercase letters
+        uppercase_letters = string.ascii_uppercase  # all uppercase letters
+        digits = string.digits  # all digits
+        special_symbols = "!"  # all special symbols
 
         # get 4 random characters from each category
         password = [
             random.choice(lowercase_letters),
             random.choice(uppercase_letters),
             random.choice(digits),
-            random.choice(special_symbols)
+            random.choice(special_symbols),
         ]
 
         # get random characters from all categories
         all_characters = lowercase_letters + uppercase_letters + digits + special_symbols
-        for i in range(length-4):
-            password.append(random.choice(all_characters)) # get a random character from all characters
+        for _i in range(length - 4):
+            password.append(random.choice(all_characters))  # get a random character from all characters
 
         # shuffle the password list
         random.shuffle(password)
 
         # convert the list to a string
-        password = ''.join(password)
-
-        return password
-
+        return ''.join(password)
 
     @staticmethod
-    def generate_random_string(length:int=8):
+    def generate_random_string(length: int = 8):
         """
         Generate a weak password.
 
@@ -47,9 +46,9 @@ class PasswordGenerator:
         """
         characters = string.ascii_lowercase + string.digits
         return ''.join(random.choice(characters) for _ in range(length))
-    
+
     @staticmethod
-    def generate_random_string_with_rules(min_length:int=8):
+    def generate_random_string_with_rules(min_length: int = 8):
         """
         Generate a random string with at least two uppercase letters, and a mix of lowercase letters and digits.
 
@@ -72,7 +71,9 @@ class PasswordGenerator:
         remaining_length = max(min_length - 3, 1)  # Ensure there's room for additional characters
 
         # The rest can be a mix of uppercase, lowercase, and digits
-        other_chars = ''.join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=remaining_length))
+        other_chars = ''.join(
+            random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=remaining_length)
+        )
 
         # Combine and shuffle
         password_list = list(uppercase_chars + lowercase_char + digit_char + other_chars)

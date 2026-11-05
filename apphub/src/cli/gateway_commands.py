@@ -31,6 +31,7 @@ def gateway_cert_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_proxies_command(app_id: str | None, endpoint_id: int | None, as_json: bool) -> None:
     """List reverse proxy bindings or inspect an application's access overview."""
+
     def action() -> dict[str, Any]:
         from src.services.app_access_manager import AppAccessManager
         from src.services.proxy_manager import ProxyManager
@@ -67,7 +68,9 @@ def list_proxies_command(app_id: str | None, endpoint_id: int | None, as_json: b
                 f"App Access: {payload.get('app_id')} (enabled={profile.get('enabled')} target={profile.get('forward_scheme')}://{profile.get('forward_host')}:{profile.get('forward_port')})"
             ]
             for host in hosts:
-                lines.append(f"- proxy_id={host.get('proxy_id')} domains={', '.join(host.get('domain_names') or [])} ssl_forced={host.get('ssl_forced')}")
+                lines.append(
+                    f"- proxy_id={host.get('proxy_id')} domains={', '.join(host.get('domain_names') or [])} ssl_forced={host.get('ssl_forced')}"
+                )
             return "\n".join(lines)
         items = payload.get("items") or []
         if not items:
@@ -86,7 +89,9 @@ def list_proxies_command(app_id: str | None, endpoint_id: int | None, as_json: b
 @gateway_proxy_group.command(name="bind")
 @click.argument("app_id")
 @click.option("--domain", "domains", multiple=True, required=True, help="Domain name to bind (repeatable).")
-@click.option("--cert-id", "certificate_id", type=click.IntRange(min=1), default=None, help="Certificate ID in Nginx Proxy Manager.")
+@click.option(
+    "--cert-id", "certificate_id", type=click.IntRange(min=1), default=None, help="Certificate ID in Nginx Proxy Manager."
+)
 @click.option("--ssl-forced/--no-ssl-forced", default=False, show_default=True, help="Force HTTPS redirection.")
 @click.option("--proxy-id", type=click.IntRange(min=1), default=None, help="Existing proxy host ID to update.")
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), default=None, help="Endpoint ID.")
@@ -103,6 +108,7 @@ def bind_proxy_command(
     as_json: bool,
 ) -> None:
     """Bind one or more domain names to an application's reverse proxy."""
+
     def action() -> dict[str, Any]:
         from src.services.app_access_manager import AppAccessManager
 
@@ -144,7 +150,14 @@ def bind_proxy_command(
 @click.option("--enabled/--disabled", default=True, show_default=True, help="Enable or disable web access profile.")
 @click.option("--host", "forward_host", default=None, help="Forward container/service host.")
 @click.option("--port", "forward_port", type=click.IntRange(min=1, max=65535), default=None, help="Forward container port.")
-@click.option("--scheme", "forward_scheme", type=click.Choice(["http", "https"], case_sensitive=False), default="http", show_default=True, help="Forward scheme.")
+@click.option(
+    "--scheme",
+    "forward_scheme",
+    type=click.Choice(["http", "https"], case_sensitive=False),
+    default="http",
+    show_default=True,
+    help="Forward scheme.",
+)
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), default=None, help="Endpoint ID.")
 @click.option("--yes", "-y", is_flag=True, help="Confirm updating access target.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
@@ -159,6 +172,7 @@ def set_proxy_target_command(
     as_json: bool,
 ) -> None:
     """Update the forwarding target profile for a custom Compose application."""
+
     def action() -> dict[str, Any]:
         from src.services.app_access_manager import AppAccessManager
 
@@ -169,7 +183,9 @@ def set_proxy_target_command(
                     f"Updating access target for '{app_id}' requires --yes confirmation",
                     details={"app_id": app_id, "enabled": enabled, "forward_host": forward_host, "forward_port": forward_port},
                 )
-            if not click.confirm(f"Update access target for '{app_id}' to {forward_scheme}://{forward_host}:{forward_port} (enabled={enabled})?"):
+            if not click.confirm(
+                f"Update access target for '{app_id}' to {forward_scheme}://{forward_host}:{forward_port} (enabled={enabled})?"
+            ):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
         profile = AppAccessManager().update_profile(
@@ -200,6 +216,7 @@ def set_proxy_target_command(
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def set_root_url_command(app_id: str, domain_name: str, endpoint_id: int | None, yes: bool, as_json: bool) -> None:
     """Synchronize W9_URL with the selected primary domain for an application."""
+
     def action() -> dict[str, Any]:
         from src.services.app_access_manager import AppAccessManager
 
@@ -228,8 +245,11 @@ def set_root_url_command(app_id: str, domain_name: str, endpoint_id: int | None,
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), default=None, help="Endpoint ID.")
 @click.option("--yes", "-y", is_flag=True, help="Confirm deleting proxy domain binding.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
-def delete_proxy_command(app_id: str, proxy_id: int, client_host: str, endpoint_id: int | None, yes: bool, as_json: bool) -> None:
+def delete_proxy_command(
+    app_id: str, proxy_id: int, client_host: str, endpoint_id: int | None, yes: bool, as_json: bool
+) -> None:
     """Delete a reverse proxy domain binding from an application."""
+
     def action() -> dict[str, Any]:
         from src.services.app_access_manager import AppAccessManager
 
@@ -259,6 +279,7 @@ def delete_proxy_command(app_id: str, proxy_id: int, client_host: str, endpoint_
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_certs_command(as_json: bool) -> None:
     """List SSL certificates managed by Nginx Proxy Manager."""
+
     def action() -> dict[str, Any]:
         from src.services.proxy_manager import ProxyManager
 
@@ -297,9 +318,13 @@ def list_certs_command(as_json: bool) -> None:
 
 @gateway_cert_group.command(name="issue-letsencrypt")
 @click.argument("app_id")
-@click.option("--domain", "domains", multiple=True, required=True, help="Domain name for Let's Encrypt certificate (repeatable).")
+@click.option(
+    "--domain", "domains", multiple=True, required=True, help="Domain name for Let's Encrypt certificate (repeatable)."
+)
 @click.option("--email", required=True, help="Contact email for Let's Encrypt registration.")
-@click.option("--proxy-id", type=click.IntRange(min=1), default=None, help="Optional proxy host ID to bind the issued certificate.")
+@click.option(
+    "--proxy-id", type=click.IntRange(min=1), default=None, help="Optional proxy host ID to bind the issued certificate."
+)
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), default=None, help="Endpoint ID.")
 @click.option("--yes", "-y", is_flag=True, help="Confirm requesting Let's Encrypt certificate.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
@@ -313,6 +338,7 @@ def issue_letsencrypt_command(
     as_json: bool,
 ) -> None:
     """Issue a Let's Encrypt SSL certificate for an application's domain(s)."""
+
     def action() -> dict[str, Any]:
         from src.services.app_access_manager import AppAccessManager
 

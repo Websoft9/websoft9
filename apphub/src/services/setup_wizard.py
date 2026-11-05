@@ -10,11 +10,11 @@ from typing import Any
 
 from src.core.exception import CustomException
 from src.schemas.appInstall import Edition, appInstall
-from src.schemas.setupWizard import SetupWizardError
 from src.services.app_manager import AppManger
 from src.services.app_status import appInstalling, appInstallingError
 from src.services.common_check import install_validate
 from src.services.marketplace_bootstrap import MarketplaceBootstrapService
+from src.services.portainer_manager import PortainerManager
 from src.services.product_auth import ProductAuthService
 
 
@@ -92,9 +92,7 @@ class SetupWizardService:
             return False
         # Once the install has been triggered (running or failed), the user
         # should be in the platform, not locked on the setup page.
-        if state.get("current_step") in {"app_init_running", "app_init_failed"}:
-            return False
-        return True
+        return state.get("current_step") not in {"app_init_running", "app_init_failed"}
 
     def get_state(self, session_token: str | None = None) -> dict[str, Any]:
         base_state = self._load_state()
@@ -209,7 +207,9 @@ class SetupWizardService:
             "updated_at": state["updated_at"],
         }
 
-    def install_app(self, payload: dict[str, Any], session_token: str | None = None, endpoint_id: int | None = None) -> dict[str, Any]:
+    def install_app(
+        self, payload: dict[str, Any], session_token: str | None = None, endpoint_id: int | None = None
+    ) -> dict[str, Any]:
         self.require_enabled()
         self._require_authenticated(session_token)
         app_info = self.get_app()
@@ -227,9 +227,11 @@ class SetupWizardService:
         )
 
         # Reuse the same precheck pipeline as /apps/install to fail fast
-        # before long-running image pull and stack creation steps.
+        # before long-running image pull and stack creation steps. Callers that do not pin an
+        # endpoint mean the local one.
+        resolved_endpoint_id = endpoint_id if endpoint_id is not None else PortainerManager().get_local_endpoint_id()
         try:
-            install_validate(install_payload, endpoint_id)
+            install_validate(install_payload, resolved_endpoint_id)
         except CustomException as e:
             self._update_state(
                 current_step="app_init_failed",
@@ -247,7 +249,9 @@ class SetupWizardService:
 
         from threading import Thread
 
-        Thread(target=app_manager.install_app, args=(install_payload, endpoint_id, tracked_app_id, tracking_id), daemon=True).start()
+        Thread(
+            target=app_manager.install_app, args=(install_payload, endpoint_id, tracked_app_id, tracking_id), daemon=True
+        ).start()
         self._update_state(
             current_step="app_init_running",
             tracking_id=tracking_id,

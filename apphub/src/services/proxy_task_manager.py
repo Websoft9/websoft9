@@ -19,9 +19,7 @@ class ProxyTaskManager:
         certificate_id: Optional[int],
         endpoint_id: Optional[int],
     ) -> str:
-        return self._submit_task(
-            lambda: AppManger().create_proxy_by_app(app_id, domain_names, endpoint_id, certificate_id)
-        )
+        return self._submit_task(lambda: AppManger().create_proxy_by_app(app_id, domain_names, endpoint_id, certificate_id))
 
     def submit_update_task(
         self,
@@ -30,9 +28,7 @@ class ProxyTaskManager:
         certificate_id: Optional[int],
         endpoint_id: Optional[int],
     ) -> str:
-        return self._submit_task(
-            lambda: AppManger().update_proxy_by_app(proxy_id, domain_names, endpoint_id, certificate_id)
-        )
+        return self._submit_task(lambda: AppManger().update_proxy_by_app(proxy_id, domain_names, endpoint_id, certificate_id))
 
     def get_task(self, task_id: str) -> dict:
         with self._lock:

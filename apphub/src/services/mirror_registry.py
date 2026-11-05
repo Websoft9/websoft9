@@ -11,13 +11,14 @@ statement from "not configured".
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import contextlib
 import json
 import os
 import re
 import tempfile
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import requests
@@ -25,7 +26,6 @@ import requests
 from src.core.logger import logger
 from src.services.docker_mirror_store import (
     DockerMirrorStore,
-    MirrorEntry,
     normalize_mirror_url,
 )
 from src.services.sqlite_store import resolve_data_root
@@ -67,7 +67,7 @@ class Accelerator:
 def _atomic_write_json(path: Path, payload: dict) -> None:
     """Write through a temporary file so a reader never sees a half-written list."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle = tempfile.NamedTemporaryFile(
+    handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed below, then renamed into place
         "w", encoding="utf-8", dir=str(path.parent), prefix=".mirrors-", delete=False
     )
     try:
@@ -76,10 +76,8 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
             handle.write("\n")
         os.replace(handle.name, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(handle.name)
-        except OSError:
-            pass
         raise
 
 
@@ -129,6 +127,9 @@ class MirrorRegistry:
 
     # ── Answers ───────────────────────────────────────────────────────────────
 
+    def _is_import_checked(self) -> bool:
+        return self._import_checked
+
     @property
     def default_list_file(self) -> Path:
         return self.data_root / "config" / "mirrors.json"
@@ -142,11 +143,7 @@ class MirrorRegistry:
         self._ensure_legacy_import()
         entries = self.store.list_entries()
         if entries:
-            return [
-                Accelerator(entry.url, entry.username, entry.password)
-                for entry in entries
-                if entry.enabled
-            ]
+            return [Accelerator(entry.url, entry.username, entry.password) for entry in entries if entry.enabled]
         if refresh:
             self.refresh_default_list()
         return [Accelerator(url) for url in self.default_entries()]
@@ -184,23 +181,15 @@ class MirrorRegistry:
         them too.
         """
         url = f"https://{accelerator.registry_host}/v2/"
-        auth = (
-            (accelerator.username, accelerator.password)
-            if accelerator.has_credentials
-            else None
-        )
+        auth = (accelerator.username, accelerator.password) if accelerator.has_credentials else None
         started = time.monotonic()
         try:
             response = requests.get(url, timeout=DEFAULT_LIST_TIMEOUT_SECONDS, auth=auth)
         except Exception as exc:
-            return self._probe_result(
-                accelerator, started, reachable=False, reason="unreachable", detail=str(exc)
-            )
+            return self._probe_result(accelerator, started, reachable=False, reason="unreachable", detail=str(exc))
 
         if response.status_code < 400:
-            return self._probe_result(
-                accelerator, started, reachable=True, reason="ok", status=response.status_code
-            )
+            return self._probe_result(accelerator, started, reachable=True, reason="ok", status=response.status_code)
 
         if response.status_code == 401:
             challenge = str(response.headers.get("Www-Authenticate") or "")
@@ -292,16 +281,12 @@ class MirrorRegistry:
             return None
         query = {key: parameters[key] for key in ("service", "scope") if parameters.get(key)}
         try:
-            response = requests.get(
-                realm, params=query, auth=auth, timeout=DEFAULT_LIST_TIMEOUT_SECONDS
-            )
+            response = requests.get(realm, params=query, auth=auth, timeout=DEFAULT_LIST_TIMEOUT_SECONDS)
         except Exception as exc:
             logger.debug(f"Unable to reach the registry token endpoint {realm}: {exc}")
             return None
         if response.status_code >= 500:
-            logger.warning(
-                f"The registry token endpoint {realm} answered {response.status_code}"
-            )
+            logger.warning(f"The registry token endpoint {realm} answered {response.status_code}")
             return None
         if response.status_code >= 400:
             return False
@@ -324,10 +309,11 @@ class MirrorRegistry:
         upgrade, and the import is guarded by "the table is empty", so an operator who sets the
         console list keeps it.
         """
-        if self._import_checked:
+        if self._is_import_checked():
             return
         with self._import_lock:
-            if self._import_checked:
+            # Re-check under the lock; see sqlite_store for why this goes through a method.
+            if self._is_import_checked():
                 return
             try:
                 self.store.import_from_config()

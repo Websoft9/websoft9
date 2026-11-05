@@ -3,13 +3,18 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.services import local_app_store
-from src.services.local_app_store import get_local_app_store_apps, local_manifest_path, refresh_local_app_store, refresh_local_app_store_catalog, resolve_local_app_store_root
+from src.services.local_app_store import (
+    get_local_app_store_apps,
+    local_manifest_path,
+    refresh_local_app_store,
+    refresh_local_app_store_catalog,
+    resolve_local_app_store_root,
+)
 
 
 def _write_app(root: Path, key: str, media: Optional[object] = None) -> None:
@@ -17,11 +22,17 @@ def _write_app(root: Path, key: str, media: Optional[object] = None) -> None:
     app_root = root / "apps" / key
     media_root.mkdir(parents=True, exist_ok=True)
     app_root.mkdir(parents=True, exist_ok=True)
-    payload = media if media is not None else {"title": "Canvas", "catalogBindings": [{"parentKey": "productivity", "childKey": "whiteboard"}]}
+    payload = (
+        media
+        if media is not None
+        else {"title": "Canvas", "catalogBindings": [{"parentKey": "productivity", "childKey": "whiteboard"}]}
+    )
     (media_root / f"{key}.json").write_text(json.dumps(payload), encoding="utf-8")
     (app_root / ".env").write_text("W9_URL=https://$W9_URL\nW9_HTTP_PORT_SET=8080\n", encoding="utf-8")
     (app_root / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
-    (app_root / "variables.json").write_text(json.dumps({"edition": [{"dist": "community", "version": "1.0.0"}]}), encoding="utf-8")
+    (app_root / "variables.json").write_text(
+        json.dumps({"edition": [{"dist": "community", "version": "1.0.0"}]}), encoding="utf-8"
+    )
 
 
 def test_refresh_builds_and_reads_single_local_manifest(tmp_path):
@@ -56,7 +67,7 @@ def test_refresh_preserves_previous_manifest_when_no_valid_apps_exist(tmp_path):
     refresh_local_app_store(tmp_path)
     _write_app(tmp_path, "broken", media=[])
 
-    (tmp_path / "media" / "canvas.json").unlink()
+    (tmp_path / "catalog" / "canvas.json").unlink()
 
     try:
         refresh_local_app_store(tmp_path)
@@ -96,7 +107,11 @@ def test_catalog_refresh_rebuilds_official_and_custom_catalogs(tmp_path, monkeyp
 
 
 def test_catalog_refresh_preserves_each_catalog_failure_in_its_report(tmp_path, monkeypatch):
-    monkeypatch.setattr(local_app_store, "_refresh_official_app_store", lambda: (_ for _ in ()).throw(RuntimeError("invalid official metadata")))
+    monkeypatch.setattr(
+        local_app_store,
+        "_refresh_official_app_store",
+        lambda: (_ for _ in ()).throw(RuntimeError("invalid official metadata")),
+    )
     _write_app(tmp_path, "broken", media=[])
 
     report = refresh_local_app_store_catalog(tmp_path)

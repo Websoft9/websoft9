@@ -4,41 +4,44 @@ import sys
 import threading
 import types
 from pathlib import Path
-from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-sys.modules.setdefault('aiodocker', types.ModuleType('aiodocker'))
+from support_module_stubs import restore_module_stubs, stub_module
+
+stub_module('aiodocker', types.ModuleType('aiodocker'))
 
 git_module = types.ModuleType('git')
 git_module.Repo = object
-sys.modules.setdefault('git', git_module)
+stub_module('git', git_module)
 
 jwt_module = types.ModuleType('jwt')
-sys.modules.setdefault('jwt', jwt_module)
+stub_module('jwt', jwt_module)
 
 keyring_module = types.ModuleType('keyring')
 keyring_module.get_password = lambda *args, **kwargs: None
 keyring_module.set_password = lambda *args, **kwargs: None
-sys.modules.setdefault('keyring', keyring_module)
+stub_module('keyring', keyring_module)
 
 docker_module = types.ModuleType('docker')
 docker_module.from_env = lambda: None
-sys.modules.setdefault('docker', docker_module)
+stub_module('docker', docker_module)
 
 app_manager_module = types.ModuleType('src.services.app_manager')
 app_manager_module.AppManger = object
-sys.modules.setdefault('src.services.app_manager', app_manager_module)
+stub_module('src.services.app_manager', app_manager_module)
 
 portainer_manager_module = types.ModuleType('src.services.portainer_manager')
 portainer_manager_module.PortainerManager = object
-sys.modules.setdefault('src.services.portainer_manager', portainer_manager_module)
+stub_module('src.services.portainer_manager', portainer_manager_module)
 
 from src.core.exception import CustomException
 from src.services import back_manager as back_manager_module
 from src.services.back_manager import BackupManager
+
+restore_module_stubs()
 
 
 class FakePortainer:
@@ -51,10 +54,7 @@ class FakePortainer:
         self.stop_calls = []
 
     def get_stack_by_name(self, app_id, endpoint_id):
-        if self.stack_status_sequence:
-            status = self.stack_status_sequence.pop(0)
-        else:
-            status = self.stack_status
+        status = self.stack_status_sequence.pop(0) if self.stack_status_sequence else self.stack_status
         return {"Id": 9, "Name": app_id, "Status": status}
 
     def stop_stack(self, app_id, endpoint_id):
@@ -105,15 +105,23 @@ def test_restore_starts_containers_after_restore(monkeypatch):
     )
 
     monkeypatch.setattr(manager, '_ensure_repository', lambda: None)
-    monkeypatch.setattr(manager, 'list_snapshots', lambda app_id, use_cache=True: [{"id": "snap-1", "short_id": "snap-1", "paths": ["/wordpress_demo"]}])
+    monkeypatch.setattr(
+        manager,
+        'list_snapshots',
+        lambda app_id, use_cache=True: [{"id": "snap-1", "short_id": "snap-1", "paths": ["/wordpress_demo"]}],
+    )
     monkeypatch.setattr(manager, '_run_restic_container', lambda command, extra_volumes: '{"message_type":"summary"}')
-    monkeypatch.setattr(back_manager_module, 'AppManger', lambda: types.SimpleNamespace(
-        get_app_by_id=lambda app_id, **kwargs: types.SimpleNamespace(
-            endpointId=1,
-            status=1,
-            volumes=[{"Mountpoint": "/var/lib/docker/volumes/wordpress_demo/_data", "Name": "wordpress_demo"}],
-        )
-    ))
+    monkeypatch.setattr(
+        back_manager_module,
+        'AppManger',
+        lambda: types.SimpleNamespace(
+            get_app_by_id=lambda app_id, **kwargs: types.SimpleNamespace(
+                endpointId=1,
+                status=1,
+                volumes=[{"Mountpoint": "/var/lib/docker/volumes/wordpress_demo/_data", "Name": "wordpress_demo"}],
+            )
+        ),
+    )
     monkeypatch.setattr(back_manager_module, 'PortainerManager', lambda: portainer)
     monkeypatch.setattr(manager, '_resolve_host_path', lambda path: path)
 
@@ -129,11 +137,13 @@ def test_restore_validation_rejects_only_exited_runtime_containers(monkeypatch):
     manager = _build_manager()
     portainer = FakePortainer(
         stack_status=1,
-        container_sequences=[[
-            {"Names": ["/wordpress_demo-init"], "State": "exited"},
-            {"Names": ["/wordpress_demo"], "State": "exited"},
-            {"Names": ["/wordpress_demo-mysql"], "State": "exited"},
-        ]],
+        container_sequences=[
+            [
+                {"Names": ["/wordpress_demo-init"], "State": "exited"},
+                {"Names": ["/wordpress_demo"], "State": "exited"},
+                {"Names": ["/wordpress_demo-mysql"], "State": "exited"},
+            ]
+        ],
     )
 
     monkeypatch.setattr(back_manager_module.time, 'sleep', lambda _: None)
@@ -151,11 +161,13 @@ def test_restore_validation_accepts_running_runtime_container(monkeypatch):
     manager = _build_manager()
     portainer = FakePortainer(
         stack_status=1,
-        container_sequences=[[
-            {"Names": ["/wordpress_demo-init"], "State": "exited"},
-            {"Names": ["/wordpress_demo"], "State": "running"},
-            {"Names": ["/wordpress_demo-mysql"], "State": "exited"},
-        ]],
+        container_sequences=[
+            [
+                {"Names": ["/wordpress_demo-init"], "State": "exited"},
+                {"Names": ["/wordpress_demo"], "State": "running"},
+                {"Names": ["/wordpress_demo-mysql"], "State": "exited"},
+            ]
+        ],
     )
 
     monkeypatch.setattr(back_manager_module.time, 'sleep', lambda _: None)
@@ -167,10 +179,12 @@ def test_build_restic_volume_mounts_resolves_host_mountpoints(monkeypatch):
     manager = _build_manager()
     monkeypatch.setattr(manager, '_resolve_host_path', lambda path: path.replace('/var/lib/docker/volumes', '/host-volumes'))
 
-    extra_volumes, container_paths = manager._build_restic_volume_mounts([
-        {"Mountpoint": "/var/lib/docker/volumes/wordpress_demo/_data", "Name": "wordpress_demo"},
-        {"Mountpoint": "/var/lib/docker/volumes/wordpress_demo_db/_data", "Name": "wordpress_demo_db"},
-    ])
+    extra_volumes, container_paths = manager._build_restic_volume_mounts(
+        [
+            {"Mountpoint": "/var/lib/docker/volumes/wordpress_demo/_data", "Name": "wordpress_demo"},
+            {"Mountpoint": "/var/lib/docker/volumes/wordpress_demo_db/_data", "Name": "wordpress_demo_db"},
+        ]
+    )
 
     assert container_paths == ['/wordpress_demo', '/wordpress_demo_db']
     assert extra_volumes == {

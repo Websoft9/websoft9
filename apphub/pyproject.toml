@@ -1,45 +1,5 @@
-[tool.black]
-# Black code formatter configuration
-line-length = 127
-target-version = ['py310', 'py311']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | apidocs
-)/
-'''
-
-[tool.isort]
-# Isort import sorting configuration
-profile = "black"
-line_length = 127
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-skip_gitignore = true
-skip = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    "*.egg-info",
-    ".venv",
-    "venv",
-]
+# Formatting and import order are owned by ruff (see [tool.ruff] below); black and isort are gone so
+# there is exactly one formatter deciding the layout.
 
 [tool.mypy]
 # MyPy static type checking configuration
@@ -56,10 +16,9 @@ warn_no_return = true
 warn_unreachable = true
 strict_optional = true
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-ignore_errors = true
+# Without the pydantic plugin mypy sees every model field as required (it only knows
+# `Field()` returns a FieldInfo), so valid constructions look like missing arguments.
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 # Pytest configuration (alternative to pytest.ini)
@@ -84,6 +43,49 @@ omit = [
 precision = 2
 show_missing = true
 skip_covered = false
+
+[tool.ruff]
+# Single source of truth for line length, linting and formatting. The line length is what the
+# previous black configuration used, so the historical layout is preserved.
+line-length = 127
+target-version = "py311"
+extend-exclude = ["apidocs", "src/apphub.egg-info", "src/cli/apphub.egg-info"]
+
+[tool.ruff.lint]
+# Only the rules this codebase is expected to satisfy today. Wider sets (pyupgrade, flake8-bandit,
+# tryceratops, ...) are intentionally out of scope: they report hundreds of findings and would need
+# a separate cleanup round.
+select = [
+    "E4", "E7", "E9", "F", "I",
+    # Correctness-adjacent rules kept clean today; B008 is satisfied through
+    # `extend-immutable-calls` below instead of rewriting the FastAPI signatures.
+    "B007", "B904", "B905", "PIE",
+    "SIM102", "SIM103", "SIM105", "SIM108", "SIM110", "SIM115", "SIM117", "SIM118", "SIM223",
+    "SIM910", "B017",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares request parameters through `Depends()` / `Body()` defaults; that is the framework's
+# calling convention, not an accidental mutable default.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test modules prepend the project root to `sys.path` before importing `src`, so their imports are
+# intentionally not at the top of the file. The isolation helpers imported right after that bootstrap
+# have to stay there as well.
+"tests/*" = ["E402"]
+
+[tool.ruff.format]
+# Keep the existing quote style; the formatter is applied for the layout rules only.
+quote-style = "preserve"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

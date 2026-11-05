@@ -5,17 +5,18 @@ import types
 from pathlib import Path
 from typing import Optional
 
+import pytest
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-import pytest
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from support_module_stubs import restore_module_stubs, stub_module
 
 # Importing the app modules initialises the install-tracking store; keep it away from the
 # host's real data root so a test run can never touch a live deployment.
@@ -30,7 +31,7 @@ class _SettingsSummaryResponse(BaseModel):
 
 
 settings_summary_module.SettingsSummaryResponse = _SettingsSummaryResponse
-sys.modules.setdefault("src.schemas.settingsSummary", settings_summary_module)
+stub_module("src.schemas.settingsSummary", settings_summary_module)
 
 settings_manager_module = types.ModuleType("src.services.settings_manager")
 
@@ -62,12 +63,14 @@ class _SettingsManager:
 
 
 settings_manager_module.SettingsManager = _SettingsManager
-sys.modules.setdefault("src.services.settings_manager", settings_manager_module)
+stub_module("src.services.settings_manager", settings_manager_module)
 
 from src.api.v1.routers import settings as settings_router
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.services.product_runtime_state import ProductRuntimeState
+
+restore_module_stubs()
 
 
 @pytest.fixture(autouse=True)
@@ -149,9 +152,13 @@ def test_internal_product_edition_allows_authenticated_operator_read(monkeypatch
             return {"id": "user-1", "username": "alice", "delete_eligible": True}
 
     monkeypatch.setattr(settings_router, "ProductAuthService", AuthenticatedAuthService)
-    monkeypatch.setattr(settings_router, "read_product_runtime_state", lambda: _runtime_state(edition_key="free", updated_by="system"))
+    monkeypatch.setattr(
+        settings_router, "read_product_runtime_state", lambda: _runtime_state(edition_key="free", updated_by="system")
+    )
 
-    response = client.get("/settings/internal/product-edition", cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"})
+    response = client.get(
+        "/settings/internal/product-edition", cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"}
+    )
 
     assert response.status_code == 200
     assert response.json()["edition_key"] == "free"
@@ -548,7 +555,9 @@ def test_smtp_settings_crud_password_preservation_and_test_delivery(monkeypatch,
     delivered_messages = []
 
     def fake_deliver_message(self, settings, message):
-        delivered_messages.append({"settings": settings, "to": message["To"], "subject": message["Subject"], "body": message.get_content()})
+        delivered_messages.append(
+            {"settings": settings, "to": message["To"], "subject": message["Subject"], "body": message.get_content()}
+        )
 
     monkeypatch.setattr(SmtpService, "_deliver_message", fake_deliver_message)
 

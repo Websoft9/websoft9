@@ -1,9 +1,11 @@
 import asyncio
 import base64
+import contextlib
 import json
 import posixpath
+from collections.abc import Callable
 from io import BytesIO
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Cookie, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
@@ -15,13 +17,13 @@ from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.hostAccess import (
     HostAccessActivateRequest,
-    HostAccessConnectionTestResponse,
     HostAccessAttributesMutationResponse,
+    HostAccessConnectionTestResponse,
     HostAccessCopyItemRequest,
     HostAccessCreateFileRequest,
     HostAccessCreateFolderRequest,
-    HostAccessDirectoryResponse,
     HostAccessDeleteItemRequest,
+    HostAccessDirectoryResponse,
     HostAccessFileElevationRequest,
     HostAccessFilePreferences,
     HostAccessFilePreferencesUpdateRequest,
@@ -34,8 +36,8 @@ from src.schemas.hostAccess import (
     HostAccessUploadRequest,
     HostAccessWriteTextRequest,
 )
-from src.services.host_access import HostAccessService
 from src.services.app_sftp import AppSftpService
+from src.services.host_access import HostAccessService
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 from src.services.sftp_path_authorization import PLATFORM_ACCOUNT_PROFILE_ID
 
@@ -67,9 +69,9 @@ def _run_app_file_operation(session_id: str, handler, grant_targets=()):
     except Exception as error:
         if not _is_permission_denied(error):
             if isinstance(error, OSError):
-                raise HTTPException(400, f'Application SFTP operation failed: {error}')
+                raise HTTPException(400, f'Application SFTP operation failed: {error}') from error
             if isinstance(error, (ValueError, TypeError)):
-                raise HTTPException(400, 'Invalid application SFTP payload')
+                raise HTTPException(400, 'Invalid application SFTP payload') from error
             raise
     for target in grant_targets or ():
         if not target:
@@ -85,8 +87,12 @@ def _run_app_file_operation(session_id: str, handler, grant_targets=()):
 
 
 @router.post('/host-access/app-files/sessions')
-def create_app_sftp_session(payload: AppSftpSessionRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
-    return _app_sftp_service.create(session_token, payload.app_id, payload.volume_id, payload.profile_id, use_platform=payload.use_platform)
+def create_app_sftp_session(
+    payload: AppSftpSessionRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)
+):
+    return _app_sftp_service.create(
+        session_token, payload.app_id, payload.volume_id, payload.profile_id, use_platform=payload.use_platform
+    )
 
 
 @router.get('/host-access/app-files/account')
@@ -117,22 +123,68 @@ def app_sftp_file_operation(
         target = path or service.root
         return _run_app_file_operation(file_session_id, lambda: service.list_directory(session_token, target), (target,))
     if request.method == 'GET' and operation == 'content':
-        return _run_app_file_operation(file_session_id, lambda: service.read_text_file(session_token, path), (posixpath.dirname(path),))
+        return _run_app_file_operation(
+            file_session_id, lambda: service.read_text_file(session_token, path), (posixpath.dirname(path),)
+        )
     if request.method == 'GET' and operation == 'download':
-        result = _run_app_file_operation(file_session_id, lambda: service.download_file(session_token, path), (posixpath.dirname(path),))
+        result = _run_app_file_operation(
+            file_session_id, lambda: service.download_file(session_token, path), (posixpath.dirname(path),)
+        )
         from urllib.parse import quote
 
-        return StreamingResponse(BytesIO(result['content']), media_type=result['media_type'], headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quote(result['file_name'], safe='')}"})
-    operations = {
-        ('PUT', 'content'): (HostAccessWriteTextRequest, lambda value: service.write_text_file(session_token, value.path, value.content), lambda value: (posixpath.dirname(value.path),)),
-        ('POST', 'folders'): (HostAccessCreateFolderRequest, lambda value: service.create_directory(session_token, value.parent_path, value.name), lambda value: (value.parent_path,)),
-        ('POST', 'items'): (HostAccessCreateFileRequest, lambda value: service.create_empty_file(session_token, value.parent_path, value.name), lambda value: (value.parent_path,)),
-        ('POST', 'rename'): (HostAccessRenameItemRequest, lambda value: service.rename_item(session_token, value.source_path, value.target_name), lambda value: (posixpath.dirname(value.source_path),)),
-        ('DELETE', 'item'): (HostAccessDeleteItemRequest, lambda value: service.delete_item(session_token, value.path), lambda value: (posixpath.dirname(value.path),)),
-        ('POST', 'copy'): (HostAccessCopyItemRequest, lambda value: service.copy_item(session_token, value.source_path, value.destination_path), lambda value: (posixpath.dirname(value.source_path), value.destination_path)),
-        ('POST', 'move'): (HostAccessCopyItemRequest, lambda value: service.move_item(session_token, value.source_path, value.destination_path), lambda value: (posixpath.dirname(value.source_path), value.destination_path)),
-        ('PUT', 'attributes'): (HostAccessUpdateAttributesRequest, lambda value: service.update_item_attributes(session_token, value.model_dump()), lambda value: (posixpath.dirname(value.source_path),)),
-        ('POST', 'upload'): (HostAccessUploadRequest, lambda value: service.upload_file(session_token, value.parent_path, value.file_name, base64.b64decode(value.content_base64, validate=True)), lambda value: (value.parent_path,)),
+        return StreamingResponse(
+            BytesIO(result['content']),
+            media_type=result['media_type'],
+            headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quote(result['file_name'], safe='')}"},
+        )
+    operations: dict[tuple[str, str], tuple[type[BaseModel], Callable[[Any], Any], Callable[[Any], Any]]] = {
+        ('PUT', 'content'): (
+            HostAccessWriteTextRequest,
+            lambda value: service.write_text_file(session_token, value.path, value.content),
+            lambda value: (posixpath.dirname(value.path),),
+        ),
+        ('POST', 'folders'): (
+            HostAccessCreateFolderRequest,
+            lambda value: service.create_directory(session_token, value.parent_path, value.name),
+            lambda value: (value.parent_path,),
+        ),
+        ('POST', 'items'): (
+            HostAccessCreateFileRequest,
+            lambda value: service.create_empty_file(session_token, value.parent_path, value.name),
+            lambda value: (value.parent_path,),
+        ),
+        ('POST', 'rename'): (
+            HostAccessRenameItemRequest,
+            lambda value: service.rename_item(session_token, value.source_path, value.target_name),
+            lambda value: (posixpath.dirname(value.source_path),),
+        ),
+        ('DELETE', 'item'): (
+            HostAccessDeleteItemRequest,
+            lambda value: service.delete_item(session_token, value.path),
+            lambda value: (posixpath.dirname(value.path),),
+        ),
+        ('POST', 'copy'): (
+            HostAccessCopyItemRequest,
+            lambda value: service.copy_item(session_token, value.source_path, value.destination_path),
+            lambda value: (posixpath.dirname(value.source_path), value.destination_path),
+        ),
+        ('POST', 'move'): (
+            HostAccessCopyItemRequest,
+            lambda value: service.move_item(session_token, value.source_path, value.destination_path),
+            lambda value: (posixpath.dirname(value.source_path), value.destination_path),
+        ),
+        ('PUT', 'attributes'): (
+            HostAccessUpdateAttributesRequest,
+            lambda value: service.update_item_attributes(session_token, value.model_dump()),
+            lambda value: (posixpath.dirname(value.source_path),),
+        ),
+        ('POST', 'upload'): (
+            HostAccessUploadRequest,
+            lambda value: service.upload_file(
+                session_token, value.parent_path, value.file_name, base64.b64decode(value.content_base64, validate=True)
+            ),
+            lambda value: (value.parent_path,),
+        ),
     }
     specification = operations.get((request.method, operation))
     if not specification:
@@ -141,7 +193,7 @@ def app_sftp_file_operation(
     try:
         parsed = model.model_validate(payload or {})
     except ValidationError:
-        raise HTTPException(422, 'Invalid application SFTP request')
+        raise HTTPException(422, 'Invalid application SFTP request') from None
     return _run_app_file_operation(file_session_id, lambda: handler(parsed), targets(parsed))
 
 
@@ -163,13 +215,24 @@ def get_host_access_profile(session_token: Optional[str] = Cookie(default=None, 
     "/host-access/profile",
     summary="Save and verify host access profile",
     description="Verify the local-host SSH credentials and save them for terminal and file access",
-    responses={200: {"model": HostAccessProfileResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessProfileResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
-def save_host_access_profile(payload: HostAccessProfileUpsertRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+def save_host_access_profile(
+    payload: HostAccessProfileUpsertRequest,
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
     return _get_host_access_service().save_profile(session_token=session_token, payload=payload.model_dump())
 
 
-@router.post("/host-access/profile/local", responses={200: {"model": HostAccessProfileResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}})
+@router.post(
+    "/host-access/profile/local",
+    responses={200: {"model": HostAccessProfileResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+)
 def create_local_host_access_profile(session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     return _get_host_access_service().create_local_profile(session_token, allow_recreate=True)
 
@@ -178,9 +241,17 @@ def create_local_host_access_profile(session_token: Optional[str] = Cookie(defau
     "/host-access/profile/test",
     summary="Test host access profile",
     description="Verify the local-host SSH credentials without changing the saved login information",
-    responses={200: {"model": HostAccessConnectionTestResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessConnectionTestResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
-def test_host_access_profile(payload: HostAccessProfileUpsertRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+def test_host_access_profile(
+    payload: HostAccessProfileUpsertRequest,
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
     return _get_host_access_service().test_profile(session_token=session_token, payload=payload.model_dump())
 
 
@@ -198,9 +269,18 @@ def clear_host_access_profile(session_token: Optional[str] = Cookie(default=None
     "/host-access/profiles/{profile_id}/activate",
     summary="Activate saved host access profile",
     description="Use a saved local-host login as the current runtime profile for terminal and file access",
-    responses={200: {"model": HostAccessProfileResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessProfileResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
-def activate_host_access_profile(profile_id: str, payload: Optional[HostAccessActivateRequest] = Body(None), session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+def activate_host_access_profile(
+    profile_id: str,
+    payload: Optional[HostAccessActivateRequest] = Body(None),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
     password = payload.password if payload else ""
     private_key = payload.private_key if payload else ""
     passphrase = payload.passphrase if payload else ""
@@ -219,9 +299,16 @@ def activate_host_access_profile(profile_id: str, payload: Optional[HostAccessAc
     "/host-access/profiles/{profile_id}/test",
     summary="Test saved host access profile",
     description="Verify one saved host login without activating it",
-    responses={200: {"model": HostAccessConnectionTestResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessConnectionTestResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
-def test_saved_host_access_profile(profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+def test_saved_host_access_profile(
+    profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)
+):
     return _get_host_access_service().test_saved_profile(session_token=session_token, profile_id=profile_id)
 
 
@@ -229,9 +316,16 @@ def test_saved_host_access_profile(profile_id: str, session_token: Optional[str]
     "/host-access/profiles/{profile_id}/default",
     summary="Set default host access profile",
     description="Mark one saved local-host login as the default profile for the current product operator",
-    responses={200: {"model": HostAccessProfileResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessProfileResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
-def set_default_host_access_profile(profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+def set_default_host_access_profile(
+    profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)
+):
     return _get_host_access_service().set_default_profile(session_token=session_token, profile_id=profile_id)
 
 
@@ -239,9 +333,16 @@ def set_default_host_access_profile(profile_id: str, session_token: Optional[str
     "/host-access/profiles/{profile_id}",
     summary="Delete saved host access profile",
     description="Delete one saved local-host login for the current product operator",
-    responses={200: {"model": HostAccessProfileResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessProfileResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
-def delete_host_access_profile(profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+def delete_host_access_profile(
+    profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)
+):
     service = _get_host_access_service()
     operator = service.auth_service._require_authenticated_operator(session_token)
     if profile_id == PLATFORM_ACCOUNT_PROFILE_ID:
@@ -279,7 +380,11 @@ def read_host_access_file_elevation(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
     return _get_host_access_service().file_elevation_status(
-        session_token=session_token, profile_id=profile_id, scope=scope, app_id=app_id, volume_id=volume_id,
+        session_token=session_token,
+        profile_id=profile_id,
+        scope=scope,
+        app_id=app_id,
+        volume_id=volume_id,
     )
 
 
@@ -287,7 +392,12 @@ def read_host_access_file_elevation(
     "/host-access/files/elevation",
     summary="Toggle host file administrator mode",
     description="Enable administrator mode for host file browsing; the sudo password stays in server memory",
-    responses={200: {"model": dict}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+    },
 )
 def update_host_access_file_elevation(
     payload: HostAccessFileElevationRequest,
@@ -300,7 +410,12 @@ def update_host_access_file_elevation(
     "/host-access/files/tree",
     summary="List host directory contents",
     description="Browse the local host file system through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessDirectoryResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessDirectoryResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def list_host_access_tree(
     path: str = Query("/", description="Absolute host path"),
@@ -314,7 +429,12 @@ def list_host_access_tree(
     "/host-access/files/content",
     summary="Read host text file content",
     description="Read a UTF-8 text file from the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessTextFileResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessTextFileResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def read_host_access_text_content(
     path: str = Query(..., description="Absolute host file path"),
@@ -328,63 +448,96 @@ def read_host_access_text_content(
     "/host-access/files/content",
     summary="Save host text file content",
     description="Save a UTF-8 text file on the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def save_host_access_text_content(
     payload: HostAccessWriteTextRequest,
     profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().write_text_file(session_token=session_token, path=payload.path, content=payload.content, profile_id=profile_id)
+    return _get_host_access_service().write_text_file(
+        session_token=session_token, path=payload.path, content=payload.content, profile_id=profile_id
+    )
 
 
 @router.post(
     "/host-access/files/folders",
     summary="Create host directory",
     description="Create a directory on the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def create_host_access_folder(
     payload: HostAccessCreateFolderRequest,
     profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().create_directory(session_token=session_token, parent_path=payload.parent_path, name=payload.name, profile_id=profile_id)
+    return _get_host_access_service().create_directory(
+        session_token=session_token, parent_path=payload.parent_path, name=payload.name, profile_id=profile_id
+    )
 
 
 @router.post(
     "/host-access/files/items",
     summary="Create host file",
     description="Create an empty file on the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def create_host_access_file(
     payload: HostAccessCreateFileRequest,
     profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().create_empty_file(session_token=session_token, parent_path=payload.parent_path, name=payload.name, profile_id=profile_id)
+    return _get_host_access_service().create_empty_file(
+        session_token=session_token, parent_path=payload.parent_path, name=payload.name, profile_id=profile_id
+    )
 
 
 @router.post(
     "/host-access/files/rename",
     summary="Rename host file system entry",
     description="Rename a file or directory on the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def rename_host_access_item(
     payload: HostAccessRenameItemRequest,
     profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().rename_item(session_token=session_token, source_path=payload.source_path, target_name=payload.target_name, profile_id=profile_id)
+    return _get_host_access_service().rename_item(
+        session_token=session_token, source_path=payload.source_path, target_name=payload.target_name, profile_id=profile_id
+    )
 
 
 @router.delete(
     "/host-access/files/item",
     summary="Delete host file system entry",
     description="Delete a file or directory on the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def delete_host_access_item(
     payload: HostAccessDeleteItemRequest,
@@ -398,7 +551,12 @@ def delete_host_access_item(
     "/host-access/files/copy",
     summary="Copy host file system entry",
     description="Copy a file or directory on the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def copy_host_access_item(
     payload: HostAccessCopyItemRequest,
@@ -417,7 +575,12 @@ def copy_host_access_item(
     "/host-access/files/move",
     summary="Move host file system entry",
     description="Move a file or directory on the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def move_host_access_item(
     payload: HostAccessCopyItemRequest,
@@ -436,14 +599,21 @@ def move_host_access_item(
     "/host-access/files/attributes",
     summary="Update host file system entry attributes",
     description="Update name, owner, group, and permissions for a file or directory on the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessAttributesMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessAttributesMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def update_host_access_item_attributes(
     payload: HostAccessUpdateAttributesRequest,
     profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().update_item_attributes(session_token=session_token, payload=payload.model_dump(), profile_id=profile_id)
+    return _get_host_access_service().update_item_attributes(
+        session_token=session_token, payload=payload.model_dump(), profile_id=profile_id
+    )
 
 
 @router.get(
@@ -467,7 +637,12 @@ def download_host_access_item(
     "/host-access/files/upload",
     summary="Upload host file",
     description="Upload a file to the local host through the saved SSH/SFTP profile",
-    responses={200: {"model": HostAccessMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": HostAccessMutationResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def upload_host_access_file(
     payload: HostAccessUploadRequest,
@@ -477,7 +652,9 @@ def upload_host_access_file(
     try:
         file_payload = base64.b64decode(payload.content_base64.encode("utf-8"), validate=True)
     except Exception:
-        raise CustomException(status_code=400, message="Invalid Request", details="content_base64 must be valid base64")
+        raise CustomException(
+            status_code=400, message="Invalid Request", details="content_base64 must be valid base64"
+        ) from None
     return _get_host_access_service().upload_file(
         session_token=session_token,
         parent_path=payload.parent_path,
@@ -524,22 +701,34 @@ async def host_access_terminal_ws(websocket: WebSocket):
                 if updates:
                     for payload in updates:
                         try:
-                            await websocket.send_text(json.dumps({"type": "output", "session_id": session_id, "data": payload}))
+                            await websocket.send_text(
+                                json.dumps({"type": "output", "session_id": session_id, "data": payload})
+                            )
                         except (RuntimeError, WebSocketDisconnect, ClientDisconnected, InvalidState, asyncio.CancelledError):
                             return
                     cursor = next_cursor
                     continue
                 if closed:
-                    try:
+                    with contextlib.suppress(
+                        RuntimeError, WebSocketDisconnect, ClientDisconnected, InvalidState, asyncio.CancelledError
+                    ):
                         await websocket.send_text(json.dumps({"type": "closed", "session_id": session_id}))
-                    except (RuntimeError, WebSocketDisconnect, ClientDisconnected, InvalidState, asyncio.CancelledError):
-                        pass
                     return
                 await asyncio.sleep(0.02)
         except asyncio.CancelledError:
             return
 
-    await websocket.send_text(json.dumps({"type": "ready", "session_id": session_id, "cwd": profile["working_directory"], "username": profile["username"], "resumed": bool(attached.get('resumed'))}))
+    await websocket.send_text(
+        json.dumps(
+            {
+                "type": "ready",
+                "session_id": session_id,
+                "cwd": profile["working_directory"],
+                "username": profile["username"],
+                "resumed": bool(attached.get('resumed')),
+            }
+        )
+    )
     if snapshot:
         await websocket.send_text(json.dumps({"type": "output", "session_id": session_id, "data": snapshot}))
     output_task = asyncio.create_task(pump_output())

@@ -29,10 +29,17 @@ def _render_overview_status_text(payload: dict[str, Any]) -> str:
 
 
 @overview_group.command(name="status")
-@click.option("--locale", type=click.Choice(["en", "zh"], case_sensitive=False), default="en", show_default=True, help="Locale for catalog metadata.")
+@click.option(
+    "--locale",
+    type=click.Choice(["en", "zh"], case_sensitive=False),
+    default="en",
+    show_default=True,
+    help="Locale for catalog metadata.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def overview_status(locale: str, as_json: bool) -> None:
     """Collect platform overview metrics, app counts, and service summaries."""
+
     def action() -> dict[str, Any]:
         from src.services.overview_service import OverviewService
 
@@ -46,6 +53,7 @@ def overview_status(locale: str, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def overview_edition(as_json: bool) -> None:
     """Inspect product edition, version, and application quota."""
+
     def action() -> dict[str, Any]:
         from src.services.product_metadata import read_product_metadata
 
@@ -65,6 +73,7 @@ def overview_edition(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def overview_readiness(check_setup: bool, as_json: bool) -> None:
     """Check whether platform databases, credentials, and core services are ready."""
+
     def action() -> dict[str, Any]:
         from src.services.platform_readiness import PlatformReadinessService
 

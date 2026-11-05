@@ -16,7 +16,6 @@ from dotenv import dotenv_values, set_key
 from src.core.exception import CustomException
 from src.utils.password_generator import PasswordGenerator
 
-
 _REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
 _VARIABLE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _PLATFORM_FIELDS = {"W9_POWER_PASSWORD", "W9_RCODE"}
@@ -28,7 +27,7 @@ def _invalid(field: str, reason: str) -> CustomException:
 
 def _parts(field: str, value: str) -> tuple[str, list[tuple[str, str]]]:
     prefix = "sk-" if value.startswith("sk-") else ""
-    body = value[len(prefix):]
+    body = value[len(prefix) :]
     if re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", body):
         raise _invalid(field, "UUID requires an explicit generation algorithm")
     segments = body.split("-")
@@ -65,10 +64,10 @@ def _matches(field: str, template: str, value: str) -> bool:
     prefix, parts = _parts(field, template)
     if not value.startswith(prefix):
         return False
-    segments = value[len(prefix):].split("-")
+    segments = value[len(prefix) :].split("-")
     return len(segments) == len(parts) and all(
         len(segment) == len(original) and all(character in alphabet for character in segment)
-        for segment, (original, alphabet) in zip(segments, parts)
+        for segment, (original, alphabet) in zip(segments, parts, strict=False)
     )
 
 
@@ -149,14 +148,19 @@ def forget_install_secrets(app_id: str) -> None:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             (storage / f"{identity}.json").unlink(missing_ok=True)
     except Exception:
-        raise CustomException(500, "Installation secret cleanup failed", "Unable to safely remove installation secrets.") from None
+        raise CustomException(
+            500, "Installation secret cleanup failed", "Unable to safely remove installation secrets."
+        ) from None
 
 
 def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str, settings: dict | None = None) -> None:
     directory = Path(directory)
+    settings = settings or {}
     env_path = directory / ".env"
     fields = _secret_fields(directory)
-    templates = dict(dotenv_values(env_path, interpolate=False))
+    # dotenv returns `str | None` for keys without a value; treat those as empty so the format
+    # checks below never index or search a None.
+    templates: dict[str, str] = {key: value or "" for key, value in dotenv_values(env_path, interpolate=False).items()}
     for field in fields:
         if field not in templates:
             raise _invalid(field, "missing from template")
@@ -179,8 +183,8 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
         with os.fdopen(lock_descriptor, "a") as lock:
             os.fchmod(lock.fileno(), 0o600)
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            cached = {}
-            cached_templates = {}
+            cached: dict[str, str] = {}
+            cached_templates: dict[str, str] = {}
             if cache_path.exists():
                 descriptor = os.open(cache_path, os.O_RDONLY | os.O_NOFOLLOW)
                 with os.fdopen(descriptor) as handle:
@@ -188,18 +192,20 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
                     payload = json.load(handle)
                 if payload.get("app_name") != app_name or not isinstance(payload.get("values"), dict):
                     raise _invalid("env.secrets", "stored installation identity does not match")
-                cached = payload["values"]
-                cached_templates = payload.get("templates", {})
+                cached = dict(payload["values"])
+                cached_templates = dict(payload.get("templates") or {})
                 if not isinstance(cached_templates, dict):
                     raise _invalid("env.secrets", "invalid stored template format")
-            final = {**templates, **(settings or {})}
-            updates = {}
+            final: dict[str, str] = {**templates, **settings}
+            updates: dict[str, str] = {}
             for field in targets:
                 template = templates[field]
-                if field in (settings or {}):
+                if field in settings:
                     value = settings[field]
-                elif field not in _PLATFORM_FIELDS and _REFERENCE.search(template) and (
-                    field not in cached or cached_templates.get(field) != template
+                elif (
+                    field not in _PLATFORM_FIELDS
+                    and _REFERENCE.search(template)
+                    and (field not in cached or cached_templates.get(field) != template)
                 ):
                     cached.pop(field, None)
                     continue
@@ -218,11 +224,14 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
                 updates[field] = value
                 final[field] = value
             _validate_references(final, targets)
-            _atomic_json(cache_path, {
-                "app_name": app_name,
-                "values": {**cached, **updates},
-                "templates": {field: templates[field] for field in targets},
-            })
+            _atomic_json(
+                cache_path,
+                {
+                    "app_name": app_name,
+                    "values": {**cached, **updates},
+                    "templates": {field: templates[field] for field in targets},
+                },
+            )
             with tempfile.NamedTemporaryFile(dir=directory, delete=False) as handle:
                 temporary = Path(handle.name)
             shutil.copyfile(env_path, temporary)
@@ -235,7 +244,9 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
     except CustomException:
         raise
     except Exception:
-        raise CustomException(500, "Installation secret initialization failed", "Unable to safely read or save installation secrets.") from None
+        raise CustomException(
+            500, "Installation secret initialization failed", "Unable to safely read or save installation secrets."
+        ) from None
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

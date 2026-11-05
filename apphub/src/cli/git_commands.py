@@ -5,7 +5,7 @@ from typing import Any
 
 import click
 
-from src.cli.cli_output import CLIError, MAX_TEXT_BUDGET_BYTES, mask_sensitive_text, run_cli_action, truncate_utf8_text
+from src.cli.cli_output import MAX_TEXT_BUDGET_BYTES, CLIError, mask_sensitive_text, run_cli_action, truncate_utf8_text
 
 
 @click.group(name="git")
@@ -38,6 +38,7 @@ def _parse_key_value_pairs(pairs: tuple[str, ...]) -> dict[str, str]:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_repos_command(as_json: bool) -> None:
     """List application configuration repositories in Gitea."""
+
     def action() -> dict[str, Any]:
         from src.services.gitea_manager import GiteaManager
 
@@ -65,6 +66,7 @@ def list_repos_command(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_repo_files_command(app_id: str, dir_path: str, as_json: bool) -> None:
     """List files and directories in an application's configuration repository."""
+
     def action() -> dict[str, Any]:
         from src.services.gitea_manager import GiteaManager
 
@@ -94,6 +96,7 @@ def list_repo_files_command(app_id: str, dir_path: str, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def cat_repo_file_command(app_id: str, file_path: str, as_json: bool) -> None:
     """Read a text file from an application's configuration repository (secrets masked)."""
+
     def action() -> tuple[dict[str, Any], bool]:
         from src.services.gitea_manager import GiteaManager
 
@@ -119,12 +122,20 @@ def cat_repo_file_command(app_id: str, file_path: str, as_json: bool) -> None:
 
 @git_group.command(name="env-set")
 @click.argument("app_id")
-@click.option("--set", "set_values", multiple=True, required=True, metavar="KEY=VALUE", help="Environment key/value to update (repeatable).")
+@click.option(
+    "--set",
+    "set_values",
+    multiple=True,
+    required=True,
+    metavar="KEY=VALUE",
+    help="Environment key/value to update (repeatable).",
+)
 @click.option("--sha", "expected_sha", help="Expected .env blob SHA for optimistic concurrency protection.")
 @click.option("--yes", "-y", is_flag=True, help="Confirm updating repository .env file.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def env_set_command(app_id: str, set_values: tuple[str, ...], expected_sha: str | None, yes: bool, as_json: bool) -> None:
     """Update specific environment variables in an application's .env file."""
+
     def action() -> dict[str, Any]:
         from src.services.gitea_manager import GiteaManager
 
@@ -136,7 +147,9 @@ def env_set_command(app_id: str, set_values: tuple[str, ...], expected_sha: str 
                     f"Updating .env in repository '{app_id}' requires --yes confirmation",
                     details={"app_id": app_id, "keys": sorted(updates.keys())},
                 )
-            if not click.confirm(f"Update {len(updates)} variable(s) ({', '.join(sorted(updates.keys()))}) in '{app_id}/.env'?"):
+            if not click.confirm(
+                f"Update {len(updates)} variable(s) ({', '.join(sorted(updates.keys()))}) in '{app_id}/.env'?"
+            ):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
         result = GiteaManager().update_env_variables(app_id, updates, expected_sha=expected_sha)
@@ -155,12 +168,23 @@ def env_set_command(app_id: str, set_values: tuple[str, ...], expected_sha: str 
 @git_group.command(name="write")
 @click.argument("app_id")
 @click.argument("file_path")
-@click.option("--from-file", "source_file", required=True, type=click.Path(exists=True, dir_okay=False, readable=True), help="Local file whose content will be written.")
-@click.option("--sha", "expected_sha", required=True, help="Current blob SHA of the target file in Gitea (required for conflict check).")
+@click.option(
+    "--from-file",
+    "source_file",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help="Local file whose content will be written.",
+)
+@click.option(
+    "--sha", "expected_sha", required=True, help="Current blob SHA of the target file in Gitea (required for conflict check)."
+)
 @click.option("--yes", "-y", is_flag=True, help="Confirm writing the repository file.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
-def write_repo_file_command(app_id: str, file_path: str, source_file: str, expected_sha: str, yes: bool, as_json: bool) -> None:
+def write_repo_file_command(
+    app_id: str, file_path: str, source_file: str, expected_sha: str, yes: bool, as_json: bool
+) -> None:
     """Write a text file in an application's configuration repository with SHA conflict check."""
+
     def action() -> dict[str, Any]:
         from src.core.exception import CustomException
         from src.services.gitea_manager import GiteaManager
@@ -215,6 +239,7 @@ def write_repo_file_command(app_id: str, file_path: str, source_file: str, expec
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def rm_repo_file_command(app_id: str, file_path: str, expected_sha: str, yes: bool, as_json: bool) -> None:
     """Delete a non-core file from an application's configuration repository."""
+
     def action() -> dict[str, Any]:
         from src.services.gitea_manager import GiteaManager
 
@@ -254,6 +279,7 @@ def rm_repo_file_command(app_id: str, file_path: str, expected_sha: str, yes: bo
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def git_log_command(app_id: str, limit: int, as_json: bool) -> None:
     """List commit history for an application's configuration repository."""
+
     def action() -> dict[str, Any]:
         from src.services.gitea_manager import GiteaManager
 
@@ -283,6 +309,7 @@ def git_log_command(app_id: str, limit: int, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def git_diff_command(app_id: str, target_ref: str | None, base_ref: str | None, as_json: bool) -> None:
     """Show masked diff for a configuration repository commit or ref range."""
+
     def action() -> tuple[dict[str, Any], bool]:
         from src.services.gitea_manager import GiteaManager
 
@@ -308,14 +335,23 @@ def git_diff_command(app_id: str, target_ref: str | None, base_ref: str | None, 
 @git_group.command(name="rollback")
 @click.argument("app_id")
 @click.option("--to", "target_commit", required=True, help="Target commit SHA to rollback configuration to.")
-@click.option("--redeploy/--no-redeploy", default=False, show_default=True, help="Whether to redeploy the application stack after rolling back.")
+@click.option(
+    "--redeploy/--no-redeploy",
+    default=False,
+    show_default=True,
+    help="Whether to redeploy the application stack after rolling back.",
+)
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), default=None, help="Endpoint ID when redeploying.")
 @click.option("--yes", "-y", is_flag=True, help="Confirm rolling back configuration repository.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
-def git_rollback_command(app_id: str, target_commit: str, redeploy: bool, endpoint_id: int | None, yes: bool, as_json: bool) -> None:
+def git_rollback_command(
+    app_id: str, target_commit: str, redeploy: bool, endpoint_id: int | None, yes: bool, as_json: bool
+) -> None:
     """Rollback an application's configuration repository to a previous commit (creates a new commit)."""
+
     def action() -> dict[str, Any]:
         import asyncio
+
         from src.services.app_manager import AppManger
         from src.services.compose_app_manager import ComposeAppManager
         from src.services.gitea_manager import GiteaManager
@@ -354,7 +390,7 @@ def git_rollback_command(app_id: str, target_commit: str, redeploy: bool, endpoi
 
     def render_text(payload: dict[str, Any]) -> str:
         return (
-            f"Rollback '{payload.get('app_id')}' -> {payload.get('target_commit')[:10]} "
+            f"Rollback '{payload.get('app_id')}' -> {str(payload.get('target_commit') or '')[:10]} "
             f"(changed={payload.get('changed')}, new_head={payload.get('new_head_sha')}, redeployed={payload.get('redeployed')})."
         )
 

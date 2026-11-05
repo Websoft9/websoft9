@@ -18,7 +18,6 @@ from src.services.install_profile import (
     validate_profile_settings,
 )
 
-
 PROFILE_SETTINGS = {
     "W9_HTTP_PORT_SET": "9001",
     "W9_DB_HOST_SET": "mysql.example.internal",
@@ -37,11 +36,17 @@ def _profile_template(app_dir: Path) -> None:
     )
     (app_dir / ".env").write_text("W9_POWER_PASSWORD=\nW9_HTTP_PORT_SET=9001\nW9_DB_EXPOSE=mysql\n", encoding="utf-8")
     (app_dir / ".env.external-db").write_text(
-        "\n".join([
-            *(f"{key}={value if key != 'W9_DB_PASSWORD_SET' else ''}" for key, value in PROFILE_SETTINGS.items() if key != "W9_HTTP_PORT_SET"),
-            "W9_DATABASE_MODE=external",
-            "W9_COMPOSE_EXCLUDE_SERVICES=mysql",
-        ]),
+        "\n".join(
+            [
+                *(
+                    f"{key}={value if key != 'W9_DB_PASSWORD_SET' else ''}"
+                    for key, value in PROFILE_SETTINGS.items()
+                    if key != "W9_HTTP_PORT_SET"
+                ),
+                "W9_DATABASE_MODE=external",
+                "W9_COMPOSE_EXCLUDE_SERVICES=mysql",
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -81,11 +86,7 @@ def test_external_profile_validation_accepts_base_template_install_settings(tmp_
 def test_external_database_connection_settings_are_excluded_from_port_checks(tmp_path):
     app_dir = tmp_path / "wordpress"
     _profile_template(app_dir)
-    database_only_settings = {
-        key: value
-        for key, value in PROFILE_SETTINGS.items()
-        if not key.endswith("HTTP_PORT_SET")
-    }
+    database_only_settings = {key: value for key, value in PROFILE_SETTINGS.items() if not key.endswith("HTTP_PORT_SET")}
 
     assert is_external_database_profile(app_dir, "external-db") is True
     assert get_port_check_settings("external-db", PROFILE_SETTINGS, app_dir) == {"W9_HTTP_PORT_SET": "9001"}
@@ -148,17 +149,20 @@ def test_external_database_connection_test_is_read_only(monkeypatch):
     assert result.version == (8, 0, 36)
 
     assert calls == [
-        ("connect", {
-            "host": "mysql.example.internal",
-            "port": 3306,
-            "user": "wordpress_user",
-            "password": "database-secret",
-            "database": "wordpress_demo",
-            "connect_timeout": 8,
-            "read_timeout": 8,
-            "write_timeout": 8,
-            "autocommit": True,
-        }),
+        (
+            "connect",
+            {
+                "host": "mysql.example.internal",
+                "port": 3306,
+                "user": "wordpress_user",
+                "password": "database-secret",
+                "database": "wordpress_demo",
+                "connect_timeout": 8,
+                "read_timeout": 8,
+                "write_timeout": 8,
+                "autocommit": True,
+            },
+        ),
         ("execute", "SELECT 1"),
         ("execute", "SELECT VERSION()"),
         ("close",),
@@ -316,11 +320,17 @@ def test_external_profile_pruning_preserves_compose_formatting_and_partial_depen
     )
     (workspace / ".env").write_text("W9_POWER_PASSWORD=\nW9_HTTP_PORT_SET=9001\n", encoding="utf-8")
     (workspace / ".env.external-db").write_text(
-        "\n".join([
-            *(f"{key}={value if key != 'W9_DB_PASSWORD_SET' else ''}" for key, value in PROFILE_SETTINGS.items() if key != "W9_HTTP_PORT_SET"),
-            "W9_DATABASE_MODE=external",
-            "W9_COMPOSE_EXCLUDE_SERVICES=mysql",
-        ]),
+        "\n".join(
+            [
+                *(
+                    f"{key}={value if key != 'W9_DB_PASSWORD_SET' else ''}"
+                    for key, value in PROFILE_SETTINGS.items()
+                    if key != "W9_HTTP_PORT_SET"
+                ),
+                "W9_DATABASE_MODE=external",
+                "W9_COMPOSE_EXCLUDE_SERVICES=mysql",
+            ]
+        ),
         encoding="utf-8",
     )
 

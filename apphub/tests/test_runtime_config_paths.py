@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -9,7 +8,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.core.config import ConfigManager
 from src.services.settings_manager import SettingsManager
-
 
 CONFIG_TEMPLATE = """[platform_gateway]
 https_enabled = false

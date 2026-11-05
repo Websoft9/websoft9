@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 import json
 import logging
 import re
 import sys
+from contextlib import contextmanager, suppress
 from typing import Any, Callable, Iterator
 
 import click
 from pydantic import BaseModel
 
 from src.core.exception import CustomException
-
 
 MAX_TEXT_BUDGET_BYTES = 64 * 1024
 
@@ -57,7 +56,7 @@ def mask_sensitive_text(text: str | None) -> str:
             value, end = decoder.raw_decode(masked, candidate.start())
         except ValueError:
             continue
-        parts.extend((masked[position:candidate.start()], json.dumps(sanitize_value(value), ensure_ascii=False)))
+        parts.extend((masked[position : candidate.start()], json.dumps(sanitize_value(value), ensure_ascii=False)))
         position = end
     if parts:
         masked = "".join(parts) + masked[position:]
@@ -68,7 +67,7 @@ def mask_sensitive_text(text: str | None) -> str:
         line = lines[index]
         block = _YAML_SECRET_LINE_PATTERN.match(line)
         if block and is_sensitive_key(block["key"]):
-            bounded_lines.append(line[:block.end()] + "******\n")
+            bounded_lines.append(line[: block.end()] + "******\n")
             indent = len(block["indent"])
             index += 1
             while index < len(lines):
@@ -190,10 +189,8 @@ def route_console_logs_to_stderr() -> Iterator[None]:
         yield
     finally:
         for handler, original_stream in swapped:
-            try:
+            with suppress(Exception):
                 handler.setStream(original_stream)
-            except Exception:
-                pass
 
 
 def build_envelope(

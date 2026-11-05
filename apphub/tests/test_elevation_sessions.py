@@ -31,7 +31,15 @@ class FakeAccount:
         return {"state": "ready"}
 
     def credentials(self):
-        return {"profile_id": "platform-sftp", "host": "127.0.0.1", "port": 22, "username": "websoft9-sftp", "auth_method": "key", "private_key": "", "passphrase": ""}
+        return {
+            "profile_id": "platform-sftp",
+            "host": "127.0.0.1",
+            "port": 22,
+            "username": "websoft9-sftp",
+            "auth_method": "key",
+            "private_key": "",
+            "passphrase": "",
+        }
 
 
 class FakeAuthority:
@@ -105,11 +113,15 @@ def test_elevation_status_is_scoped_per_view(tmp_path):
     assert host.file_elevation_status("valid-session", "p1", scope="app", app_id="a1", volume_id="v1")["enabled"] is False
     assert host.file_elevation_status("valid-session", "p1", scope="app", app_id="a2", volume_id="v1")["enabled"] is False
 
-    host.set_file_elevation("valid-session", {"enabled": True, "profile_id": "p1", "scope": "app", "app_id": "a1", "volume_id": "v1"})
+    host.set_file_elevation(
+        "valid-session", {"enabled": True, "profile_id": "p1", "scope": "app", "app_id": "a1", "volume_id": "v1"}
+    )
     assert host.file_elevation_status("valid-session", "p1", scope="app", app_id="a1", volume_id="v1")["enabled"] is True
     assert host.file_elevation_status("valid-session", "p1", scope="host")["enabled"] is True
 
-    host.set_file_elevation("valid-session", {"enabled": False, "profile_id": "p1", "scope": "app", "app_id": "a1", "volume_id": "v1"})
+    host.set_file_elevation(
+        "valid-session", {"enabled": False, "profile_id": "p1", "scope": "app", "app_id": "a1", "volume_id": "v1"}
+    )
     disabled = host.file_elevation_status("valid-session", "p1", scope="app", app_id="a1", volume_id="v1")
     assert disabled["enabled"] is False
     assert disabled["can_elevate"] is True

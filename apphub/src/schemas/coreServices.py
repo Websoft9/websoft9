@@ -3,7 +3,6 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-
 SUPPORTED_SERVICE_KEYS = {"platform-gateway", "apphub-api", "gitea", "portainer", "nginx-proxy-manager"}
 SUPPORTED_LOG_LEVELS = {"info", "warning", "error", "fatal"}
 SUPPORTED_LOG_TIME_RANGES = {"all", "15m", "1h", "6h", "24h", "7d"}

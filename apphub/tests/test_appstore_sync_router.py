@@ -3,6 +3,7 @@
 The console treats `already_running` as a successful no-op, so the endpoint must report that
 status instead of spawning a second sync process.
 """
+
 import importlib
 import sys
 from pathlib import Path
@@ -43,12 +44,14 @@ def test_sync_endpoint_delegates_when_no_sync_is_running(monkeypatch):
 
     monkeypatch.setattr(router_module, 'AppStoreSyncManager', IdleSyncManager)
 
-    result = router_module.sync_appstore_assets(channel='rc', package_types='media,library', force_refresh=True)
+    result = router_module.sync_appstore_assets(channel='dev', package_types='media,library', force_refresh=True)
 
-    assert calls == [{
-        'trigger': 'manual',
-        'channel': 'rc',
-        'package_types': 'media,library',
-        'force_refresh': True,
-    }]
+    assert calls == [
+        {
+            'trigger': 'manual',
+            'channel': 'dev',
+            'package_types': 'media,library',
+            'force_refresh': True,
+        }
+    ]
     assert result['status'] == 'accepted'

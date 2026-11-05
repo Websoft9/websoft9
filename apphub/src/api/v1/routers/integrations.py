@@ -15,7 +15,7 @@ def _set_session_cookies(response: Response, cookies: list[dict[str, object]]) -
             path=str(cookie.get("path") or "/"),
             httponly=bool(cookie.get("httponly", False)),
             samesite="lax",
-            max_age=int(cookie["max_age"]) if cookie.get("max_age") is not None else None,
+            max_age=int(str(cookie["max_age"])) if cookie.get("max_age") is not None else None,
         )
 
 
@@ -25,7 +25,8 @@ def bootstrap_all_integration_sessions(
     x_websoft9_locale: Optional[str] = Header(default=None),
 ):
     payload = IntegrationSessionBridge().bootstrap_all(locale=x_websoft9_locale)
-    _set_session_cookies(response, payload.pop("cookies"))
+    cookies = payload.pop("cookies")
+    _set_session_cookies(response, cookies if isinstance(cookies, list) else [])
     return payload
 
 

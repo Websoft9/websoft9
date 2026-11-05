@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Query, Path, Body
-from typing import Dict, List
+from typing import List
+
+from fastapi import APIRouter, Path, Query
+
+from src.schemas.backupsnapshot import BackupSnapshot
 from src.schemas.errorResponse import ErrorResponse
 from src.services.back_manager import BackupManager
-from src.schemas.backupsnapshot import BackupSnapshot
 
 router = APIRouter()
+
 
 @router.post(
     "/backup/{app_id}",
@@ -16,11 +19,10 @@ router = APIRouter()
         500: {"model": ErrorResponse},
     },
 )
-def create_backup(
-    app_id: str = Path(..., description="App ID to create backup for")
-):
+def create_backup(app_id: str = Path(..., description="App ID to create backup for")):
     BackupManager().create_backup(app_id)
     return {"message": f"Backup created successfully for app: {app_id}"}
+
 
 @router.get(
     "/backup/snapshots",
@@ -41,6 +43,7 @@ def list_snapshots(
     snapshots = BackupManager().list_snapshots(app_id, use_cache=not refresh)
     return snapshots
 
+
 @router.delete(
     "/backup/snapshots/{snapshot_id}",
     summary="Delete Snapshot",
@@ -58,6 +61,7 @@ def delete_snapshot(
     BackupManager().delete_snapshot(snapshot_id)
     return {"message": f"Snapshot {snapshot_id} deleted successfully"}
 
+
 @router.post(
     "/backup/restore/{app_id}/{snapshot_id}",
     summary="Restore Snapshot",
@@ -70,7 +74,7 @@ def delete_snapshot(
 )
 def restore_snapshot(
     app_id: str = Path(..., description="App ID to restore"),
-    snapshot_id: str = Path(..., description="Snapshot ID to restore")
+    snapshot_id: str = Path(..., description="Snapshot ID to restore"),
 ):
-    BackupManager().restore_backup(app_id,snapshot_id)
+    BackupManager().restore_backup(app_id, snapshot_id)
     return {"message": f"Snapshot {snapshot_id} restored successfully"}

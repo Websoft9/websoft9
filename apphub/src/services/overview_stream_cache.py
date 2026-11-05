@@ -40,7 +40,7 @@ class OverviewStreamCache:
         with self._lock:
             entry = self._entries.get(cache_key)
             should_refresh = force_refresh or entry is None or now >= entry['next_refresh_at']
-            if not should_refresh:
+            if not should_refresh and entry is not None:
                 return self._entry_to_snapshot(entry)
 
             if entry is not None and not force_refresh:
@@ -80,9 +80,7 @@ class OverviewStreamCache:
     ) -> dict[str, Any]:
         return self.get_snapshot(session_token, locale=locale, force_refresh=force_refresh).overview
 
-    def _refresh_entry_in_background(
-        self, cache_key: Optional[str], session_token: Optional[str], locale: str = 'en'
-    ) -> None:
+    def _refresh_entry_in_background(self, cache_key: Optional[str], session_token: Optional[str], locale: str = 'en') -> None:
         now = time.monotonic()
         try:
             refreshed_entry = self._build_entry(session_token=session_token, locale=locale, now=now)
@@ -100,9 +98,7 @@ class OverviewStreamCache:
             self._entries[cache_key] = refreshed_entry
 
     def _build_entry(self, session_token: Optional[str], *, locale: str = 'en', now: float) -> dict[str, Any]:
-        overview = jsonable_encoder(
-            self._overview_service.get_overview(session_token=session_token, locale=locale)
-        )
+        overview = jsonable_encoder(self._overview_service.get_overview(session_token=session_token, locale=locale))
         digest = self._compute_digest(overview)
         refresh_interval_seconds = self._resolve_refresh_interval_seconds(overview)
         event_json = json.dumps(

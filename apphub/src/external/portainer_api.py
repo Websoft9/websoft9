@@ -1,19 +1,20 @@
-from datetime import datetime
 import json
 import os
 import socket
 import threading
 import time
-from typing import Optional
+from collections.abc import Callable
+from datetime import datetime
+from functools import wraps
+from typing import Concatenate, Optional, ParamSpec, TypeVar
 from urllib.parse import urlparse
 
 import requests
 
 from src.core.apiHelper import APIHelper
 from src.core.config import ConfigManager
-from functools import wraps
-from src.core.logger import logger
 from src.core.exception import CustomException
+from src.core.logger import logger
 from src.services.integration_credentials import IntegrationCredentialProvider
 
 
@@ -80,6 +81,33 @@ class JWTManager:
             raise CustomException()
 
 
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def auto_refresh_token(
+    func: Callable[Concatenate["PortainerAPI", _P], _R],
+) -> Callable[Concatenate["PortainerAPI", _P], _R]:
+    """Refresh the JWT and retry once when Portainer answers 401.
+
+    Defined at module level: as a class-body function it looked like a *method*, so ``@wraps`` and
+    the retry wrapper were checking ``self`` against ``PortainerAPI``.
+    """
+
+    @wraps(func)
+    def wrapper(self: "PortainerAPI", *args: _P.args, **kwargs: _P.kwargs) -> _R:
+        self.api.headers["Authorization"] = f"Bearer {JWTManager.get_token()}"
+        response = func(self, *args, **kwargs)
+        if getattr(response, "status_code", None) == 401:  # If Unauthorized
+            JWTManager.refresh_token()  # Refresh the token
+            self.api.headers["Authorization"] = f"Bearer {JWTManager.get_token()}"
+            response = func(self, *args, **kwargs)  # Retry the request
+        # response.raise_for_status()  # This will raise an exception if the response contains an HTTP error status after retrying.
+        return response
+
+    return wrapper
+
+
 class PortainerAPI:
     """
     This class is used to interact with Portainer API
@@ -91,7 +119,7 @@ class PortainerAPI:
     Methods:
         set_jwt_token(jwt_token): Set JWT token
         get_jwt_token(username, password): Get JWT token
-        get_endpoints(): Get endpoints  
+        get_endpoints(): Get endpoints
         get_endpoint_by_id(endpointId): Get endpoint by ID
         create_endpoint(name, EndpointCreationType): Create an endpoint
         get_stacks(endpointId): Get stacks
@@ -120,22 +148,8 @@ class PortainerAPI:
             verify=False,
         )
 
-    def auto_refresh_token(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            self.api.headers["Authorization"] = f"Bearer {JWTManager.get_token()}"
-            response = func(self, *args, **kwargs)
-            if response.status_code == 401:  # If Unauthorized
-                JWTManager.refresh_token()  # Refresh the token
-                self.api.headers["Authorization"] = f"Bearer {JWTManager.get_token()}"
-                response = func(self, *args, **kwargs)  # Retry the request
-            # response.raise_for_status()  # This will raise an exception if the response contains an HTTP error status after retrying.
-            return response
-        return wrapper
-
-
     @auto_refresh_token
-    def get_endpoints(self,start: int = 0,limit: int = 1000):
+    def get_endpoints(self, start: int = 0, limit: int = 1000):
         """
         Get endpoints
 
@@ -149,7 +163,7 @@ class PortainerAPI:
                 "limit": limit,
             },
         )
-    
+
     @auto_refresh_token
     def get_endpoint_by_id(self, endpointId: int):
         """
@@ -194,11 +208,7 @@ class PortainerAPI:
         """
         return self.api.get(
             path="stacks",
-            params={
-                "filters": json.dumps(
-                    {"EndpointID": endpointId, "IncludeOrphanedStacks": True}
-                )
-            },
+            params={"filters": json.dumps({"EndpointID": endpointId, "IncludeOrphanedStacks": True})},
         )
 
     @auto_refresh_token
@@ -226,12 +236,12 @@ class PortainerAPI:
         Returns:
             Response: Response from Portainer API
         """
-        return self.api.delete(
-            path=f"stacks/{stackID}", params={"endpointId": endpointId}
-        )
+        return self.api.delete(path=f"stacks/{stackID}", params={"endpointId": endpointId})
 
     @auto_refresh_token
-    def create_stack_standlone_repository(self, stack_name: str, endpointId: int, repositoryURL: str,usr_name:str,usr_password:str):
+    def create_stack_standlone_repository(
+        self, stack_name: str, endpointId: int, repositoryURL: str, usr_name: str, usr_password: str
+    ):
         """
         Create a stack from a standalone repository
 
@@ -253,10 +263,7 @@ class PortainerAPI:
                 "repositoryAuthentication": True,
                 "RepositoryUsername": usr_name,
                 "RepositoryPassword": usr_password,
-                "env":[{
-                    "name": "DEPLOY_TIME",
-                    "value": datetime.now().strftime("%Y%m%d%H%M%S")
-                }]
+                "env": [{"name": "DEPLOY_TIME", "value": datetime.now().strftime("%Y%m%d%H%M%S")}],
             },
         )
 
@@ -272,9 +279,7 @@ class PortainerAPI:
         Returns:
             Response: Response from Portainer API
         """
-        return self.api.post(
-            path=f"stacks/{stackID}/start", params={"endpointId": endpointId}
-        )
+        return self.api.post(path=f"stacks/{stackID}/start", params={"endpointId": endpointId})
 
     @auto_refresh_token
     def down_stack(self, stackID: int, endpointId: int):
@@ -288,9 +293,7 @@ class PortainerAPI:
         Returns:
             Response: Response from Portainer API
         """
-        return self.api.post(
-            path=f"stacks/{stackID}/stop", params={"endpointId": endpointId}
-        )
+        return self.api.post(path=f"stacks/{stackID}/stop", params={"endpointId": endpointId})
 
     @auto_refresh_token
     def update_stack_git(
@@ -328,7 +331,7 @@ class PortainerAPI:
         )
 
     @auto_refresh_token
-    def get_volumes(self, endpointId: int,dangling: bool):
+    def get_volumes(self, endpointId: int, dangling: bool):
         """
         Get volumes in endpoint
 
@@ -337,16 +340,12 @@ class PortainerAPI:
             dangling (bool): the volume is dangling or not
         """
         return self.api.get(
-        path=f"endpoints/{endpointId}/docker/volumes",
-        params={
-            "filters": json.dumps(
-                {"dangling": [str(dangling).lower()]}
-            )
-        }
-    )
-    
+            path=f"endpoints/{endpointId}/docker/volumes",
+            params={"filters": json.dumps({"dangling": [str(dangling).lower()]})},
+        )
+
     @auto_refresh_token
-    def remove_volume_by_name(self, endpointId: int,volume_name:str):
+    def remove_volume_by_name(self, endpointId: int, volume_name: str):
         """
         Remove volumes by name
 
@@ -355,8 +354,8 @@ class PortainerAPI:
             volume_name (str): volume name
         """
         return self.api.delete(
-        path=f"endpoints/{endpointId}/docker/volumes/{volume_name}",
-    )
+            path=f"endpoints/{endpointId}/docker/volumes/{volume_name}",
+        )
 
     @auto_refresh_token
     def get_containers(self, endpointId: int):
@@ -370,11 +369,11 @@ class PortainerAPI:
             path=f"endpoints/{endpointId}/docker/containers/json",
             params={
                 "all": True,
-            }
+            },
         )
 
     @auto_refresh_token
-    def get_containers_by_stackName(self, endpointId: int,stack_name:str):
+    def get_containers_by_stackName(self, endpointId: int, stack_name: str):
         """
         Get containers in endpoint
 
@@ -383,12 +382,7 @@ class PortainerAPI:
         """
         return self.api.get(
             path=f"endpoints/{endpointId}/docker/containers/json",
-            params={
-                "all": True,
-                "filters": json.dumps(
-                    {"label": [f"com.docker.compose.project={stack_name}"]}
-                )
-            }
+            params={"all": True, "filters": json.dumps({"label": [f"com.docker.compose.project={stack_name}"]})},
         )
 
     @auto_refresh_token
@@ -415,7 +409,9 @@ class PortainerAPI:
             timeout=(5, 20),
         )
 
-    def read_container_output(self, endpoint_id: int, container_id: str, resource: str, params: dict, max_bytes: int) -> bytes | None:
+    def read_container_output(
+        self, endpoint_id: int, container_id: str, resource: str, params: dict, max_bytes: int
+    ) -> bytes | None:
         if resource not in {"archive", "logs"}:
             raise ValueError("Unsupported container output")
         deadline = time.monotonic() + 20
@@ -470,7 +466,9 @@ class PortainerAPI:
             json={"AttachStdout": True, "AttachStderr": True, "AttachStdin": False, "Tty": True, "Cmd": command},
         )
 
-    def run_container_command(self, endpoint_id: int, container_id: str, command: list[str], max_bytes: int, timeout: int = 20) -> str:
+    def run_container_command(
+        self, endpoint_id: int, container_id: str, command: list[str], max_bytes: int, timeout: int = 20
+    ) -> str:
         import websocket
 
         if not command or any(not isinstance(part, str) or not part or "\x00" in part for part in command):
@@ -528,7 +526,7 @@ class PortainerAPI:
         return self.api.post(
             path=f"endpoints/{endpointId}/docker/containers/{container_id}/stop",
         )
-    
+
     @auto_refresh_token
     def start_container(self, endpointId: int, container_id: str):
         """
@@ -541,7 +539,7 @@ class PortainerAPI:
         return self.api.post(
             path=f"endpoints/{endpointId}/docker/containers/{container_id}/start",
         )
-    
+
     @auto_refresh_token
     def restart_container(self, endpointId: int, container_id: str):
         """
@@ -554,22 +552,19 @@ class PortainerAPI:
         return self.api.post(
             path=f"endpoints/{endpointId}/docker/containers/{container_id}/restart",
         )
-    
+
     @auto_refresh_token
-    def redeploy_stack(self, stackID: int, endpointId: int,pullImage:bool,user_name:str,user_password:str ):
+    def redeploy_stack(self, stackID: int, endpointId: int, pullImage: bool, user_name: str, user_password: str):
         return self.api.put(
-            path=f"stacks/{stackID}/git/redeploy", 
+            path=f"stacks/{stackID}/git/redeploy",
             params={"endpointId": endpointId},
             json={
-                "env":[{
-                    "name": "DEPLOY_TIME",
-                    "value": "-"+datetime.now().strftime("%Y%m%d%H%M%S")
-                }],
-                "prune":False,
-                "RepositoryReferenceName":"",
-                "RepositoryAuthentication":True,
-                "RepositoryUsername":user_name,
-                "RepositoryPassword":user_password,
-                "PullImage":pullImage
-            }
+                "env": [{"name": "DEPLOY_TIME", "value": "-" + datetime.now().strftime("%Y%m%d%H%M%S")}],
+                "prune": False,
+                "RepositoryReferenceName": "",
+                "RepositoryAuthentication": True,
+                "RepositoryUsername": user_name,
+                "RepositoryPassword": user_password,
+                "PullImage": pullImage,
+            },
         )

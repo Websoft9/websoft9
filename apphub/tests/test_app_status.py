@@ -1,5 +1,6 @@
-import sys
+import contextlib
 import sqlite3
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -10,16 +11,16 @@ from src.services.app_status import (
     add_installing_logs,
     appInstalling,
     appInstallingError,
+    begin_install_deploy,
     configure_install_state_store,
     get_app_custom_fields,
+    install_cancel_requested,
+    mark_install_cancelled,
     modify_app_information,
     remove_app_installation,
     remove_installation_logs,
-    save_app_custom_fields,
-    begin_install_deploy,
-    install_cancel_requested,
-    mark_install_cancelled,
     request_install_cancel,
+    save_app_custom_fields,
     set_install_phase,
     start_app_installation,
 )
@@ -64,9 +65,17 @@ def test_image_layer_progress_updates_in_place_without_losing_other_layers(tmp_p
     configure_install_state_store(str(tmp_path))
     tracking_id = start_app_installation("progress_demo", "Progress")
     for layer in range(25):
-        add_installing_logs(tracking_id, "Pulling docker image", {"image": "mysql:8", "id": str(layer), "status": "Downloading", "progressDetail": {"current": 1, "total": 100}})
+        add_installing_logs(
+            tracking_id,
+            "Pulling docker image",
+            {"image": "mysql:8", "id": str(layer), "status": "Downloading", "progressDetail": {"current": 1, "total": 100}},
+        )
     for current in range(2, 101):
-        add_installing_logs(tracking_id, "Pulling docker image", {"image": "mysql:8", "id": "0", "status": "Downloading", "progressDetail": {"current": current, "total": 100}})
+        add_installing_logs(
+            tracking_id,
+            "Pulling docker image",
+            {"image": "mysql:8", "id": "0", "status": "Downloading", "progressDetail": {"current": current, "total": 100}},
+        )
     logs = dict(appInstalling.items())[tracking_id]["logs"][0]["sub_logs"]
     assert len(logs) == 25
     assert logs[0]["progressDetail"]["current"] == 100
@@ -77,7 +86,9 @@ def test_image_layer_progress_updates_in_place_without_losing_other_layers(tmp_p
 def test_image_progress_does_not_overwrite_raw_error_records(tmp_path):
     configure_install_state_store(str(tmp_path))
     tracking_id = start_app_installation("progress_demo", "Progress")
-    add_installing_logs(tracking_id, "Pulling docker image", {"image": "mysql:8", "id": "abc", "status": "error", "details": "timeout"})
+    add_installing_logs(
+        tracking_id, "Pulling docker image", {"image": "mysql:8", "id": "abc", "status": "error", "details": "timeout"}
+    )
     add_installing_logs(tracking_id, "Pulling docker image", {"image": "mysql:8", "id": "abc", "status": "Downloading"})
     logs = dict(appInstalling.items())[tracking_id]["logs"][0]["sub_logs"]
     assert len(logs) == 2
@@ -111,10 +122,13 @@ def test_install_cancellation_is_only_accepted_while_pulling(tmp_path):
 def test_custom_fields_persist_multiple_empty_rows(tmp_path):
     configure_install_state_store(str(tmp_path))
 
-    saved = save_app_custom_fields("ghost", [
-        {"field_name": "", "field_value": "", "field_type": "text"},
-        {"field_name": "", "field_value": "", "field_type": "password"},
-    ])
+    saved = save_app_custom_fields(
+        "ghost",
+        [
+            {"field_name": "", "field_value": "", "field_type": "text"},
+            {"field_name": "", "field_value": "", "field_type": "password"},
+        ],
+    )
 
     assert [(field["field_name"], field["field_value"], field["field_type"]) for field in saved] == [
         ("", "", "text"),
@@ -128,7 +142,8 @@ def test_custom_fields_persist_multiple_empty_rows(tmp_path):
 def test_custom_fields_migrates_legacy_unique_constraint_safely(tmp_path):
     """Old table with UNIQUE(app_id, field_name) must be migrated without data loss."""
     database_file = tmp_path / "install-tracking.sqlite"
-    with sqlite3.connect(database_file) as connection:
+    # `with sqlite3.connect(...)` 只提交事务,不关闭连接
+    with contextlib.closing(sqlite3.connect(database_file)) as connection:
         connection.execute(
             """
             CREATE TABLE app_custom_fields (
@@ -147,6 +162,8 @@ def test_custom_fields_migrates_legacy_unique_constraint_safely(tmp_path):
         connection.execute(
             "INSERT INTO app_custom_fields (app_id, field_name, field_value, field_type, sort_order, created_at, updated_at) VALUES ('ghost', 'secret', 'oldvalue', 'password', 0, '2025-01-01', '2025-01-01')"
         )
+        # closing() 不会像 `with connection` 那样自动提交
+        connection.commit()
 
     # Run migration by initialising the store against the legacy database.
     configure_install_state_store(str(tmp_path))
@@ -159,8 +176,11 @@ def test_custom_fields_migrates_legacy_unique_constraint_safely(tmp_path):
     assert fields[0]["field_type"] == "password"
 
     # After migration, multiple empty-name rows must also be allowed.
-    saved = save_app_custom_fields("ghost", [
-        {"field_name": "", "field_value": "", "field_type": "text"},
-        {"field_name": "", "field_value": "", "field_type": "text"},
-    ])
+    saved = save_app_custom_fields(
+        "ghost",
+        [
+            {"field_name": "", "field_value": "", "field_type": "text"},
+            {"field_name": "", "field_value": "", "field_type": "text"},
+        ],
+    )
     assert len(saved) == 2

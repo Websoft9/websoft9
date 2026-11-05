@@ -9,16 +9,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from src.core.product_catalog import resolve_product_edition_definition
 from src.core.exception import CustomException
+from src.core.product_catalog import resolve_product_edition_definition
 from src.services.app_status import InstallStateStore, _utc_now
-
 
 VERSION_FILE = Path(__file__).resolve().parents[3] / "version.json"
 DEFAULT_PRODUCT_EDITION_KEY = "free"
 PRODUCT_RUNTIME_SOURCE_INSTALL = "install"
 PRODUCT_RUNTIME_SOURCE_LEGACY = "legacy-migration"
 PRODUCT_RUNTIME_SOURCE_MANUAL = "manual-support"
+# Channels the release scripts publish to (`scripts/prepare_platform_artifact.sh`,
+# `scripts/validate_appstore_catalog_artifact.sh`). An unknown value falls back to `release`, so a
+# channel missing here would silently pull media, mirrors and upgrades from the release path.
 SUPPORTED_RELEASE_CHANNELS = ("release", "dev")
 
 
@@ -76,9 +78,10 @@ def read_release_version_file(file_path: Path | None = None) -> dict[str, Any]:
         return {}
 
     try:
-        return json.loads(target.read_text(encoding="utf-8"))
+        loaded = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
+    return loaded if isinstance(loaded, dict) else {}
 
 
 def read_release_version() -> Optional[str]:
@@ -170,7 +173,7 @@ class ProductRuntimeStateStore(InstallStateStore):
 
     def get_runtime_state_row(self, *, readonly: bool = False) -> dict[str, Any] | None:
         try:
-            with self._state_lock, (self._readonly_connect() if readonly else self._db_connect()) as connection:
+            with self._state_lock, self._readonly_connect() if readonly else self._db_connect() as connection:
                 row = connection.execute(
                     "SELECT id, edition_key, max_apps, state_source, updated_by, updated_at, note FROM product_runtime_state WHERE id = 1"
                 ).fetchone()

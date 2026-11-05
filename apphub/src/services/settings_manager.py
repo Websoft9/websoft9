@@ -1,11 +1,10 @@
-import json
+import configparser
 import os
 import shutil
-import configparser
 import subprocess
-import requests
 from datetime import datetime
 from typing import Dict
+
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.core.runtime_paths import resolve_apphub_config_path
@@ -19,7 +18,6 @@ from src.services.mirror_registry import MirrorRegistry
 from src.services.port_allocator import DEFAULT_PORT_RANGE_VALUE
 from src.services.product_metadata import read_product_edition, read_product_metadata
 
-
 DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS = 3650
 DEFAULT_PLATFORM_BRAND_TITLE = "Websoft9"
 DEFAULT_PLATFORM_BRAND_LOGO_URL = "/websoft9.png"
@@ -28,6 +26,7 @@ DEFAULT_PLATFORM_BRAND_FAVICON_URL = "/favicon.ico?v=20260509c"
 DEFAULT_PLATFORM_BRAND_APPLE_TOUCH_ICON_URL = "/websoft9.png"
 DEFAULT_PLATFORM_BRAND_LOGIN_BACKGROUND = ""
 DEFAULT_PLATFORM_BRAND_COPYRIGHT_TEXT = "© 2026 Websoft9. All Rights Reserved."
+
 
 class SettingsManager:
     """
@@ -46,23 +45,24 @@ class SettingsManager:
         read_key: Read a key from a section in the config file
         write_section: Write a key value pair to a section in the config file
     """
+
     def __init__(self):
         self.config_file_path = resolve_apphub_config_path("config.ini")
 
         self.config = configparser.ConfigParser()
 
-    def read_all(self) -> Dict[str, Dict[str, str]]:
+    def read_all(self) -> AppSettings:
         """
         Read all the settings from the config file
         """
         try:
             # Read the config file
             self.config.read(self.config_file_path)
-            data = {s:dict(self.config.items(s)) for s in self.config.sections()}
-            return AppSettings(**data)
+            data = {s: dict(self.config.items(s)) for s in self.config.sections()}
+            return AppSettings.model_validate(data)
         except Exception as e:
-            logger.error(e)
-            raise CustomException()
+            logger.error(str(e))
+            raise CustomException() from e
 
     def read_summary(self, *, readonly: bool = False) -> dict:
         self.config.read(self.config_file_path)
@@ -77,16 +77,27 @@ class SettingsManager:
                 {
                     "id": "network",
                     "items": [
-                        self._build_item("platform_gateway", "bound_domain", self._get_value("platform_gateway", "bound_domain"), editable=True),
-                        self._build_item("domain", "wildcard_domain", self._get_value("domain", "wildcard_domain"), editable=True),
+                        self._build_item(
+                            "platform_gateway",
+                            "bound_domain",
+                            self._get_value("platform_gateway", "bound_domain"),
+                            editable=True,
+                        ),
+                        self._build_item(
+                            "domain", "wildcard_domain", self._get_value("domain", "wildcard_domain"), editable=True
+                        ),
                         self._build_item(
                             "platform_gateway",
                             "https_enabled",
                             self._bool_to_string(self._is_platform_https_enabled()),
                             editable=True,
                             metadata={
-                                "cert_path": self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()),
-                                "key_path": self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()),
+                                "cert_path": self.config.get(
+                                    "platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()
+                                ),
+                                "key_path": self.config.get(
+                                    "platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()
+                                ),
                                 "default_cert_path": self._default_ssl_cert_path(),
                                 "default_key_path": self._default_ssl_key_path(),
                                 "default_certificate": self._bool_to_string(self._is_default_platform_certificate()),
@@ -190,15 +201,23 @@ class SettingsManager:
             data (AppSettings): The settings to be written to the config file
         """
         # Read the config file
+        self.config.read(self.config_file_path)
         for section, kv in data.model_dump().items():
+            # Sections that were not provided are ``None`` (they are optional in AppSettings);
+            # skip them instead of trying to iterate over ``None``.
+            if not isinstance(kv, dict):
+                continue
             # Add section if not exist
             if section not in self.config.sections():
                 self.config.add_section(section)
             # Update the key value pair
             for key, value in kv.items():
-                self.config.set(section, key, value)
+                # A ``None`` value means "not supplied"; keep whatever the file already holds.
+                if value is None:
+                    continue
+                self.config.set(section, key, str(value))
         # Write the config file
-        with open(self.filename, 'w') as configfile:
+        with open(self.config_file_path, 'w') as configfile:
             self.config.write(configfile)
 
     def read_section(self, section: str) -> Dict[str, str]:
@@ -225,26 +244,22 @@ class SettingsManager:
                     "copyright_text": self._get_platform_brand_copyright_text(),
                 }
             if section not in self.config.sections():
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details=f"Section:{section} does not exist"
-                )
+                raise CustomException(status_code=400, message="Invalid Request", details=f"Section:{section} does not exist")
             return dict(self.config.items(section))
-        except CustomException as e:
-            raise e
+        except CustomException:
+            raise
         except Exception as e:
-            logger.error("Error in read_section:"+str(e))
-            raise CustomException()
-        
-    def read_key(self, section: str, key:str) -> str:
+            logger.error("Error in read_section:" + str(e))
+            raise CustomException() from e
+
+    def read_key(self, section: str, key: str) -> str:
         """
         Read a key from a section in the config file
 
         Args:
             section (str): The section to be read from the config file
             key (str): The key to be read from the section in the config file
-        
+
         Returns:
             str: The value of the key
         """
@@ -253,26 +268,18 @@ class SettingsManager:
             self.config.read(self.config_file_path)
             # Check if section exists
             if section not in self.config.sections():
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details=f"Section:{section} does not exist"
-                )
+                raise CustomException(status_code=400, message="Invalid Request", details=f"Section:{section} does not exist")
             # Check if key exists
             if key not in self.config[section]:
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details=f"Key:{key} does not exist"
-                )
+                raise CustomException(status_code=400, message="Invalid Request", details=f"Key:{key} does not exist")
             return self.config[section][key]
-        except CustomException as e:
-            raise e
+        except CustomException:
+            raise
         except Exception as e:
-            logger.error("Error in read_key:"+str(e))
-            raise CustomException()
-        
-    def write_section(self, section: str, key:str,value:str):
+            logger.error("Error in read_key:" + str(e))
+            raise CustomException() from e
+
+    def write_section(self, section: str, key: str, value: str):
         """
         Write a key value pair to a section in the config file
 
@@ -296,28 +303,20 @@ class SettingsManager:
                 return self._write_docker_mirror_entries(value)
             # Check if section exists
             if section not in self.config.sections():
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details=f"Section:{section} does not exist"
-                )
+                raise CustomException(status_code=400, message="Invalid Request", details=f"Section:{section} does not exist")
             # Check if key exists
             if key not in self.config[section]:
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details=f"Key:{key} does not exist"
-                )
+                raise CustomException(status_code=400, message="Invalid Request", details=f"Key:{key} does not exist")
             # Update the key value pair
             self.config.set(section, key, value)
             with open(self.config_file_path, 'w') as configfile:
                 self.config.write(configfile)
             return self.read_section(section)
-        except CustomException as e:
-            raise e
+        except CustomException:
+            raise
         except Exception as e:
-            logger.error("Error in write_section:"+str(e))
-            raise CustomException()
+            logger.error("Error in write_section:" + str(e))
+            raise CustomException() from e
 
     def _get_value(self, section: str, key: str) -> str:
         return self.config.get(section, key, fallback="")
@@ -350,7 +349,17 @@ class SettingsManager:
         except Exception as exc:
             logger.debug(f"Unable to keep the legacy mirror value in config.ini: {exc}")
 
-    def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False, metadata: dict | None = None) -> dict:
+    def _build_item(
+        self,
+        section: str,
+        key: str,
+        value: str,
+        *,
+        sensitive: bool = False,
+        masked: bool = False,
+        editable: bool = False,
+        metadata: dict | None = None,
+    ) -> dict:
         display_value = value
         if masked:
             display_value = self._mask_value(value)
@@ -379,7 +388,9 @@ class SettingsManager:
         if configured in {"false", "0", "no", "off"}:
             return False
 
-        gateway_default_conf = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_DEFAULT_CONF", "/etc/websoft9/platform-gateway/default.conf")
+        gateway_default_conf = os.getenv(
+            "WEBSOFT9_PLATFORM_GATEWAY_DEFAULT_CONF", "/etc/websoft9/platform-gateway/default.conf"
+        )
         if os.path.exists(gateway_default_conf):
             try:
                 with open(gateway_default_conf, "r", encoding="utf-8") as file:
@@ -473,8 +484,13 @@ class SettingsManager:
                 normalized_key = current_key or self._default_ssl_key_path()
         else:
             force_https_bool = False
-            normalized_cert = normalized_cert or self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()).strip()
-            normalized_key = normalized_key or self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()).strip()
+            normalized_cert = (
+                normalized_cert
+                or self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()).strip()
+            )
+            normalized_key = (
+                normalized_key or self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()).strip()
+            )
 
         self.config.set("platform_gateway", "bound_domain", (bound_domain or "").strip())
         self.config.set("platform_gateway", "https_enabled", self._bool_to_string(https_enabled_bool))
@@ -500,13 +516,23 @@ class SettingsManager:
         try:
             result = subprocess.run(
                 ["openssl", "x509", "-noout", "-subject", "-issuer", "-in", cert_path],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode != 0:
                 return True
-            lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
-            if len(lines) >= 2:
-                return lines[0] == lines[1]
+            # `openssl x509 -subject -issuer` prints one "label=value" line per field, so the two
+            # lines are never byte-identical even for a self-signed certificate. Compare the
+            # distinguished names without their labels (a wrapped DN yields repeated labels).
+            fields: Dict[str, list] = {}
+            for line in result.stdout.strip().splitlines():
+                label, separator, value = line.strip().partition("=")
+                if not separator:
+                    continue
+                fields.setdefault(label.strip().lower(), []).append(value.strip())
+            if "subject" in fields and "issuer" in fields:
+                return fields["subject"] == fields["issuer"]
         except Exception:
             pass
         return True
@@ -529,7 +555,7 @@ class SettingsManager:
                 status_code=500,
                 message="Internal Server Error",
                 details="Failed to apply the platform HTTPS change",
-            )
+            ) from error
 
     def _parse_bool(self, value: str) -> bool:
         normalized = (value or "").strip().lower()
@@ -551,7 +577,9 @@ class SettingsManager:
         try:
             result = subprocess.run(
                 ["openssl", "x509", "-enddate", "-noout", "-in", cert_path],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0:
                 # Output format: "notAfter=Jun  4 10:00:00 2026 GMT"
@@ -570,7 +598,9 @@ class SettingsManager:
         try:
             result = subprocess.run(
                 ["openssl", "x509", "-noout", "-subject", "-in", cert_path],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 # Output formats vary:
@@ -596,11 +626,15 @@ class SettingsManager:
 
     def _default_ssl_cert_path(self) -> str:
         data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
-        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", f"{data_root}/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
+        return os.getenv(
+            "WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", f"{data_root}/config/platform-gateway/ssl/websoft9-platform-gateway.cert"
+        )
 
     def _default_ssl_key_path(self) -> str:
         data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
-        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", f"{data_root}/config/platform-gateway/ssl/websoft9-platform-gateway.key")
+        return os.getenv(
+            "WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", f"{data_root}/config/platform-gateway/ssl/websoft9-platform-gateway.key"
+        )
 
     def generate_self_signed_cert(self, domain: str = "", validity_days: int = 3650) -> Dict[str, str]:
         """Generate a self-signed certificate and return the cert/key paths."""
@@ -613,12 +647,20 @@ class SettingsManager:
 
         result = subprocess.run(
             [
-                "openssl", "req", "-x509", "-nodes",
-                "-days", str(validity_days),
-                "-newkey", "rsa:2048",
-                "-keyout", key_path,
-                "-out", cert_path,
-                "-subj", subject,
+                "openssl",
+                "req",
+                "-x509",
+                "-nodes",
+                "-days",
+                str(validity_days),
+                "-newkey",
+                "rsa:2048",
+                "-keyout",
+                key_path,
+                "-out",
+                cert_path,
+                "-subj",
+                subject,
             ],
             capture_output=True,
             text=True,
@@ -668,11 +710,17 @@ class SettingsManager:
         os.makedirs(webroot, exist_ok=True)
 
         cmd = [
-            "certbot", "certonly",
-            "--non-interactive", "--agree-tos",
-            "--webroot", "-w", webroot,
-            "-d", domain,
-            "--email", email,
+            "certbot",
+            "certonly",
+            "--non-interactive",
+            "--agree-tos",
+            "--webroot",
+            "-w",
+            webroot,
+            "-d",
+            domain,
+            "--email",
+            email,
         ]
 
         # certbot is a system Python script that must run on the Debian system
@@ -794,10 +842,18 @@ class SettingsManager:
             return False
         if candidate.startswith("/"):
             return True
-        return candidate.startswith("http://") or candidate.startswith("https://")
+        return candidate.startswith(("http://", "https://"))
 
     def _write_platform_brand_setting(self, key: str, value: str) -> Dict[str, str]:
-        if key not in {"title", "browser_title", "logo_url", "favicon_url", "apple_touch_icon_url", "login_background", "copyright_text"}:
+        if key not in {
+            "title",
+            "browser_title",
+            "logo_url",
+            "favicon_url",
+            "apple_touch_icon_url",
+            "login_background",
+            "copyright_text",
+        }:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
@@ -836,13 +892,12 @@ class SettingsManager:
                     message="Invalid Request",
                     details="platform_brand.apple_touch_icon_url must be an absolute http(s) URL or a root-relative path",
                 )
-        if key == "login_background":
-            if normalized_value and not self._is_valid_brand_logo_url(normalized_value):
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details="platform_brand.login_background must be an absolute http(s) URL or a root-relative path",
-                )
+        if key == "login_background" and normalized_value and not self._is_valid_brand_logo_url(normalized_value):
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="platform_brand.login_background must be an absolute http(s) URL or a root-relative path",
+            )
         if key == "copyright_text":
             normalized_value = normalized_value or DEFAULT_PLATFORM_BRAND_COPYRIGHT_TEXT
 

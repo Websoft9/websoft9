@@ -1,4 +1,3 @@
-import base64
 import os
 import socket
 from urllib.parse import quote, urlparse
@@ -149,7 +148,9 @@ class GiteaAPI:
             Response: Response from Gitea API
         """
         cleaned = (dir_path or "").strip().strip("/")
-        endpoint = f"repos/{self.owner}/{repo_name}/contents/{cleaned}" if cleaned else f"repos/{self.owner}/{repo_name}/contents"
+        endpoint = (
+            f"repos/{self.owner}/{repo_name}/contents/{cleaned}" if cleaned else f"repos/{self.owner}/{repo_name}/contents"
+        )
         return self.api.get(path=endpoint, params={"ref": ref})
 
     def get_file_content_from_repo(self, repo_name: str, file_path: str):
@@ -163,11 +164,8 @@ class GiteaAPI:
         Returns:
             Response: Response from Gitea API
         """
-        return self.api.get(
-            path=f"repos/{self.owner}/{repo_name}/contents/{file_path}",
-            params={"ref": "main"}
-        )
-    
+        return self.api.get(path=f"repos/{self.owner}/{repo_name}/contents/{file_path}", params={"ref": "main"})
+
     def get_file_raw_from_repo(self, repo_name: str, file_path: str):
         """
         Get file raw from repository
@@ -179,9 +177,7 @@ class GiteaAPI:
         Returns:
             Response: Response from Gitea API
         """
-        return self.api.get(
-            path=f"repos/{self.owner}/{repo_name}/raw/{file_path}"
-        )
+        return self.api.get(path=f"repos/{self.owner}/{repo_name}/raw/{file_path}")
 
     def update_file_content_in_repo(self, repo_name: str, file_path: str, content: str, sha: str):
         """

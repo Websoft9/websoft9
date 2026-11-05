@@ -7,9 +7,8 @@ from unittest.mock import Mock
 
 import click
 import pytest
-from click.testing import CliRunner
 from click.shell_completion import BashComplete
-
+from click.testing import CliRunner
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -75,16 +74,19 @@ def test_completion_preserves_legacy_entries_without_exposing_internal_commands(
     assert not (tmp_path / "not-created").exists()
 
 
-@pytest.mark.parametrize(("args", "incomplete", "expected"), [
-    (["images"], "", {"prewarm", "dispatch"}),
-    (["images", "dispatch"], "--qui", {"--quiet"}),
-    (["images", "prewarm"], "--app", {"--app"}),
-    (["getconfig"], "--sec", {"--section"}),
-    (["settings", "config", "get"], "--key", {"--key"}),
-    (["app"], "data", {"database"}),
-    (["app", "database"], "", {"list", "test"}),
-    (["app", "database", "test"], "--pass", {"--password-stdin"}),
-])
+@pytest.mark.parametrize(
+    ("args", "incomplete", "expected"),
+    [
+        (["images"], "", {"prewarm", "dispatch"}),
+        (["images", "dispatch"], "--qui", {"--quiet"}),
+        (["images", "prewarm"], "--app", {"--app"}),
+        (["getconfig"], "--sec", {"--section"}),
+        (["settings", "config", "get"], "--key", {"--key"}),
+        (["app"], "data", {"database"}),
+        (["app", "database"], "", {"list", "test"}),
+        (["app", "database", "test"], "--pass", {"--password-stdin"}),
+    ],
+)
 def test_completion_resolves_legacy_and_recommended_paths(args, incomplete, expected, tmp_path, monkeypatch):
     monkeypatch.setenv("WEBSOFT9_DATA_ROOT", str(tmp_path / "not-created"))
     completion = BashComplete(cli, {}, "websoft9", "_WEBSOFT9_COMPLETE")
@@ -114,17 +116,20 @@ def test_missing_version_reports_an_error(tmp_path, monkeypatch):
     assert "version is unavailable" in result.output
 
 
-@pytest.mark.parametrize(("path", "warning"), [
-    (["settings", "config", "get"], "unmasked secrets"),
-    (["settings", "upgrade", "check-and-prepare"], "not a read-only check"),
-    (["app", "database"], "Websoft9's internal databases"),
-    (["git"], "not a general-purpose Git client"),
-    (["backup"], "not a platform-wide backup"),
-    (["gateway"], "not the platform gateway process"),
-    (["service"], "Application containers are managed with app"),
-    (["host"], "not a general-purpose remote host"),
-    (["host", "env-check"], "not a complete inspection of a remote host"),
-])
+@pytest.mark.parametrize(
+    ("path", "warning"),
+    [
+        (["settings", "config", "get"], "unmasked secrets"),
+        (["settings", "upgrade", "check-and-prepare"], "not a read-only check"),
+        (["app", "database"], "Websoft9's internal databases"),
+        (["git"], "not a general-purpose Git client"),
+        (["backup"], "not a platform-wide backup"),
+        (["gateway"], "not the platform gateway process"),
+        (["service"], "Application containers are managed with app"),
+        (["host"], "not a general-purpose remote host"),
+        (["host", "env-check"], "not a complete inspection of a remote host"),
+    ],
+)
 def test_help_describes_sensitive_or_mutating_aliases(path, warning):
     result = CliRunner().invoke(cli, [*path, "-h"])
     assert result.exit_code == 0
@@ -151,8 +156,20 @@ def test_app_database_test_preserves_stdin_and_masked_json(monkeypatch):
     validator = Mock(return_value=Mock(version=(8, 0, 36), database_type="mysql"))
     monkeypatch.setattr(install_profile, "validate_external_database_connection", validator)
     args = [
-        "app", "database", "test", "--type", "mysql", "--host", "db.example.test",
-        "--port", "3306", "--database", "appdb", "--username", "appuser", "--json",
+        "app",
+        "database",
+        "test",
+        "--type",
+        "mysql",
+        "--host",
+        "db.example.test",
+        "--port",
+        "3306",
+        "--database",
+        "appdb",
+        "--username",
+        "appuser",
+        "--json",
     ]
     runner = CliRunner()
     missing = runner.invoke(cli, args)
@@ -170,16 +187,19 @@ def test_app_database_test_preserves_stdin_and_masked_json(monkeypatch):
     validator.assert_called_once_with("mysql", "db.example.test", 3306, "appdb", "appuser", "fixture-secret")
 
 
-@pytest.mark.parametrize(("canonical", "legacy"), [
-    (("settings", "config", "get"), ("getconfig",)),
-    (("settings", "config", "set"), ("setconfig",)),
-    (("settings", "config", "set-system"), ("setsysconfig",)),
-    (("settings", "auth", "reset-password"), ("resetpwd",)),
-    (("settings", "upgrade", "check-and-prepare"), ("check-update",)),
-    (("service", "cleanup-logs"), ("log-cleanup",)),
-    (("appstore", "prewarm"), ("images", "prewarm")),
-    (("task", "dispatch-prewarm"), ("images", "dispatch")),
-])
+@pytest.mark.parametrize(
+    ("canonical", "legacy"),
+    [
+        (("settings", "config", "get"), ("getconfig",)),
+        (("settings", "config", "set"), ("setconfig",)),
+        (("settings", "config", "set-system"), ("setsysconfig",)),
+        (("settings", "auth", "reset-password"), ("resetpwd",)),
+        (("settings", "upgrade", "check-and-prepare"), ("check-update",)),
+        (("service", "cleanup-logs"), ("log-cleanup",)),
+        (("appstore", "prewarm"), ("images", "prewarm")),
+        (("task", "dispatch-prewarm"), ("images", "dispatch")),
+    ],
+)
 def test_recommended_paths_reuse_legacy_callback_and_parameters(canonical, legacy):
     def resolve(path):
         command = cli
@@ -222,11 +242,14 @@ def test_config_aliases_preserve_values_and_system_target(tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize("path", [["getconfig"], ["settings", "config", "get"]])
-@pytest.mark.parametrize(("args", "expected"), [
-    ([], {"api_key": {"key": "fixture-secret"}}),
-    (["--section", "api_key"], {"key": "fixture-secret"}),
-    (["--section", "api_key", "--key", "key"], "fixture-secret\n"),
-])
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        ([], {"api_key": {"key": "fixture-secret"}}),
+        (["--section", "api_key"], {"key": "fixture-secret"}),
+        (["--section", "api_key", "--key", "key"], "fixture-secret\n"),
+    ],
+)
 def test_raw_config_output_remains_machine_readable(path, args, expected, tmp_path, monkeypatch):
     config = tmp_path / "config.ini"
     config.write_text("[api_key]\nkey = fixture-secret\n")

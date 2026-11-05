@@ -1,6 +1,5 @@
-import os
 import configparser
-from src.core.logger import logger
+
 from src.core.runtime_paths import resolve_apphub_config_path
 
 
@@ -8,7 +7,7 @@ class ConfigManager:
     """
     A class for managing configuration using configparser.
 
-    This class provides methods for reading, modifying, and saving configuration data using the configparser library. 
+    This class provides methods for reading, modifying, and saving configuration data using the configparser library.
     It allows getting, setting, and removing values from a configuration file.
 
     Args:

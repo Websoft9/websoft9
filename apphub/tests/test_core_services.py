@@ -1,6 +1,6 @@
 import sys
-from gzip import open as gzip_open
 from datetime import datetime, timezone
+from gzip import open as gzip_open
 from pathlib import Path
 from typing import Optional
 
@@ -8,7 +8,6 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -121,7 +120,9 @@ def test_default_gitea_health_url_uses_gitea_port():
 
 
 def test_npm_health_requires_available_backend(monkeypatch, tmp_path: Path):
-    definition = next(definition for definition in build_service_definitions(tmp_path) if definition.key == "nginx-proxy-manager")
+    definition = next(
+        definition for definition in build_service_definitions(tmp_path) if definition.key == "nginx-proxy-manager"
+    )
 
     class Response:
         def __init__(self, status_code: int):
@@ -155,8 +156,18 @@ def test_core_services_inventory_reuses_runtime_signals(tmp_path: Path):
     service = CoreServicesService(
         auth_service=FakeAuthService(),
         service_definitions=definitions,
-        supervisor_status_loader=lambda: {"platform-gateway": "RUNNING", "apphub-api": "RUNNING", "gitea": "RUNNING", "portainer": "EXITED"},
-        health_probe=lambda definition: HealthProbeResult(ok=definition.key in {"platform-gateway", "apphub-api", "gitea", "nginx-proxy-manager"}, detail="ok" if definition.key in {"platform-gateway", "apphub-api", "gitea", "nginx-proxy-manager"} else "connection failed"),
+        supervisor_status_loader=lambda: {
+            "platform-gateway": "RUNNING",
+            "apphub-api": "RUNNING",
+            "gitea": "RUNNING",
+            "portainer": "EXITED",
+        },
+        health_probe=lambda definition: HealthProbeResult(
+            ok=definition.key in {"platform-gateway", "apphub-api", "gitea", "nginx-proxy-manager"},
+            detail="ok"
+            if definition.key in {"platform-gateway", "apphub-api", "gitea", "nginx-proxy-manager"}
+            else "connection failed",
+        ),
         now_provider=lambda: datetime(2026, 5, 6, 8, 50, tzinfo=timezone.utc),
     )
 
@@ -217,7 +228,9 @@ def test_core_services_inventory_prefers_running_when_starting_service_is_health
         auth_service=FakeAuthService(),
         service_definitions=definitions,
         supervisor_status_loader=lambda: {"portainer": "STARTING"},
-        health_probe=lambda definition: HealthProbeResult(ok=definition.key == "portainer", detail="HTTP 200" if definition.key == "portainer" else "connection failed"),
+        health_probe=lambda definition: HealthProbeResult(
+            ok=definition.key == "portainer", detail="HTTP 200" if definition.key == "portainer" else "connection failed"
+        ),
         now_provider=lambda: datetime(2026, 5, 6, 8, 50, tzinfo=timezone.utc),
     )
 
@@ -299,7 +312,7 @@ def test_core_services_log_drilldown_skips_gzip_rotated_logs(tmp_path: Path):
     service = CoreServicesService(
         auth_service=FakeAuthService(),
         service_definitions=definitions,
-        supervisor_status_loader=lambda: {},
+        supervisor_status_loader=dict,
         health_probe=lambda _definition: HealthProbeResult(ok=True, detail="ok"),
     )
 
@@ -374,7 +387,7 @@ def test_core_services_log_drilldown_rejects_unsupported_service(tmp_path: Path)
     service = CoreServicesService(
         auth_service=FakeAuthService(),
         service_definitions=build_service_definitions(tmp_path),
-        supervisor_status_loader=lambda: {},
+        supervisor_status_loader=dict,
         health_probe=lambda _definition: HealthProbeResult(ok=False, detail="not-ready"),
     )
 
@@ -391,7 +404,7 @@ def test_core_services_log_drilldown_hides_runtime_paths_when_unavailable(tmp_pa
     service = CoreServicesService(
         auth_service=FakeAuthService(),
         service_definitions=build_service_definitions(tmp_path),
-        supervisor_status_loader=lambda: {},
+        supervisor_status_loader=dict,
         health_probe=lambda _definition: HealthProbeResult(ok=False, detail="not-ready"),
     )
 
@@ -473,7 +486,9 @@ def test_core_services_router_returns_inventory_payload(tmp_path: Path):
         auth_service=FakeAuthService(),
         service_definitions=definitions,
         supervisor_status_loader=lambda: {"gitea": "RUNNING"},
-        health_probe=lambda definition: HealthProbeResult(ok=definition.key == "gitea", detail="ok" if definition.key == "gitea" else "connection failed"),
+        health_probe=lambda definition: HealthProbeResult(
+            ok=definition.key == "gitea", detail="ok" if definition.key == "gitea" else "connection failed"
+        ),
         now_provider=lambda: datetime(2026, 5, 6, 8, 50, tzinfo=timezone.utc),
     )
 

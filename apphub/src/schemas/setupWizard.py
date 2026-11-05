@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.core.exception import CustomException
 
-
 SetupWizardStep = Literal[
     "welcome",
     "platform_init",

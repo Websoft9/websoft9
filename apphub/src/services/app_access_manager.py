@@ -5,16 +5,22 @@ import posixpath
 import re
 import shlex
 import tarfile
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from src.core.exception import CustomException
 from src.core.logger import logger
-from src.schemas.appAccess import AppAccessCandidate, AppAccessOverviewResponse, AppAccessProfile, AppCredentialDescriptor, AppCredentialResult
+from src.schemas.appAccess import (
+    AppAccessCandidate,
+    AppAccessOverviewResponse,
+    AppAccessProfile,
+    AppCliCommand,
+    AppCredentialDescriptor,
+    AppCredentialResult,
+)
 from src.services.app_manager import AppManger
 from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
 from src.services.proxy_manager import ProxyManager
-
 
 ACCESS_PROFILE_PATH = "src/.websoft9/access-profile.json"
 MAX_CREDENTIAL_FILE_BYTES = 65536
@@ -30,14 +36,16 @@ class AppAccessManager:
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
         proxy_manager = ProxyManager()
         certificates = proxy_manager.get_all_certificates() or []
-        if not any(isinstance(cert, dict) and cert.get("nice_name") == "websoft9-inner" for cert in certificates):
-            if hasattr(proxy_manager, "ensure_inner_certificate"):
-                try:
-                    inner_cert = proxy_manager.ensure_inner_certificate()
-                    if isinstance(inner_cert, dict) and inner_cert.get("id"):
-                        certificates = [*certificates, inner_cert]
-                except Exception:
-                    pass
+        has_inner_certificate = any(
+            isinstance(cert, dict) and cert.get("nice_name") == "websoft9-inner" for cert in certificates
+        )
+        if not has_inner_certificate and hasattr(proxy_manager, "ensure_inner_certificate"):
+            try:
+                inner_cert = proxy_manager.ensure_inner_certificate()
+                if isinstance(inner_cert, dict) and inner_cert.get("id"):
+                    certificates = [*certificates, inner_cert]
+            except Exception:
+                pass
         credential_rules, _ = self._credential_rules(app_id, app)
         login_help = self._login_help(app_id)
         cli_commands = self._cli_commands(app_id, app)
@@ -50,8 +58,10 @@ class AppAccessManager:
             candidates=candidates,
             proxy_hosts=[ProxyManager.to_proxy_host_response(host) for host in proxy_hosts],
             certificates=certificates,
-            credentials=[AppCredentialDescriptor(field=field, source=rule["source"]) for field, rule in credential_rules.items()],
-            cli_commands=cli_commands,
+            credentials=[
+                AppCredentialDescriptor(field=field, source=rule["source"]) for field, rule in credential_rules.items()
+            ],
+            cli_commands=[AppCliCommand(**command) for command in cli_commands],
             credential_login_help=login_help,
         )
 
@@ -66,21 +76,43 @@ class AppAccessManager:
                     command = rule.get("command") if isinstance(rule, dict) else None
                     argv = rule.get("argv") if isinstance(rule, dict) else None
                     command_id = rule.get("id") if isinstance(rule, dict) else None
-                    if (isinstance(command_id, str) and re.fullmatch(r"[a-z0-9-]{1,48}", command_id)
-                            and isinstance(command, str) and len(command) <= 256
-                            and isinstance(argv, list) and 1 <= len(argv) <= 32
-                            and all(isinstance(part, str) and part and "\x00" not in part and len(part) <= 256 for part in argv)
-                            and shlex.join(argv) == command):
+                    if (
+                        isinstance(command_id, str)
+                        and re.fullmatch(r"[a-z0-9-]{1,48}", command_id)
+                        and isinstance(command, str)
+                        and len(command) <= 256
+                        and isinstance(argv, list)
+                        and 1 <= len(argv) <= 32
+                        and all(isinstance(part, str) and part and "\x00" not in part and len(part) <= 256 for part in argv)
+                        and shlex.join(argv) == command
+                    ):
                         action = rule.get("action", "read")
                         field = rule.get("field", "token")
                         if action in {"read", "generate", "set"} and field in {"password", "token"}:
-                            rules.append({"id": command_id, "command": command, "argv": argv, "action": action, "field": field, "service": rule.get("service")})
+                            rules.append(
+                                {
+                                    "id": command_id,
+                                    "command": command,
+                                    "argv": argv,
+                                    "action": action,
+                                    "field": field,
+                                    "service": rule.get("service"),
+                                }
+                            )
         except Exception:
             pass
         return rules
 
     def _cli_commands(self, app_id: str, app: Any) -> list[dict]:
-        return [{"id": rule["id"], "command": rule["command"], "field": rule.get("field", "token"), "action": rule.get("action", "read")} for rule in self._cli_command_rules(app_id, app)]
+        return [
+            {
+                "id": rule["id"],
+                "command": rule["command"],
+                "field": rule.get("field", "token"),
+                "action": rule.get("action", "read"),
+            }
+            for rule in self._cli_command_rules(app_id, app)
+        ]
 
     @staticmethod
     def _plain_cli_output(output: str) -> str:
@@ -104,8 +136,11 @@ class AppAccessManager:
         if service is not None:
             if not isinstance(service, str) or not service.strip():
                 return []
-            return [container for container in (app.containers or [])
-                    if (container.get("Labels") or {}).get("com.docker.compose.service") == service]
+            return [
+                container
+                for container in (app.containers or [])
+                if (container.get("Labels") or {}).get("com.docker.compose.service") == service
+            ]
         return [container for container in (app.containers or []) if f"/{app_id}" in container.get("Names", [])]
 
     def execute_cli_command(self, app_id: str, command: str, endpoint_id: int | None = None) -> dict:
@@ -115,7 +150,12 @@ class AppAccessManager:
             raise CustomException(400, "Invalid Request", "CLI command is not allowed")
         containers = self._credential_containers(app_id, app, rule)
         resolved_endpoint = getattr(app, "endpointId", None)
-        if len(containers) != 1 or not containers[0].get("Id") or resolved_endpoint is None or (endpoint_id is not None and resolved_endpoint != endpoint_id):
+        if (
+            len(containers) != 1
+            or not containers[0].get("Id")
+            or resolved_endpoint is None
+            or (endpoint_id is not None and resolved_endpoint != endpoint_id)
+        ):
             return {"command": command, "status": "error", "error_code": "container_unavailable"}
         try:
             output = PortainerManager().portainer.run_container_command(
@@ -172,7 +212,11 @@ class AppAccessManager:
             raise CustomException(404, "Not Found", "Credential rule not available")
         source = rule["source"]
 
-        def result(status: str, error_code: str | None = None, content: str | None = None):
+        def result(
+            status: Literal["ready", "unavailable", "error"],
+            error_code: str | None = None,
+            content: str | None = None,
+        ) -> AppCredentialResult:
             return AppCredentialResult(field=field, source=source, status=status, error_code=error_code, content=content)
 
         containers = self._credential_containers(app_id, app, rule)
@@ -186,9 +230,17 @@ class AppAccessManager:
             container_id = containers[0]["Id"]
             if source == "container-file":
                 path = rule.get("path")
-                if not isinstance(path, str) or not path.startswith("/") or "\x00" in path or ".." in path.split("/") or rule.get("format", "text") != "text":
+                if (
+                    not isinstance(path, str)
+                    or not path.startswith("/")
+                    or "\x00" in path
+                    or ".." in path.split("/")
+                    or rule.get("format", "text") != "text"
+                ):
                     return result("error", "invalid_rule")
-                archive = api.read_container_output(resolved_endpoint, container_id, "archive", {"path": path}, MAX_CREDENTIAL_FILE_BYTES + 32768)
+                archive = api.read_container_output(
+                    resolved_endpoint, container_id, "archive", {"path": path}, MAX_CREDENTIAL_FILE_BYTES + 32768
+                )
                 if archive is None:
                     return result("unavailable", "credential_unavailable")
                 with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
@@ -206,7 +258,13 @@ class AppAccessManager:
                 if rule.get("match") != "regex" or not isinstance(pattern, str) or not pattern or len(pattern) > 1024:
                     return result("error", "invalid_rule")
                 compiled = re.compile(pattern)
-                raw = api.read_container_output(resolved_endpoint, container_id, "logs", {"stdout": "true", "stderr": "true", "follow": "false", "tail": "all"}, MAX_CREDENTIAL_LOG_BYTES)
+                raw = api.read_container_output(
+                    resolved_endpoint,
+                    container_id,
+                    "logs",
+                    {"stdout": "true", "stderr": "true", "follow": "false", "tail": "all"},
+                    MAX_CREDENTIAL_LOG_BYTES,
+                )
                 if raw is None:
                     return result("unavailable", "credential_unavailable")
                 content = self._decode_container_logs(raw)
@@ -227,14 +285,14 @@ class AppAccessManager:
         chunks = []
         offset = 0
         while offset < len(raw):
-            header = raw[offset:offset + 8]
+            header = raw[offset : offset + 8]
             if len(header) != 8 or header[0] not in (0, 1, 2) or header[1:4] != b"\x00\x00\x00":
                 raise ValueError("Invalid Docker log frame")
             size = int.from_bytes(header[4:8], "big")
             offset += 8
             if size > len(raw) - offset:
                 raise ValueError("Incomplete Docker log frame")
-            chunks.append(raw[offset:offset + size])
+            chunks.append(raw[offset : offset + size])
             offset += size
         return b"".join(chunks).decode("utf-8", errors="replace")
 
@@ -245,15 +303,11 @@ class AppAccessManager:
         stream_names = {1: "stdout", 2: "stderr", 0: "stdout"}
         if len(raw) < 8 or raw[0] not in (0, 1, 2) or raw[1:4] != b"\x00\x00\x00":
             text = raw.decode("utf-8", errors="replace")
-            return [
-                {"stream": "unknown", "text": line}
-                for line in text.splitlines()
-                if line.strip() != ""
-            ]
+            return [{"stream": "unknown", "text": line} for line in text.splitlines() if line.strip() != ""]
         entries: list[dict[str, str]] = []
         offset = 0
         while offset < len(raw):
-            header = raw[offset:offset + 8]
+            header = raw[offset : offset + 8]
             if len(header) < 8:
                 if allow_partial_frame:
                     break
@@ -262,11 +316,7 @@ class AppAccessManager:
                 if allow_partial_frame and entries:
                     break
                 text = raw[offset:].decode("utf-8", errors="replace")
-                entries.extend(
-                    {"stream": "unknown", "text": line}
-                    for line in text.splitlines()
-                    if line.strip() != ""
-                )
+                entries.extend({"stream": "unknown", "text": line} for line in text.splitlines() if line.strip() != "")
                 break
             stream_name = stream_names.get(header[0], "unknown")
             size = int.from_bytes(header[4:8], "big")
@@ -278,7 +328,7 @@ class AppAccessManager:
                 payload = raw[offset:]
                 offset = len(raw)
             else:
-                payload = raw[offset:offset + size]
+                payload = raw[offset : offset + size]
                 offset += size
             decoded = payload.decode("utf-8", errors="replace")
             for line in decoded.splitlines():
@@ -301,7 +351,9 @@ class AppAccessManager:
             return builtin_profile
 
         if enabled and (not forward_host or not forward_port):
-            raise CustomException(400, "Invalid Request", "forward_host and forward_port are required when enabling web access")
+            raise CustomException(
+                400, "Invalid Request", "forward_host and forward_port are required when enabling web access"
+            )
 
         profile_payload = {
             "enabled": bool(enabled),
@@ -362,19 +414,25 @@ class AppAccessManager:
 
         if using_builtin:
             if current_host:
-                response = ProxyManager.to_proxy_host_response(
-                    app_manager.update_proxy_by_app(current_host.get("id"), domains, endpoint_id, certificate_id, ssl_forced)
+                current_proxy_id = current_host.get("id")
+                if not isinstance(current_proxy_id, int):
+                    raise CustomException(404, "Not Found", "The proxy host has no usable id")
+                response: dict[str, Any] = ProxyManager.to_proxy_host_response(
+                    app_manager.update_proxy_by_app(current_proxy_id, domains, endpoint_id, certificate_id, ssl_forced)
                 )
                 return response
-            response = ProxyManager.to_proxy_host_response(
+            created_response: dict[str, Any] = ProxyManager.to_proxy_host_response(
                 app_manager.create_proxy_by_app(app_id, domains, endpoint_id, certificate_id, ssl_forced)
             )
-            return response
+            return created_response
 
         proxy_manager = ProxyManager()
         if current_host:
+            current_proxy_id = current_host.get("id")
+            if not isinstance(current_proxy_id, int):
+                raise CustomException(404, "Not Found", "The proxy host has no usable id")
             updated = proxy_manager.update_proxy_host_settings(
-                proxy_id=current_host.get("id"),
+                proxy_id=current_proxy_id,
                 domain_names=domains,
                 forward_host=profile.forward_host,
                 forward_port=profile.forward_port,
@@ -382,7 +440,8 @@ class AppAccessManager:
                 certificate_id=certificate_id,
                 ssl_forced=ssl_forced,
             )
-            return ProxyManager.to_proxy_host_response(updated)
+            updated_response: dict[str, Any] = ProxyManager.to_proxy_host_response(updated)
+            return updated_response
 
         created = proxy_manager.create_proxy_by_app(
             domain_names=domains,
@@ -392,7 +451,8 @@ class AppAccessManager:
             certificate_id=certificate_id,
             ssl_forced=ssl_forced,
         )
-        return ProxyManager.to_proxy_host_response(created)
+        created_host: dict[str, Any] = ProxyManager.to_proxy_host_response(created)
+        return created_host
 
     def update_root_url(
         self,
@@ -431,7 +491,7 @@ class AppAccessManager:
         require_https = bool(getattr(profile, "require_https", False) or getattr(profile, "default_scheme", "http") == "https")
         proxy_manager = ProxyManager()
         try:
-            certificate = proxy_manager.request_letsencrypt_certificate(
+            certificate: dict[str, Any] = proxy_manager.request_letsencrypt_certificate(
                 email,
                 domain_names,
                 target_proxy_id,
@@ -463,7 +523,7 @@ class AppAccessManager:
         target_proxy_id = self._resolve_certificate_target_proxy_id(app_id, proxy_id, proxy_hosts)
         binding_domains = domain_names or []
         require_https = bool(getattr(profile, "require_https", False) or getattr(profile, "default_scheme", "http") == "https")
-        return ProxyManager().upload_custom_certificate(
+        uploaded: dict[str, Any] = ProxyManager().upload_custom_certificate(
             nice_name=nice_name,
             certificate_pem=certificate_pem,
             key_pem=key_pem,
@@ -471,6 +531,7 @@ class AppAccessManager:
             domain_names=binding_domains if binding_domains and target_proxy_id else None,
             ssl_forced=True if require_https else None,
         )
+        return uploaded
 
     def _resolve_certificate_target_proxy_id(
         self,
@@ -496,14 +557,14 @@ class AppAccessManager:
 
         return None
 
-    def _resolve_default_scheme(self, app_id: str, app: Any) -> str:
+    def _resolve_default_scheme(self, app_id: str, app: Any) -> Literal["http", "https"]:
         try:
             raw = GiteaManager().get_file_raw_from_repo(app_id, "variables.json")
             template = json.loads(raw) if raw else {}
             access = template.get("access") if isinstance(template, dict) else None
             scheme = access.get("defaultScheme") if isinstance(access, dict) else None
             if isinstance(scheme, str) and scheme.strip().lower() in {"http", "https"}:
-                return scheme.strip().lower()
+                return "https" if scheme.strip().lower() == "https" else "http"
         except Exception:
             pass
         env = getattr(app, "env", None) or {}
@@ -527,8 +588,10 @@ class AppAccessManager:
                 require_https=(default_scheme == "https"),
             )
 
-        forward_scheme = "https" if stored.get("forward_scheme") == "https" else "http"
-        effective_default_scheme = "https" if (default_scheme == "https" or forward_scheme == "https") else "http"
+        forward_scheme: Literal["http", "https"] = "https" if stored.get("forward_scheme") == "https" else "http"
+        effective_default_scheme: Literal["http", "https"] = (
+            "https" if (default_scheme == "https" or forward_scheme == "https") else "http"
+        )
         return AppAccessProfile(
             enabled=bool(stored.get("enabled")),
             source="profile",
@@ -618,7 +681,7 @@ class AppAccessManager:
             payload = json.loads(raw_content)
         except json.JSONDecodeError as exc:
             logger.error(f"Invalid access profile for app:{app_id}: {exc}")
-            raise CustomException(500, "Invalid Request", "Stored access profile is invalid")
+            raise CustomException(500, "Invalid Request", "Stored access profile is invalid") from exc
         if not isinstance(payload, dict):
             raise CustomException(500, "Invalid Request", "Stored access profile is invalid")
         return payload

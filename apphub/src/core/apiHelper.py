@@ -1,5 +1,6 @@
 import requests
 
+
 class APIHelper:
     """
     Helper class for making API calls
@@ -14,6 +15,7 @@ class APIHelper:
         put(path: str, params: dict = None, json: dict = None, headers: dict = None) -> Response: Update a resource
         delete(path: str, params: dict = None, headers: dict = None, json: dict = None) -> Response: Delete a resource
     """
+
     def __init__(self, base_url, headers=None, verify=True):
         """
         Initialize the APIHelper instance.
@@ -66,7 +68,7 @@ class APIHelper:
             params (dict): Query parameters
             json (dict): JSON payload
             headers (dict): Headers
-        
+
         Returns:
             Response: Response from API
         """
@@ -82,7 +84,7 @@ class APIHelper:
             params (dict): Query parameters
             headers (dict): Headers
             json (dict): JSON payload
-        
+
         Returns:
             Response: Response from API
         """

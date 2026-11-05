@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -126,8 +127,12 @@ class SmtpService:
     ) -> SmtpSettings:
         current = self.get_settings()
         normalized_host = _validate_no_header_injection(host, "SMTP host")
-        if normalized_host and ("://" in normalized_host or "/" in normalized_host or any(ch.isspace() for ch in normalized_host)):
-            raise CustomException(400, "Invalid Request", "SMTP host must be a valid hostname or IP address without scheme or path")
+        if normalized_host and (
+            "://" in normalized_host or "/" in normalized_host or any(ch.isspace() for ch in normalized_host)
+        ):
+            raise CustomException(
+                400, "Invalid Request", "SMTP host must be a valid hostname or IP address without scheme or path"
+            )
         normalized_encryption = str(encryption or DEFAULT_SMTP_ENCRYPTION).strip().lower()
         if normalized_encryption not in VALID_ENCRYPTIONS:
             raise CustomException(400, "Invalid Request", "Encryption must be one of: starttls, ssl, none")
@@ -135,7 +140,7 @@ class SmtpService:
         try:
             normalized_port = int(port)
         except (TypeError, ValueError):
-            raise CustomException(400, "Invalid Request", "SMTP port must be an integer between 1 and 65535")
+            raise CustomException(400, "Invalid Request", "SMTP port must be an integer between 1 and 65535") from None
         if normalized_port < 1 or normalized_port > 65535:
             raise CustomException(400, "Invalid Request", "SMTP port must be an integer between 1 and 65535")
 
@@ -210,20 +215,16 @@ class SmtpService:
         }
         with self._lock:
             self.data_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
-            try:
+            with contextlib.suppress(OSError):
                 os.chmod(self.data_dir, 0o700)
-            except OSError:
-                pass
             temp_file = self.data_dir / "smtp.json.tmp"
             descriptor = os.open(temp_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
                 json.dump(payload, handle, ensure_ascii=False, indent=2)
                 handle.write("\n")
             os.replace(temp_file, self.config_file)
-            try:
+            with contextlib.suppress(OSError):
                 os.chmod(self.config_file, 0o600)
-            except OSError:
-                pass
         return settings.masked()
 
     def send_email(
@@ -314,14 +315,9 @@ class SmtpService:
         )
         sender_title = effective.from_name or DEFAULT_SENDER_NAME
         is_zh = str(locale or "en").strip().lower().startswith("zh")
-        subject = (
-            f"[{sender_title}] 邮件服务配置测试"
-            if is_zh
-            else f"[{sender_title}] Email Service Configuration Test"
-        )
+        subject = f"[{sender_title}] 邮件服务配置测试" if is_zh else f"[{sender_title}] Email Service Configuration Test"
         body_text = (
-            f"这是一封来自 {sender_title} 的测试邮件。\n\n"
-            "您的 SMTP 邮件服务配置正常，可用于发送系统通知与安全验证邮件。\n"
+            f"这是一封来自 {sender_title} 的测试邮件。\n\n您的 SMTP 邮件服务配置正常，可用于发送系统通知与安全验证邮件。\n"
             if is_zh
             else (
                 f"This is a test email from {sender_title}.\n\n"

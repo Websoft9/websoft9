@@ -89,14 +89,13 @@ Concurrent runs exit with code 75 (skipped); any cleanup failure exits nonzero.
 ### Code Quality
 
 ```bash
-# Format code with black
-black src/
+# Format code and sort imports (ruff owns both)
+ruff format .
 
-# Sort imports with isort
-isort src/
-
-# Check code style with flake8
-flake8 src/
+# Check lint, formatting and types
+ruff check src/ tests/
+ruff format --check src/ tests/
+mypy src/
 
 # Run type checking with mypy
 mypy src/
@@ -140,7 +139,7 @@ App Store 资产同步由 `appstore sync` 触发（默认同步阻塞，失败�
 
 ```bash
 websoft9 appstore sync
-websoft9 appstore sync --channel rc --force-refresh
+websoft9 appstore sync --channel dev --force-refresh
 websoft9 appstore sync --no-wait          # 后台执行，立即返回
 ```
 

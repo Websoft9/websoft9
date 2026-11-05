@@ -78,10 +78,12 @@ pytest --cov=src --cov-report=xml
 ```python
 import pytest
 
+
 def test_example():
     """Test description"""
     result = some_function()
     assert result == expected_value
+
 
 @pytest.mark.asyncio
 async def test_async_example():

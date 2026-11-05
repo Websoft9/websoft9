@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 import sys
 import types
+from datetime import datetime, timezone
 from pathlib import Path
 
 from click.testing import CliRunner
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -35,17 +35,14 @@ def test_service_list_and_logs_and_runtime_logs_cli(monkeypatch, tmp_path):
         )
     ]
 
-    monkeypatch.setattr(
-        CoreServicesService,
-        "__init__",
-        lambda self, **kwargs: (
-            setattr(self, "auth_service", None),
-            setattr(self, "service_definitions", tuple(definitions)),
-            setattr(self, "_supervisor_status_loader", lambda: {"platform-gateway": "RUNNING"}),
-            setattr(self, "_health_probe", lambda d: HealthProbeResult(ok=True, detail="HTTP 200")),
-            setattr(self, "_now_provider", lambda: __import__("datetime").datetime.now(__import__("datetime").timezone.utc)),
-        ) and None,
-    )
+    def _fake_core_services_init(self, **kwargs):
+        self.auth_service = None
+        self.service_definitions = tuple(definitions)
+        self._supervisor_status_loader = lambda: {"platform-gateway": "RUNNING"}
+        self._health_probe = lambda definition: HealthProbeResult(ok=True, detail="HTTP 200")
+        self._now_provider = lambda: datetime.now(timezone.utc)
+
+    monkeypatch.setattr(CoreServicesService, "__init__", _fake_core_services_init)
 
     runtime_log = tmp_path / "platform-runtime.log"
     runtime_log.write_text(
@@ -61,15 +58,13 @@ def test_service_list_and_logs_and_runtime_logs_cli(monkeypatch, tmp_path):
         encoding="utf-8",
     )
     monkeypatch.setenv("WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH", str(runtime_log))
-    monkeypatch.setattr(
-        RuntimeLogsService,
-        "__init__",
-        lambda self, **kwargs: (
-            setattr(self, "auth_service", None),
-            setattr(self, "log_path", runtime_log),
-            setattr(self, "excluded_components", {"apphub-api"}),
-        ) and None,
-    )
+
+    def _fake_runtime_logs_init(self, **kwargs):
+        self.auth_service = None
+        self.log_path = runtime_log
+        self.excluded_components = {"apphub-api"}
+
+    monkeypatch.setattr(RuntimeLogsService, "__init__", _fake_runtime_logs_init)
 
     runner = CliRunner()
     list_res = runner.invoke(service_group, ["list", "--json"])
@@ -147,13 +142,30 @@ def test_git_commands_masking_and_sha_conflict(monkeypatch, tmp_path):
 
     class FakeGiteaManager:
         def list_repos(self):
-            return [{"name": "wp_123", "full_name": "w9/wp_123", "default_branch": "main", "empty": False, "updated_at": "2026-01-01T00:00:00Z"}]
+            return [
+                {
+                    "name": "wp_123",
+                    "full_name": "w9/wp_123",
+                    "default_branch": "main",
+                    "empty": False,
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            ]
 
         def list_repo_files(self, repo_name, dir_path=""):
-            return {"head_sha": "head111", "current_dir": dir_path, "files": [{"path": ".env", "name": ".env", "type": "file", "size": 32, "sha": "sha-env-1"}]}
+            return {
+                "head_sha": "head111",
+                "current_dir": dir_path,
+                "files": [{"path": ".env", "name": ".env", "type": "file", "size": 32, "sha": "sha-env-1"}],
+            }
 
         def read_repo_text_file(self, repo_name, file_path):
-            return {"path": file_path, "name": file_path, "sha": "sha-env-1", "content": "W9_APP_NAME=wordpress\nDB_PASSWORD=mysecret\n"}
+            return {
+                "path": file_path,
+                "name": file_path,
+                "sha": "sha-env-1",
+                "content": "W9_APP_NAME=wordpress\nDB_PASSWORD=mysecret\n",
+            }
 
         def update_env_variables(self, repo_name, updates, *, expected_sha=None):
             return {"path": ".env", "sha": "sha-env-2", "head_sha": "head222", "updated_keys": sorted(updates.keys())}
@@ -180,7 +192,9 @@ def test_git_commands_masking_and_sha_conflict(monkeypatch, tmp_path):
     assert bad_env.exit_code == 2
     assert json.loads(bad_env.output)["code"] == "INVALID_ARGUMENT"
 
-    ok_env = runner.invoke(git_group, ["env-set", "wp_123", "--set", "W9_HTTP_PORT_SET=9080", "--sha", "sha-env-1", "--yes", "--json"])
+    ok_env = runner.invoke(
+        git_group, ["env-set", "wp_123", "--set", "W9_HTTP_PORT_SET=9080", "--sha", "sha-env-1", "--yes", "--json"]
+    )
     assert ok_env.exit_code == 0, ok_env.output
     assert json.loads(ok_env.output)["data"]["updated_keys"] == ["W9_HTTP_PORT_SET"]
 
@@ -204,8 +218,8 @@ def test_git_commands_masking_and_sha_conflict(monkeypatch, tmp_path):
 
 
 def test_db_gateway_backup_task_and_settings_cli(monkeypatch):
-    from src.cli.backup_commands import backup_group
     from src.cli.apphub_cli import cli
+    from src.cli.backup_commands import backup_group
     from src.cli.gateway_commands import gateway_group
     from src.cli.settings_commands import settings_group
     from src.cli.task_commands import task_group
@@ -241,10 +255,29 @@ def test_db_gateway_backup_task_and_settings_cli(monkeypatch):
 
     class FakeProxyManager:
         def get_all_certificates(self):
-            return [{"id": 3, "nice_name": "example.com", "provider": "letsencrypt", "domain_names": ["example.com"], "expires_on": "2027-01-01"}]
+            return [
+                {
+                    "id": 3,
+                    "nice_name": "example.com",
+                    "provider": "letsencrypt",
+                    "domain_names": ["example.com"],
+                    "expires_on": "2027-01-01",
+                }
+            ]
 
         def get_proxy_hosts(self):
-            return [{"id": 1, "domain_names": ["example.com"], "forward_scheme": "http", "forward_host": "wp_1", "forward_port": 80, "certificate_id": 3, "ssl_forced": True, "enabled": True}]
+            return [
+                {
+                    "id": 1,
+                    "domain_names": ["example.com"],
+                    "forward_scheme": "http",
+                    "forward_host": "wp_1",
+                    "forward_port": 80,
+                    "certificate_id": 3,
+                    "ssl_forced": True,
+                    "enabled": True,
+                }
+            ]
 
     pm_mod.ProxyManager = FakeProxyManager
     monkeypatch.setitem(sys.modules, "src.services.proxy_manager", pm_mod)
@@ -262,7 +295,16 @@ def test_db_gateway_backup_task_and_settings_cli(monkeypatch):
 
     class FakeBackupManager:
         def list_snapshots(self, app_id=None, use_cache=True):
-            return [{"id": "full123456", "short_id": "full1234", "time": "2026-10-20T00:00:00Z", "tags": [app_id or "wp_1"], "paths": ["/wp_data"], "hostname": "host1"}]
+            return [
+                {
+                    "id": "full123456",
+                    "short_id": "full1234",
+                    "time": "2026-10-20T00:00:00Z",
+                    "tags": [app_id or "wp_1"],
+                    "paths": ["/wp_data"],
+                    "hostname": "host1",
+                }
+            ]
 
         def create_backup(self, app_id):
             return None
@@ -287,9 +329,25 @@ def test_db_gateway_backup_task_and_settings_cli(monkeypatch):
     class FakeScheduledTaskService:
         def collect_tasks_local(self):
             return {
-                "system_tasks": [{"task_id": "system:log-cleanup", "name": "Clean platform logs", "schedule": "0 4 * * 0", "enabled": True, "last_status": "success"}],
+                "system_tasks": [
+                    {
+                        "task_id": "system:log-cleanup",
+                        "name": "Clean platform logs",
+                        "schedule": "0 4 * * 0",
+                        "enabled": True,
+                        "last_status": "success",
+                    }
+                ],
                 "tasks": [],
-                "prewarm_records": [{"task_id": "pw-1", "subject_app": "wordpress", "subject_version": "latest", "queue_state": "success", "last_status": "success"}],
+                "prewarm_records": [
+                    {
+                        "task_id": "pw-1",
+                        "subject_app": "wordpress",
+                        "subject_version": "latest",
+                        "queue_state": "success",
+                        "last_status": "success",
+                    }
+                ],
             }
 
     st_mod.ScheduledTaskService = FakeScheduledTaskService
@@ -308,7 +366,16 @@ def test_db_gateway_backup_task_and_settings_cli(monkeypatch):
 
     class FakeSmtpService:
         def get_masked_settings(self):
-            return {"enabled": True, "host": "smtp.example.com", "port": 587, "encryption": "starttls", "username": "mailer", "password_set": True, "from_email": "noreply@example.com", "from_name": "Websoft9"}
+            return {
+                "enabled": True,
+                "host": "smtp.example.com",
+                "port": 587,
+                "encryption": "starttls",
+                "username": "mailer",
+                "password_set": True,
+                "from_email": "noreply@example.com",
+                "from_name": "Websoft9",
+            }
 
     smtp_mod.SmtpService = FakeSmtpService
     monkeypatch.setitem(sys.modules, "src.services.smtp_service", smtp_mod)

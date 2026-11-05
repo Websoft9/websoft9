@@ -8,15 +8,15 @@ import secrets
 import sqlite3
 import threading
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Iterator, Optional, Tuple
 from urllib.parse import urlparse
 
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.logger import logger
-
 
 DEFAULT_PRODUCT_AUTH_PROTECTED_MODULES = ["users", "files", "terminal", "services", "logs"]
 
@@ -152,7 +152,7 @@ class ProductAuthService:
         create_session: bool = True,
         client_host: Optional[str] = None,
         user_agent: Optional[str] = None,
-    ) -> Tuple[dict[str, Any], str]:
+    ) -> Tuple[dict[str, Any], Optional[str]]:
         self._assert_enabled()
 
         with self._lock:
@@ -165,7 +165,9 @@ class ProductAuthService:
                     details="Product-side operator initialization has already been completed",
                 )
 
-            operator = self._build_operator(username=username, password=password, display_name=display_name, locale=locale, email=email)
+            operator = self._build_operator(
+                username=username, password=password, display_name=display_name, locale=locale, email=email
+            )
             operators.append(operator)
             self._store_operators(operators)
             self._apply_pending_migrated_favorites(operator["id"])
@@ -186,7 +188,7 @@ class ProductAuthService:
         password: str,
         client_host: Optional[str] = None,
         user_agent: Optional[str] = None,
-    ) -> Tuple[dict[str, Any], str]:
+    ) -> Tuple[dict[str, Any], Optional[str]]:
         self._assert_enabled()
 
         with self._lock:
@@ -633,8 +635,7 @@ class ProductAuthService:
                 (
                     item
                     for item in operators
-                    if not item.get("deleted", False)
-                    and (item.get("email") or "").strip().lower() == normalized_identifier
+                    if not item.get("deleted", False) and (item.get("email") or "").strip().lower() == normalized_identifier
                 ),
                 None,
             )
@@ -894,7 +895,9 @@ class ProductAuthService:
                 details="Only the system user can manage other users",
             )
 
-    def _assert_can_manage_target_operator(self, actor: dict[str, Any], target_operator: dict[str, Any], allow_self: bool) -> None:
+    def _assert_can_manage_target_operator(
+        self, actor: dict[str, Any], target_operator: dict[str, Any], allow_self: bool
+    ) -> None:
         if self._is_system_user(actor):
             return
 
@@ -1020,9 +1023,13 @@ class ProductAuthService:
             details="The requested product-side operator does not exist",
         )
 
-    def _assert_not_last_active_operator(self, operators: list[dict[str, Any]], target_operator: dict[str, Any], action: str) -> None:
+    def _assert_not_last_active_operator(
+        self, operators: list[dict[str, Any]], target_operator: dict[str, Any], action: str
+    ) -> None:
         target_is_active = not target_operator.get("deleted", False) and not target_operator.get("disabled", False)
-        active_count = sum(1 for operator in operators if not operator.get("deleted", False) and not operator.get("disabled", False))
+        active_count = sum(
+            1 for operator in operators if not operator.get("deleted", False) and not operator.get("disabled", False)
+        )
         if target_is_active and active_count <= 1:
             raise CustomException(
                 status_code=409,
@@ -1279,7 +1286,7 @@ class ProductAuthService:
             connection.commit()
         return secret
 
-    def _build_storage_boundary(self) -> dict[str, str]:
+    def _build_storage_boundary(self) -> dict[str, Any]:
         return {
             "asset_group": "product-auth",
             "backup_scope": "product-owned",
@@ -1381,11 +1388,16 @@ class ProductAuthService:
         with self._db_connect() as connection:
             self._initialize_schema(connection)
 
-    def _db_connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _db_connect(self) -> Iterator[sqlite3.Connection]:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.database_file)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def _initialize_schema(self, connection: sqlite3.Connection) -> None:
         connection.executescript(
@@ -1443,8 +1455,12 @@ class ProductAuthService:
             );
             """
         )
-        connection.execute("ALTER TABLE operators ADD COLUMN email TEXT") if not self._column_exists(connection, "operators", "email") else None
-        connection.execute("ALTER TABLE operators ADD COLUMN locale TEXT NOT NULL DEFAULT 'en'") if not self._column_exists(connection, "operators", "locale") else None
+        connection.execute("ALTER TABLE operators ADD COLUMN email TEXT") if not self._column_exists(
+            connection, "operators", "email"
+        ) else None
+        connection.execute("ALTER TABLE operators ADD COLUMN locale TEXT NOT NULL DEFAULT 'en'") if not self._column_exists(
+            connection, "operators", "locale"
+        ) else None
         connection.commit()
 
     def _load_operators(self) -> list[dict[str, Any]]:
@@ -1537,15 +1553,16 @@ class ProductAuthService:
                 status_code=500,
                 message="Product Authentication Storage Error",
                 details=f"Unable to parse {key}",
-            )
+            ) from exc
 
     def _operator_row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "id": row["id"],
             "username": row["username"],
             "display_name": row["display_name"],
-            "email": row["email"] if "email" in row.keys() else None,
-            "locale": row["locale"] if "locale" in row.keys() else "en",
+            # sqlite3.Row 的 `in` 测试的是值，不是列名，所以这里必须用 keys()。
+            "email": row["email"] if "email" in row.keys() else None,  # noqa: SIM118
+            "locale": row["locale"] if "locale" in row.keys() else "en",  # noqa: SIM118
             "password_hash": row["password_hash"],
             "disabled": bool(row["disabled"]),
             "deleted": bool(row["deleted"]),

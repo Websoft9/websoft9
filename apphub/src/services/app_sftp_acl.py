@@ -13,6 +13,7 @@ Every mutation is recorded in a manifest so ``release`` can restore the exact
 previous ACL state. Nothing is ever left behind silently.
 """
 
+import contextlib
 import json
 import os
 import stat
@@ -21,6 +22,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 MAX_RECURSIVE_ENTRIES = 20000
 RECURSIVE_DEADLINE_SECONDS = 60
@@ -68,7 +70,7 @@ def host_view(path):
     root = host_root()
     text = str(path)
     if root and (text == root or text.startswith(root + "/")):
-        return text[len(root):] or "/"
+        return text[len(root) :] or "/"
     return text
 
 
@@ -99,8 +101,8 @@ def account_uid(account):
 
 
 def parse_acl(text):
-    access = {}
-    default = {}
+    access: dict[tuple[str, str], str] = {}
+    default: dict[tuple[str, str], str] = {}
     for line in text.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
@@ -108,7 +110,7 @@ def parse_acl(text):
         target = default
         body = stripped
         if stripped.startswith("default:"):
-            body = stripped[len("default:"):]
+            body = stripped[len("default:") :]
         else:
             target = access
         parts = body.split(":")
@@ -185,7 +187,7 @@ def apply_entries(path, account, container_uid, recursive=False):
         entries.append(f"d:u:{container_uid}:rwX")
     setfacl(["-m", ",".join(entries), fs_path(path)])
 
-    recorded = []
+    recorded: list[dict[str, Any]] = []
     truncated = False
     if recursive:
         deadline = time.time() + RECURSIVE_DEADLINE_SECONDS
@@ -217,13 +219,15 @@ def apply_entries(path, account, container_uid, recursive=False):
                     if container_uid > 0:
                         entries.append(f"d:u:{container_uid}:rwX")
                 setfacl(["-m", ",".join(entries), candidate])
-                recorded.append({
-                    "path": host_view(candidate),
-                    "is_directory": is_directory,
-                    "mask_before": access.get(("mask", "")),
-                    "default_mask_before": default.get(("mask", "")),
-                    "uid_entry_added": container_uid > 0 and is_directory,
-                })
+                recorded.append(
+                    {
+                        "path": host_view(candidate),
+                        "is_directory": is_directory,
+                        "mask_before": access.get(("mask", "")),
+                        "default_mask_before": default.get(("mask", "")),
+                        "uid_entry_added": container_uid > 0 and is_directory,
+                    }
+                )
             subdirectories[:] = [name for name in subdirectories if not os.path.islink(os.path.join(directory, name))]
     return recorded, truncated
 
@@ -235,7 +239,7 @@ def grant_directory_entries(path, account, container_uid):
     are granted when the operator enters them. This keeps the helper bounded
     (at most ``SHALLOW_GRANT_LIMIT`` entries) instead of walking whole trees.
     """
-    recorded = []
+    recorded: list[dict[str, Any]] = []
     truncated = False
     count = 0
     try:
@@ -265,13 +269,15 @@ def grant_directory_entries(path, account, container_uid):
                 if container_uid > 0:
                     entries_to_add.append(f"d:u:{container_uid}:rwX")
             setfacl(["-m", ",".join(entries_to_add), candidate])
-            recorded.append({
-                "path": host_view(candidate),
-                "is_directory": is_directory,
-                "mask_before": access.get(("mask", "")),
-                "default_mask_before": default.get(("mask", "")),
-                "uid_entry_added": container_uid > 0 and is_directory,
-            })
+            recorded.append(
+                {
+                    "path": host_view(candidate),
+                    "is_directory": is_directory,
+                    "mask_before": access.get(("mask", "")),
+                    "default_mask_before": default.get(("mask", "")),
+                    "uid_entry_added": container_uid > 0 and is_directory,
+                }
+            )
     return recorded, truncated
 
 
@@ -365,16 +371,12 @@ def restore_acl(path, text):
         handle.flush()
         temporary = handle.name
     try:
-        try:
+        with contextlib.suppress(ValueError):
             setfacl(["-b", mapped], timeout=20)
-        except ValueError:
-            pass
         run(["setfacl", f"--restore={temporary}"], timeout=30)
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(temporary)
-        except OSError:
-            pass
 
 
 def release(data_root, session_id):
@@ -392,39 +394,27 @@ def release(data_root, session_id):
         if not path or not os.path.exists(fs_path(path)):
             continue
         target = fs_path(path)
-        try:
+        with contextlib.suppress(ValueError):
             setfacl(["-x", f"u:{account}", target], timeout=15)
-        except ValueError:
-            pass
         if record.get("is_directory"):
             targets = [f"d:u:{account}"]
             if record.get("uid_entry_added"):
                 targets.append(f"d:u:{container_uid}")
-            try:
+            with contextlib.suppress(ValueError):
                 setfacl(["-x", ",".join(targets), target], timeout=15)
-            except ValueError:
-                pass
         if record.get("mask_before"):
-            try:
+            with contextlib.suppress(ValueError):
                 setfacl(["-m", f"m::{record['mask_before']}", target], timeout=15)
-            except ValueError:
-                pass
         if record.get("default_mask_before"):
-            try:
+            with contextlib.suppress(ValueError):
                 setfacl(["-m", f"d:m::{record['default_mask_before']}", target], timeout=15)
-            except ValueError:
-                pass
 
     if manifest.get("root_acl"):
-        try:
+        with contextlib.suppress(Exception):
             restore_acl(manifest["root"], manifest["root_acl"])
-        except Exception:
-            pass
     for snapshot in reversed(manifest.get("snapshots") or []):
-        try:
+        with contextlib.suppress(Exception):
             restore_acl(snapshot["path"], snapshot["acl"])
-        except Exception:
-            pass
 
     manifest_file.unlink(missing_ok=True)
     return {"released": True, "root": manifest.get("root")}

@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from src.core.exception import CustomException
 from src.schemas.proxyHosts import ProxyHost
@@ -16,7 +16,9 @@ class AppAccessCandidate(BaseModel):
 class AppAccessProfile(BaseModel):
     enabled: bool = Field(default=False, description="Whether this app exposes a web entry")
     source: Literal["builtin", "profile", "unknown"] = Field(default="unknown")
-    locked: bool = Field(default=False, description="Whether the target is inferred from built-in app metadata and cannot be edited")
+    locked: bool = Field(
+        default=False, description="Whether the target is inferred from built-in app metadata and cannot be edited"
+    )
     forward_host: Optional[str] = Field(default=None, description="Forward host for the proxy target")
     forward_port: Optional[int] = Field(default=None, description="Forward port for the proxy target")
     forward_scheme: Literal["http", "https"] = Field(default="http")
@@ -74,7 +76,8 @@ class AppAccessProfileUpdateRequest(BaseModel):
     forward_port: Optional[int] = Field(default=None)
     forward_scheme: Literal["http", "https"] = Field(default="http")
 
-    @validator("forward_port")
+    @field_validator("forward_port")
+    @classmethod
     def validate_forward_port(cls, value: Optional[int]):
         if value is None:
             return value
@@ -89,7 +92,8 @@ class AppAccessDomainBindingRequest(BaseModel):
     ssl_forced: bool = Field(default=False, description="Whether HTTP should be redirected to HTTPS")
     proxy_id: Optional[int] = Field(default=None, description="Optional proxy host id to update")
 
-    @validator("domain_names")
+    @field_validator("domain_names")
+    @classmethod
     def validate_domain_names(cls, value: list[str]):
         normalized = [item.strip() for item in value if item and item.strip()]
         if not normalized:
@@ -102,7 +106,8 @@ class AppAccessDomainBindingRequest(BaseModel):
 class AppAccessRootUrlRequest(BaseModel):
     domain_name: str = Field(..., description="Domain name to persist as the app root URL")
 
-    @validator("domain_name")
+    @field_validator("domain_name")
+    @classmethod
     def validate_domain_name(cls, value: str):
         normalized = value.strip()
         if not normalized:
@@ -115,14 +120,16 @@ class AppAccessCertificateRequest(BaseModel):
     domain_names: list[str] = Field(..., description="Certificate domain names")
     proxy_id: Optional[int] = Field(default=None, description="Optional proxy host to bind after issuing the certificate")
 
-    @validator("email")
+    @field_validator("email")
+    @classmethod
     def validate_email(cls, value: str):
         email = value.strip()
         if not email or "@" not in email:
             raise CustomException(400, "Invalid Request", "email is invalid")
         return email
 
-    @validator("domain_names")
+    @field_validator("domain_names")
+    @classmethod
     def validate_certificate_domains(cls, value: list[str]):
         normalized = [item.strip() for item in value if item and item.strip()]
         if not normalized:
@@ -137,20 +144,23 @@ class AppAccessCustomCertificateRequest(BaseModel):
     proxy_id: Optional[int] = Field(default=None, description="Optional proxy host to bind after uploading the certificate")
     domain_names: Optional[list[str]] = Field(default=None, description="Domain names to use for the proxy binding")
 
-    @validator("nice_name")
+    @field_validator("nice_name")
+    @classmethod
     def validate_nice_name(cls, value: str):
         if not value.strip():
             raise CustomException(400, "Invalid Request", "nice_name cannot be empty")
         return value.strip()
 
-    @validator("certificate_pem")
+    @field_validator("certificate_pem")
+    @classmethod
     def validate_certificate_pem(cls, value: str):
         stripped = value.strip()
         if not stripped or "BEGIN CERTIFICATE" not in stripped:
             raise CustomException(400, "Invalid Request", "certificate_pem must be a valid PEM-encoded certificate")
         return stripped
 
-    @validator("key_pem")
+    @field_validator("key_pem")
+    @classmethod
     def validate_key_pem(cls, value: str):
         stripped = value.strip()
         if not stripped or ("BEGIN" not in stripped and "PRIVATE KEY" not in stripped):

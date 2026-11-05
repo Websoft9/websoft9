@@ -1,6 +1,6 @@
+import shutil
 import sys
 import types
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -10,7 +10,6 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -259,7 +258,7 @@ def test_overview_service_degrades_per_section_instead_of_failing_whole_page():
             "network_tx_bytes": None,
         },
         services_loader=lambda session_token: [],
-        tasks_loader=lambda: [],
+        tasks_loader=list,
         now_provider=lambda: datetime(2026, 5, 7, 9, 0, tzinfo=timezone.utc),
     )
 
@@ -303,7 +302,14 @@ def test_overview_service_supports_runtime_app_response_models():
         },
         apps_loader=lambda: [
             AppResponse(app_id="demo", app_name="Demo", status=1, tracking_id="task-1", creationDate=1_778_147_200),
-            AppResponse(app_id="demo-2", app_name="Demo 2", status=4, tracking_id="task-2", error="install failed", creationDate=1_778_147_260),
+            AppResponse(
+                app_id="demo-2",
+                app_name="Demo 2",
+                status=4,
+                tracking_id="task-2",
+                error="install failed",
+                creationDate=1_778_147_260,
+            ),
         ],
         runtime_summary_loader=lambda: {
             "runtime_scope": "system",
@@ -391,7 +397,12 @@ def test_overview_service_reuses_loaded_apps_for_apps_and_tasks():
     assert call_count == 1
 
 
-def test_overview_default_app_loader_builds_lightweight_inventory():
+def test_overview_default_app_loader_builds_lightweight_inventory(tmp_path):
+    # The loader reads install history from SQLite, so it needs an initialized - but empty - store
+    # of its own instead of whatever database the real data root happens to hold.
+    from src.services.app_status import configure_install_state_store
+
+    configure_install_state_store(str(tmp_path / "install-tracking"))
     service = OverviewService(auth_service=FakeAuthService())
 
     class FakePortainerManager:
@@ -476,7 +487,7 @@ def test_overview_router_returns_normalized_payload():
             "network_tx_bytes": None,
         },
         services_loader=lambda session_token: [],
-        tasks_loader=lambda: [],
+        tasks_loader=list,
         now_provider=lambda: datetime(2026, 5, 7, 9, 0, tzinfo=timezone.utc),
     )
     overview_stream_cache._entries.clear()
@@ -504,7 +515,10 @@ def test_overview_host_runtime_summary_reports_system_disk_usage():
         patch.object(service, "_read_memory_snapshot", return_value=(16_000, 10_000)),
         patch.object(service, "_read_network_summary", return_value=(120_000, 80_000, 4_096, 2_048)),
         patch("src.services.overview_service.os.cpu_count", return_value=8),
-        patch("src.services.overview_service.shutil.disk_usage", return_value=shutil._ntuple_diskusage(total=200_000, used=90_000, free=110_000)),
+        patch(
+            "src.services.overview_service.shutil.disk_usage",
+            return_value=shutil._ntuple_diskusage(total=200_000, used=90_000, free=110_000),
+        ),
     ):
         payload = service._load_host_runtime_summary()
 
@@ -563,7 +577,10 @@ def test_overview_host_runtime_summary_prefers_docker_host_capacity_when_availab
         patch.object(service, "_read_host_cpu_percent", return_value=50.0),
         patch.object(service, "_read_memory_snapshot", return_value=(7_865_692 * 1024, 2_700_000_000)),
         patch.object(service, "_read_network_summary", return_value=(120_000, 80_000, 4_096, 2_048)),
-        patch("src.services.overview_service.shutil.disk_usage", return_value=shutil._ntuple_diskusage(total=200_000, used=90_000, free=110_000)) as mocked_disk_usage,
+        patch(
+            "src.services.overview_service.shutil.disk_usage",
+            return_value=shutil._ntuple_diskusage(total=200_000, used=90_000, free=110_000),
+        ) as mocked_disk_usage,
     ):
         payload = service._load_host_runtime_summary()
 

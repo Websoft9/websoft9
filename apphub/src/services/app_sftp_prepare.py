@@ -14,6 +14,7 @@ The account has no password, no login shell, no sudo rule and no docker
 group membership. It exists only so AppHub can move files over SFTP.
 """
 
+import contextlib
 import fcntl
 import json
 import os
@@ -123,9 +124,16 @@ def ensure_account():
         account = pwd.getpwnam(name)
     except KeyError:
         command = [
-            "useradd", "--system", "--user-group",
-            "--home-dir", str(home), "--create-home",
-            "--shell", "/usr/sbin/nologin", "--comment", "Websoft9 application file access",
+            "useradd",
+            "--system",
+            "--user-group",
+            "--home-dir",
+            str(home),
+            "--create-home",
+            "--shell",
+            "/usr/sbin/nologin",
+            "--comment",
+            "Websoft9 application file access",
         ]
         try:
             run([*command, "--uid", str(PREFERRED_UID), name])
@@ -195,8 +203,11 @@ def install_sshd_config(data_dir, account_name=None):
             _, _, tail = rest.partition(MARKER_END)
             updated = head + legacy + tail.lstrip("\n")
         else:
-            separator = "" if original.endswith("\n") else "\n"
-            updated = original + separator + "\n" + legacy
+            # Append directly after the existing content: revoking then re-preparing has to restore
+            # the original file byte for byte, otherwise every enable/disable cycle leaves one more
+            # blank line behind.
+            separator = "\n" if original and not original.endswith("\n") else ""
+            updated = original + separator + legacy
         changed = updated != original
         if changed:
             backup = data_dir / "sshd_config.websoft9.bak"
@@ -243,10 +254,8 @@ def reload_sshd():
     try:
         run(["systemctl", "reload", unit], timeout=20)
     except Exception:
-        try:
+        with contextlib.suppress(Exception):
             run(["systemctl", "restart", unit], timeout=30)
-        except Exception:
-            pass
 
 
 def ensure_keypair(data_dir):
@@ -424,10 +433,8 @@ def revoke(data_root):
 
         volume_root = Path("/var/lib/docker/volumes")
         if volume_root.is_dir():
-            try:
+            with contextlib.suppress(Exception):
                 run(["setfacl", "-x", f"u:{ACCOUNT},d:u:{ACCOUNT}", str(volume_root)], timeout=15)
-            except Exception:
-                pass
     print(json.dumps({"revoked": True, "removed_key_lines": removed_key_lines}))
 
 

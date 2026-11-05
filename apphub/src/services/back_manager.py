@@ -1,15 +1,15 @@
+import fcntl
 import json
 import os
-import re
-import subprocess
 import threading
 import time
-import fcntl
-import docker
 from typing import Any, Dict, List, Optional
+
+import docker
+
+from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.logger import logger
-from src.core.config import ConfigManager
 from src.services.app_manager import AppManger
 from src.services.image_pull import ImagePullError, pull_error_detail, pull_with_fallback
 from src.services.portainer_manager import PortainerManager
@@ -37,7 +37,7 @@ def _invalidate_snapshot_cache() -> None:
 
 def _extract_restic_error(data: Dict[str, Any]) -> str:
     """Extract a human-readable error message from a Restic JSON error line.
-    
+
     Restic v0.17+ uses ``message_type: "error"`` with a nested ``error.message``.
     Restic v0.19+ uses ``message_type: "exit_error"`` with a top-level ``message``.
     """
@@ -56,9 +56,7 @@ def _extract_restic_error(data: Dict[str, Any]) -> str:
 def _is_effective_runtime_container(container: Dict[str, Any], app_id: str) -> bool:
     names = container.get("Names") or []
     normalized_names = [str(name or "").strip("/") for name in names]
-    if f"{app_id}-init" in normalized_names:
-        return False
-    return True
+    return f"{app_id}-init" not in normalized_names
 
 
 def _container_state(container: Dict[str, Any]) -> str:
@@ -90,7 +88,7 @@ class BackupManager:
             raise
         except Exception as e:
             logger.error(f"Failed to initialize BackupManager: {e}")
-            raise CustomException()
+            raise CustomException() from e
 
     # ------------------------------------------------------------------
     #  Docker Restic execution — all Restic operations use the same runtime
@@ -130,13 +128,9 @@ class BackupManager:
         try:
             pulled = pull_with_fallback(self.docker_client, self.restic_image)
         except ImagePullError as exc:
-            raise CustomException(
-                500, f"Failed to pull {self.restic_image}", pull_error_detail(exc)
-            ) from exc
+            raise CustomException(500, f"Failed to pull {self.restic_image}", pull_error_detail(exc)) from exc
         if pulled.source != "direct":
-            logger.access(
-                f"Restic image {self.restic_image} came from {pulled.source}"
-            )
+            logger.access(f"Restic image {self.restic_image} came from {pulled.source}")
 
     def bootstrap_repository(self) -> None:
         """Prepare the image and empty repository during platform startup.
@@ -205,9 +199,9 @@ class BackupManager:
                             break
                     except json.JSONDecodeError:
                         continue
-            raise CustomException(500, msg, "Restic Container Error")
+            raise CustomException(500, msg, "Restic Container Error") from e
         except Exception as e:
-            raise CustomException(500, f"Restic container failed: {e}", "Container Error")
+            raise CustomException(500, f"Restic container failed: {e}", "Container Error") from e
 
     def _build_restic_volume_mounts(self, volumes_info: List[Dict[str, Any]]) -> tuple[Dict[str, Dict[str, str]], List[str]]:
         extra_volumes: Dict[str, Dict[str, str]] = {}
@@ -262,7 +256,9 @@ class BackupManager:
                         self._init_repository()
                         marker = self._repository_marker()
                         if marker is None:
-                            raise CustomException(500, "Restic repository initialization did not create config", "Repository Error")
+                            raise CustomException(
+                                500, "Restic repository initialization did not create config", "Repository Error"
+                            )
                     with _cache_lock:
                         _repository_ready_cache[key] = marker
             finally:
@@ -307,11 +303,11 @@ class BackupManager:
                     _snapshot_list_cache[cache_key] = (time.monotonic(), snapshots)
             return snapshots
         except (json.JSONDecodeError, KeyError):
-            raise CustomException(500, "Failed to parse snapshot list", "Parse Error")
+            raise CustomException(500, "Failed to parse snapshot list", "Parse Error") from None
         except CustomException:
             raise
         except Exception as e:
-            raise CustomException(500, f"List snapshots error: {e}", "List Error")
+            raise CustomException(500, f"List snapshots error: {e}", "List Error") from e
 
     def delete_snapshot(self, snapshot_id: str) -> None:
         try:
@@ -324,7 +320,7 @@ class BackupManager:
         except CustomException:
             raise
         except Exception as e:
-            raise CustomException(500, str(e), "Delete Error")
+            raise CustomException(500, str(e), "Delete Error") from e
 
     # ------------------------------------------------------------------
     #  Read-write operations — Docker runner (needs volume mounts)
@@ -370,7 +366,7 @@ class BackupManager:
             raise
         except Exception as e:
             logger.error(f"Backup error for app: {app_id}: {e}")
-            raise CustomException(500, str(e), "Backup Error")
+            raise CustomException(500, str(e), "Backup Error") from e
 
     def restore_backup(self, app_id: str, snapshot_id: str) -> None:
         try:
@@ -388,13 +384,20 @@ class BackupManager:
                 raise CustomException(400, f"Snapshot {snapshot_id} not found", "Snapshot Not Found")
 
             app_info = AppManger().get_app_by_id(
-                app_id, reconcile_stale=False, readonly_install_state=True, strict_exists=True,
+                app_id,
+                reconcile_stale=False,
+                readonly_install_state=True,
+                strict_exists=True,
             )
             volumes_info = getattr(app_info, "volumes", [])
             endpoint_id = app_info.get("endpointId") if isinstance(app_info, dict) else getattr(app_info, "endpointId", None)
 
             if not endpoint_id or getattr(app_info, "status", None) == 2:
-                raise CustomException(400, "Restore requires an existing application stack", "Restore the inactive application with app restore first")
+                raise CustomException(
+                    400,
+                    "Restore requires an existing application stack",
+                    "Restore the inactive application with app restore first",
+                )
 
             if not volumes_info:
                 raise CustomException(400, f"No volumes found for app: {app_id}", "No Volumes")
@@ -419,7 +422,9 @@ class BackupManager:
             portainer = PortainerManager()
             containers = portainer.get_containers_by_stack_name(app_id, endpoint_id)
             if not any(_is_effective_runtime_container(c, app_id) for c in containers):
-                raise CustomException(400, "Application has no runtime containers", "Restore the application stack before restoring its data")
+                raise CustomException(
+                    400, "Application has no runtime containers", "Restore the application stack before restoring its data"
+                )
 
             # Capture top-level volume ownership before restore so we do not
             # blindly force 33:33 onto non-www-data volumes (e.g. mysql 999, postgres 70).
@@ -448,9 +453,8 @@ class BackupManager:
                     ) from exc
 
             stopped_containers = portainer.get_containers_by_stack_name(app_id, endpoint_id)
-            if (
-                not any(_is_effective_runtime_container(c, app_id) for c in stopped_containers)
-                or any(_container_state(c) not in {"exited", "dead", "created", "stopped"} for c in stopped_containers)
+            if not any(_is_effective_runtime_container(c, app_id) for c in stopped_containers) or any(
+                _container_state(c) not in {"exited", "dead", "created", "stopped"} for c in stopped_containers
             ):
                 raise CustomException(500, "Application containers are not quiescent", "Restore Stop Failed")
 
@@ -477,7 +481,9 @@ class BackupManager:
                 raise CustomException(500, restore_error, f"Restic restore failed for snapshot: {snapshot_id}")
 
             if not summary_found:
-                raise CustomException(500, f"Restore incomplete — no summary returned for snapshot: {snapshot_id}", "Restore Failed")
+                raise CustomException(
+                    500, f"Restore incomplete — no summary returned for snapshot: {snapshot_id}", "Restore Failed"
+                )
 
             # Restore volume root ownership if Restic reset it to root while it was previously non-root.
             for host_path, (orig_uid, orig_gid) in pre_restore_owners.items():
@@ -512,9 +518,11 @@ class BackupManager:
             raise
         except Exception as e:
             logger.error(f"Restore error: {e}")
-            raise CustomException(500, str(e), "Restore Error")
+            raise CustomException(500, str(e), "Restore Error") from e
 
-    def _ensure_restored_app_running(self, portainer: PortainerManager, app_id: str, endpoint_id: int, timeout_seconds: int = 60, poll_interval: int = 3) -> None:
+    def _ensure_restored_app_running(
+        self, portainer: PortainerManager, app_id: str, endpoint_id: int, timeout_seconds: int = 60, poll_interval: int = 3
+    ) -> None:
         deadline = time.monotonic() + max(timeout_seconds, 0)
         last_states: List[str] = []
 
@@ -530,6 +538,8 @@ class BackupManager:
 
             if time.monotonic() >= deadline:
                 detail = ", ".join(last_states) if last_states else "no runtime containers found"
-                raise CustomException(500, f"Restored app did not reach a running state: {detail}", "Restore Validation Failed")
+                raise CustomException(
+                    500, f"Restored app did not reach a running state: {detail}", "Restore Validation Failed"
+                )
 
             time.sleep(max(poll_interval, 1))

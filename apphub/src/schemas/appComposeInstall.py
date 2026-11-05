@@ -68,7 +68,11 @@ class ComposeInstallBase(BaseModel):
     def validate_app_id(cls, value: str) -> str:
         normalized = _normalize_non_empty(value, "app_id").lower()
         if not normalized[0].isalpha() or not normalized.isalnum() or len(normalized) < 2 or len(normalized) > 20:
-            raise CustomException(400, "Invalid Request", "The app_id must be a combination of 2 to 20 lowercase letters and numbers, and cannot start with a number.")
+            raise CustomException(
+                400,
+                "Invalid Request",
+                "The app_id must be a combination of 2 to 20 lowercase letters and numbers, and cannot start with a number.",
+            )
         return normalized
 
     @field_validator("compose_content", mode="before")

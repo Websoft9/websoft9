@@ -14,7 +14,7 @@ import re
 import sqlite3
 import threading
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -59,9 +59,9 @@ def bind_volume_id(source: str) -> str:
 def split_volume_id(value: str) -> tuple[str, str]:
     raw = str(value or "").strip()
     if raw.startswith("volume:"):
-        return "volume", raw[len("volume:"):]
+        return "volume", raw[len("volume:") :]
     if raw.startswith("bind:"):
-        return "bind", raw[len("bind:"):]
+        return "bind", raw[len("bind:") :]
     return "volume", raw
 
 
@@ -114,7 +114,9 @@ class AppVolumeResolver:
             raise CustomException(503, "Docker Unavailable", f"Unable to list application containers: {exc}") from exc
         running = [container for container in containers if container.status == "running"] or containers
         if not running:
-            raise CustomException(409, "SFTP Container Not Running", "The application is not running or does not expose any container")
+            raise CustomException(
+                409, "SFTP Container Not Running", "The application is not running or does not expose any container"
+            )
 
         matches: list[dict[str, Any]] = []
         for container in running:
@@ -133,28 +135,34 @@ class AppVolumeResolver:
                     if volume is not None:
                         labels = (volume.attrs or {}).get("Labels") or {}
                         if labels.get("com.docker.compose.project") != normalized_app_id:
-                            raise CustomException(403, "Volume Access Denied", "The volume does not belong to this application")
+                            raise CustomException(
+                                403, "Volume Access Denied", "The volume does not belong to this application"
+                            )
                         options = (volume.attrs or {}).get("Options") or {}
                         source = str((volume.attrs or {}).get("Mountpoint") or source)
                         if (volume.attrs or {}).get("Driver") not in (None, "local") or source.startswith("http"):
                             raise CustomException(422, "Unsupported Volume", "Application SFTP requires a local Docker volume")
                         if options and not options.get("device") and not options.get("o") and not options.get("type"):
-                            raise CustomException(422, "Unsupported Volume", "Application SFTP does not support this volume driver")
+                            raise CustomException(
+                                422, "Unsupported Volume", "Application SFTP does not support this volume driver"
+                            )
                 else:
                     if mount.get("Type") != "bind":
                         continue
                     source = str(mount.get("Source") or "")
                     if bind_volume_id(source).split(":", 1)[1] != identifier:
                         continue
-                matches.append({
-                    "source_path": source,
-                    "destination": str(mount.get("Destination") or ""),
-                    "container_name": str(container.name),
-                    "container_user": user,
-                    "container": container,
-                    "volume_kind": kind,
-                    "volume_identifier": identifier,
-                })
+                matches.append(
+                    {
+                        "source_path": source,
+                        "destination": str(mount.get("Destination") or ""),
+                        "container_name": str(container.name),
+                        "container_user": user,
+                        "container": container,
+                        "volume_kind": kind,
+                        "volume_identifier": identifier,
+                    }
+                )
 
         if not matches:
             raise CustomException(404, "Volume Not Found", "The requested volume is not mounted by this application")
@@ -170,7 +178,7 @@ class AppVolumeResolver:
         chosen["source_path"] = source_path
         identity = self._resolve_container_identity(chosen["container_user"])
         if identity[0] <= 0:
-            identity = self._probe_container_identity(chosen.get("container"), chosen.get("destination"))
+            identity = self._probe_container_identity(chosen.get("container"), str(chosen.get("destination") or ""))
             if identity[0] <= 0:
                 identity = self._probe_directory_owner(source_path)
         chosen["container_uid"], chosen["container_gid"] = identity
@@ -267,22 +275,22 @@ class SftpAclAuthorizer:
             try:
                 return json.loads(logs.splitlines()[-1]) if logs else {}
             except (ValueError, IndexError) as exc:
-                raise CustomException(500, "SFTP Authorization Failed", "The host ACL helper returned an invalid response") from exc
+                raise CustomException(
+                    500, "SFTP Authorization Failed", "The host ACL helper returned an invalid response"
+                ) from exc
         except CustomException:
             raise
         except Exception as exc:
-            raise CustomException(500, "SFTP Authorization Failed", f"Unable to prepare host ACL authorization: {exc}") from exc
+            raise CustomException(
+                500, "SFTP Authorization Failed", f"Unable to prepare host ACL authorization: {exc}"
+            ) from exc
         finally:
             if container is not None:
-                try:
+                with suppress(Exception):
                     container.remove(force=True)
-                except Exception:
-                    pass
             if client is not None:
-                try:
+                with suppress(Exception):
                     client.close()
-                except Exception:
-                    pass
 
     def apply(self, session_id: str, path: str, container_uid: int, recursive: bool = True) -> dict[str, Any]:
         arguments = ["apply", self.data_root, session_id, path, self._account_name(), str(int(container_uid))]
@@ -370,7 +378,9 @@ class SftpAuthorizationStore:
             ).fetchone()
         return dict(row) if row else None
 
-    def create_grant(self, *, grant_id: str, app_id: str, root_path: str, target_kind: str, volume_id: str, container_uid: int) -> None:
+    def create_grant(
+        self, *, grant_id: str, app_id: str, root_path: str, target_kind: str, volume_id: str, container_uid: int
+    ) -> None:
         with self._lock, self._connect() as connection:
             now = utc_now()
             connection.execute(
@@ -394,7 +404,9 @@ class SftpAuthorizationStore:
             connection.execute("DELETE FROM sftp_grants WHERE grant_id = ?", (grant_id,))
             connection.commit()
 
-    def create(self, *, session_id: str, operator_id: str, app_id: str, volume_id: str, root_path: str, container_uid: int) -> None:
+    def create(
+        self, *, session_id: str, operator_id: str, app_id: str, volume_id: str, root_path: str, container_uid: int
+    ) -> None:
         with self._lock, self._connect() as connection:
             now = utc_now()
             connection.execute(
@@ -427,7 +439,9 @@ class AppSftpAuthority:
 
     def __init__(self, data_dir: Optional[Path] = None, docker_client: Any = None, docker_client_factory=None):
         self.resolver = AppVolumeResolver(docker_client=docker_client, docker_client_factory=docker_client_factory)
-        self.authorizer = SftpAclAuthorizer(data_dir=data_dir, docker_client=docker_client, docker_client_factory=docker_client_factory)
+        self.authorizer = SftpAclAuthorizer(
+            data_dir=data_dir, docker_client=docker_client, docker_client_factory=docker_client_factory
+        )
         self.store = SftpAuthorizationStore(data_dir=data_dir)
 
     def new_session_id(self) -> str:
@@ -436,7 +450,9 @@ class AppSftpAuthority:
     def resolve(self, app_id: str, volume_id: str) -> dict[str, Any]:
         return self.resolver.resolve(app_id, volume_id)
 
-    def authorize(self, *, session_id: str, operator_id: str, app_id: str, volume_id: str, target: dict[str, Any]) -> dict[str, Any]:
+    def authorize(
+        self, *, session_id: str, operator_id: str, app_id: str, volume_id: str, target: dict[str, Any]
+    ) -> dict[str, Any]:
         root = target["source_path"]
         container_uid = int(target.get("container_uid") or 0)
         grant = self.store.find_grant(app_id, root)

@@ -15,7 +15,6 @@ import requests
 from click.testing import CliRunner
 from dotenv import dotenv_values
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -54,8 +53,8 @@ def gitpython():
 def manager(monkeypatch, gitpython):
     from src.core.apiHelper import APIHelper
     from src.external.gitea_api import GiteaAPI
-    from src.services.gitea_manager import GiteaManager
     from src.services import gitea_manager
+    from src.services.gitea_manager import GiteaManager
 
     monkeypatch.setattr(gitea_manager, "Repo", gitpython.Repo)
 
@@ -73,12 +72,14 @@ def env_file(monkeypatch):
 
     def get(url, **kwargs):
         assert url.endswith("/repos/fixture/fixture/contents/.env")
-        return response({
-            "name": ".env",
-            "encoding": "base64",
-            "sha": state["sha"],
-            "content": base64.b64encode(state["content"].encode()).decode(),
-        })
+        return response(
+            {
+                "name": ".env",
+                "encoding": "base64",
+                "sha": state["sha"],
+                "content": base64.b64encode(state["content"].encode()).decode(),
+            }
+        )
 
     def put(url, **kwargs):
         assert url.endswith("/repos/fixture/fixture/contents/.env")
@@ -92,17 +93,20 @@ def env_file(monkeypatch):
     return state
 
 
-@pytest.mark.parametrize("value", [
-    "abc #def",
-    " leading and trailing ",
-    r"C:\path\\",
-    "both 'single' and \"double\" quotes",
-    "line one\nline two",
-    "line one\r\nline two",
-    "${UNSET_VARIABLE}",
-    "",
-    "中文",
-])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "abc #def",
+        " leading and trailing ",
+        r"C:\path\\",
+        "both 'single' and \"double\" quotes",
+        "line one\nline two",
+        "line one\r\nline two",
+        "${UNSET_VARIABLE}",
+        "",
+        "中文",
+    ],
+)
 def test_env_set_round_trips_literal_values_and_blob_sha(manager, env_file, value):
     result = manager.update_env_variables("fixture", {"KEY": value}, expected_sha="old-blob")
 
@@ -110,7 +114,10 @@ def test_env_set_round_trips_literal_values_and_blob_sha(manager, env_file, valu
     assert env_file["writes"][0]["sha"] == "old-blob"
     assert env_file["writes"][0]["branch"] == "main"
     assert result == {
-        "path": ".env", "sha": "new-blob", "head_sha": "new-head", "updated_keys": ["KEY"],
+        "path": ".env",
+        "sha": "new-blob",
+        "head_sha": "new-head",
+        "updated_keys": ["KEY"],
     }
 
 
@@ -160,16 +167,29 @@ def test_delete_uses_actual_helper_json_body_and_preserves_positional_headers(ma
         return response({"commit": {"sha": "delete-head"}})
 
     monkeypatch.setattr(requests, "delete", delete)
-    monkeypatch.setattr(requests, "get", lambda *a, **kw: response({
-        "name": "extra.conf", "encoding": "base64", "sha": "current-blob", "content": "",
-    }))
+    monkeypatch.setattr(
+        requests,
+        "get",
+        lambda *a, **kw: response(
+            {
+                "name": "extra.conf",
+                "encoding": "base64",
+                "sha": "current-blob",
+                "content": "",
+            }
+        ),
+    )
 
     assert manager.delete_repo_file("fixture", "extra.conf", sha="current-blob") == {
-        "path": "extra.conf", "deleted_sha": "current-blob", "head_sha": "delete-head",
+        "path": "extra.conf",
+        "deleted_sha": "current-blob",
+        "head_sha": "delete-head",
     }
     assert calls[0][0].endswith("/repos/fixture/fixture/contents/extra.conf")
     assert calls[0][1]["json"] == {
-        "branch": "main", "sha": "current-blob", "message": "Delete extra.conf",
+        "branch": "main",
+        "sha": "current-blob",
+        "message": "Delete extra.conf",
     }
     manager.gitea.api.delete("legacy", {"force": True}, {"X-Legacy": "kept"})
     assert calls[1][1]["params"] == {"force": True}
@@ -207,7 +227,8 @@ def compose_update(local_repository, monkeypatch, tmp_path, gitpython):
     portainer = Mock()
     portainer.get_local_endpoint_id.return_value = 7
     portainer.get_stack_by_name.return_value = {
-        "Id": 9, "GitConfig": {"URL": str(repository.remote)},
+        "Id": 9,
+        "GitConfig": {"URL": str(repository.remote)},
     }
     credentials = SimpleNamespace(username="fixture", password="unused", email="fixture@example.invalid")
     monkeypatch.setattr(compose_app_manager, "Repo", gitpython.Repo)
@@ -215,9 +236,13 @@ def compose_update(local_repository, monkeypatch, tmp_path, gitpython):
     monkeypatch.setattr(compose_app_manager, "PortainerManager", lambda: portainer)
     monkeypatch.setattr(compose_app_manager, "GiteaManager", Mock)
     monkeypatch.setattr(compose_app_manager, "_require_compose_app", Mock())
-    monkeypatch.setattr(compose_app_manager, "IntegrationCredentialProvider", lambda: SimpleNamespace(
-        get_gitea_credentials=lambda: credentials,
-    ))
+    monkeypatch.setattr(
+        compose_app_manager,
+        "IntegrationCredentialProvider",
+        lambda: SimpleNamespace(
+            get_gitea_credentials=lambda: credentials,
+        ),
+    )
     service = compose_app_manager.ComposeAppManager()
     monkeypatch.setattr(service, "_pull_stack_images", Mock(return_value=[]))
     return SimpleNamespace(service=service, portainer=portainer, remote=repository.remote)
@@ -236,11 +261,20 @@ def test_compose_update_commits_without_global_identity_and_noop_redeploys(compo
     assert compose_update.portainer.redeploy_stack.call_count == 2
 
 
-@pytest.mark.parametrize("value", [
-    "", "$cash #hash spaces\\tail", "${HOME}", "it's \"quoted\"",
-    " leading and trailing ", "first\nsecond", "first\r\nsecond",
-    "path\\with\\slashes", "trailing\\",
-])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "$cash #hash spaces\\tail",
+        "${HOME}",
+        "it's \"quoted\"",
+        " leading and trailing ",
+        "first\nsecond",
+        "first\r\nsecond",
+        "path\\with\\slashes",
+        "trailing\\",
+    ],
+)
 def test_compose_env_round_trip_preserves_literals(compose_update, value):
     from src.schemas.appComposeInstall import ComposeEnvironmentEntry
     from src.services.compose_app_manager import _parse_user_env
@@ -249,7 +283,10 @@ def test_compose_env_round_trip_preserves_literals(compose_update, value):
     assert entry.value == value
     env = [{"key": entry.key, "value": entry.value}]
     compose_update.service.update_compose_content(
-        "fixture", "services:\n  worker:\n    image: fixture:latest\n", env, [],
+        "fixture",
+        "services:\n  worker:\n    image: fixture:latest\n",
+        env,
+        [],
     )
     content = git_dir(compose_update.remote, "show", "main:.env")
     assert _parse_user_env(content) == env
@@ -278,8 +315,10 @@ def test_compose_update_failure_never_redeploys(compose_update, monkeypatch, git
 
     head = git_dir(compose_update.remote, "rev-parse", "main")
     if failure == "commit":
+
         def fail_commit(*args, **kwargs):
             raise gitpython.GitCommandError("git commit", 128, stderr="fixture commit rejected")
+
         monkeypatch.setattr(gitpython.IndexFile, "commit", fail_commit)
     else:
         hook = compose_update.remote / "hooks/pre-receive"
@@ -287,7 +326,10 @@ def test_compose_update_failure_never_redeploys(compose_update, monkeypatch, git
         hook.chmod(0o755)
     with pytest.raises(CustomException) as caught:
         compose_update.service.update_compose_content(
-            "fixture", "services:\n  worker:\n    image: fixture:latest\n", [], [],
+            "fixture",
+            "services:\n  worker:\n    image: fixture:latest\n",
+            [],
+            [],
         )
     assert caught.value.status_code == 500
     assert git_dir(compose_update.remote, "rev-parse", "main") == head
@@ -340,11 +382,17 @@ def local_repository(manager, monkeypatch, tmp_path, gitpython):
         gitpython.Repo.clone_from(remote_url, self.local_path).close()
 
     monkeypatch.setattr(GitManager, "clone_remote_repo_to_local", local_clone)
-    monkeypatch.setattr(gitea_manager, "IntegrationCredentialProvider", lambda: SimpleNamespace(
-        get_gitea_credentials=lambda: SimpleNamespace(
-            username="fixture", password="unused", email="fixture@example.invalid",
+    monkeypatch.setattr(
+        gitea_manager,
+        "IntegrationCredentialProvider",
+        lambda: SimpleNamespace(
+            get_gitea_credentials=lambda: SimpleNamespace(
+                username="fixture",
+                password="unused",
+                email="fixture@example.invalid",
+            ),
         ),
-    ))
+    )
     monkeypatch.setattr(gitea_manager.tempfile, "tempdir", str(tmp_path))
     yield prepare
     source.close()
@@ -352,7 +400,10 @@ def local_repository(manager, monkeypatch, tmp_path, gitpython):
 
 @pytest.mark.parametrize("additions_only,other_default", [(True, False), (False, False), (False, True)])
 def test_rollback_restores_exact_tree_with_new_commit_preserving_main_history(
-    manager, local_repository, additions_only, other_default,
+    manager,
+    local_repository,
+    additions_only,
+    other_default,
 ):
     fixture = local_repository(additions_only=additions_only, other_default=other_default)
     result = manager.rollback_repo_to_commit("fixture", fixture.target)
@@ -362,7 +413,9 @@ def test_rollback_restores_exact_tree_with_new_commit_preserving_main_history(
     assert result["new_head_sha"] == git_dir(fixture.remote, "rev-parse", "main")
     assert git_dir(fixture.remote, "rev-parse", "main^") == fixture.previous
     assert git_dir(fixture.remote, "rev-parse", "main^{tree}") == git_dir(
-        fixture.remote, "rev-parse", fixture.target + "^{tree}",
+        fixture.remote,
+        "rev-parse",
+        fixture.target + "^{tree}",
     )
     assert "added" not in git_dir(fixture.remote, "ls-tree", "-r", "--name-only", "main").splitlines()
 
@@ -387,6 +440,7 @@ def test_rollback_rejected_by_real_hook_raises_and_keeps_remote_unchanged(manage
 @pytest.mark.parametrize("failure", ["empty", "flags", "exception"])
 def test_rollback_checks_all_push_failure_results(manager, local_repository, monkeypatch, gitpython, failure):
     from git.remote import PushInfo, PushInfoList, Remote
+
     from src.core.exception import CustomException
 
     fixture = local_repository()
@@ -427,9 +481,18 @@ def test_failed_rollback_never_redeploys_from_cli(manager, local_repository, mon
         monkeypatch.setitem(sys.modules, module_name, module)
     monkeypatch.setattr(gitea_manager, "GiteaManager", lambda: manager)
 
-    result = CliRunner().invoke(git_group, [
-        "rollback", "fixture", "--to", fixture.target, "--redeploy", "--yes", "--json",
-    ])
+    result = CliRunner().invoke(
+        git_group,
+        [
+            "rollback",
+            "fixture",
+            "--to",
+            fixture.target,
+            "--redeploy",
+            "--yes",
+            "--json",
+        ],
+    )
     assert result.exit_code == 1, result.output
     assert json.loads(result.output)["ok"] is False
     assert redeploy_calls == []
@@ -438,14 +501,24 @@ def test_failed_rollback_never_redeploys_from_cli(manager, local_repository, mon
 
 @pytest.mark.parametrize("default_target", [False, True])
 def test_range_diff_is_real_tree_patch_including_additions_and_deletions(
-    manager, local_repository, default_target,
+    manager,
+    local_repository,
+    default_target,
 ):
     fixture = local_repository()
     result = manager.get_repo_diff(
-        "fixture", target_ref=None if default_target else fixture.previous, base_ref=fixture.target,
+        "fixture",
+        target_ref=None if default_target else fixture.previous,
+        base_ref=fixture.target,
     )
     expected = git_dir(
-        fixture.remote, "diff", "--no-ext-diff", "--no-textconv", fixture.target, fixture.previous, "--",
+        fixture.remote,
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        fixture.target,
+        fixture.previous,
+        "--",
     )
     assert result["diff"] == expected
     assert "diff --git" in result["diff"]

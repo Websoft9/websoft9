@@ -2,7 +2,6 @@ from typing import Optional
 
 from fastapi import APIRouter, Cookie, Query
 
-from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.setupWizard import (
     SetupWizardAppResponse,
@@ -35,10 +34,15 @@ def get_setup_wizard_state(
 @router.get(
     "/setup-wizard/app",
     summary="Get marketplace app metadata",
-    responses={200: {"model": SetupWizardAppResponse}, 400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": SetupWizardAppResponse},
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def get_setup_wizard_app(
-    locale: str = Query("en", regex="^(zh|en)(-[A-Za-z]{2})?$"),
+    locale: str = Query("en", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     service = SetupWizardService()
     service.require_enabled()
@@ -48,7 +52,11 @@ def get_setup_wizard_app(
 @router.post(
     "/setup-wizard/platform-init-complete",
     summary="Advance setup wizard after platform initialization",
-    responses={200: {"model": SetupWizardPlatformInitCompleteResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": SetupWizardPlatformInitCompleteResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def complete_platform_initialization(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
@@ -61,7 +69,12 @@ def complete_platform_initialization(
 @router.post(
     "/setup-wizard/install",
     summary="Start marketplace app installation",
-    responses={200: {"model": SetupWizardInstallAcceptedResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": SetupWizardInstallAcceptedResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def install_marketplace_app(
     payload: SetupWizardInstallRequest,
@@ -87,7 +100,12 @@ def get_marketplace_app_install_status(tracking_id: str):
 @router.post(
     "/setup-wizard/complete",
     summary="Mark setup wizard complete",
-    responses={200: {"model": SetupWizardCompleteResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": SetupWizardCompleteResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def complete_setup_wizard(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),

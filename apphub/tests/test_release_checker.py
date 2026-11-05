@@ -47,13 +47,15 @@ def test_missing_cache_triggers_a_check_and_caches_the_result(tmp_path, monkeypa
 
 def test_fresh_cache_is_served_without_any_network_call(tmp_path, monkeypatch):
     checker = _checker(tmp_path)
-    checker._write_cache({
-        "channel": "dev",
-        "version": "2.4.2",
-        "checked_at": _iso(1),
-        "last_attempt_at": _iso(1),
-        "last_error": None,
-    })
+    checker._write_cache(
+        {
+            "channel": "dev",
+            "version": "2.4.2",
+            "checked_at": _iso(1),
+            "last_attempt_at": _iso(1),
+            "last_error": None,
+        }
+    )
     calls = _stub_remote(monkeypatch, checker, error=RuntimeError("network must not be used"))
 
     assert checker.ensure_latest_version(channel="dev") == "2.4.2"
@@ -62,13 +64,15 @@ def test_fresh_cache_is_served_without_any_network_call(tmp_path, monkeypatch):
 
 def test_stale_cache_is_refreshed(tmp_path, monkeypatch):
     checker = _checker(tmp_path)
-    checker._write_cache({
-        "channel": "dev",
-        "version": "2.4.2",
-        "checked_at": _iso(30),
-        "last_attempt_at": _iso(30),
-        "last_error": None,
-    })
+    checker._write_cache(
+        {
+            "channel": "dev",
+            "version": "2.4.2",
+            "checked_at": _iso(30),
+            "last_attempt_at": _iso(30),
+            "last_error": None,
+        }
+    )
     calls = _stub_remote(monkeypatch, checker, version="2.4.3")
 
     assert checker.ensure_latest_version(channel="dev") == "2.4.3"
@@ -77,13 +81,15 @@ def test_stale_cache_is_refreshed(tmp_path, monkeypatch):
 
 def test_cache_from_another_channel_is_ignored(tmp_path, monkeypatch):
     checker = _checker(tmp_path)
-    checker._write_cache({
-        "channel": "dev",
-        "version": "2.4.2",
-        "checked_at": _iso(1),
-        "last_attempt_at": _iso(1),
-        "last_error": None,
-    })
+    checker._write_cache(
+        {
+            "channel": "dev",
+            "version": "2.4.2",
+            "checked_at": _iso(1),
+            "last_attempt_at": _iso(1),
+            "last_error": None,
+        }
+    )
     calls = _stub_remote(monkeypatch, checker, version="2.4.0")
 
     assert checker.ensure_latest_version(channel="release") == "2.4.0"
@@ -93,13 +99,15 @@ def test_cache_from_another_channel_is_ignored(tmp_path, monkeypatch):
 def test_failed_check_keeps_the_previous_version_and_throttles_the_next_call(tmp_path, monkeypatch):
     checker = _checker(tmp_path)
     previous_checked_at = _iso(30)
-    checker._write_cache({
-        "channel": "dev",
-        "version": "2.4.2",
-        "checked_at": previous_checked_at,
-        "last_attempt_at": previous_checked_at,
-        "last_error": None,
-    })
+    checker._write_cache(
+        {
+            "channel": "dev",
+            "version": "2.4.2",
+            "checked_at": previous_checked_at,
+            "last_attempt_at": previous_checked_at,
+            "last_error": None,
+        }
+    )
     calls = _stub_remote(monkeypatch, checker, error=RuntimeError("artifact server unreachable"))
 
     # A transient failure must not look like "this platform is already up to date".
@@ -125,13 +133,15 @@ def test_failure_without_a_previous_cache_returns_none(tmp_path, monkeypatch):
 
 def test_force_refreshes_even_when_the_cache_is_fresh(tmp_path, monkeypatch):
     checker = _checker(tmp_path)
-    checker._write_cache({
-        "channel": "dev",
-        "version": "2.4.2",
-        "checked_at": _iso(1),
-        "last_attempt_at": _iso(1),
-        "last_error": None,
-    })
+    checker._write_cache(
+        {
+            "channel": "dev",
+            "version": "2.4.2",
+            "checked_at": _iso(1),
+            "last_attempt_at": _iso(1),
+            "last_error": None,
+        }
+    )
     calls = _stub_remote(monkeypatch, checker, version="2.4.3")
 
     assert checker.ensure_latest_version(channel="dev", force=True) == "2.4.3"
@@ -149,13 +159,15 @@ def test_request_scoped_call_uses_the_short_timeout(tmp_path, monkeypatch):
 
 def test_success_clears_a_previous_error(tmp_path, monkeypatch):
     checker = _checker(tmp_path)
-    checker._write_cache({
-        "channel": "dev",
-        "version": "2.4.2",
-        "checked_at": _iso(30),
-        "last_attempt_at": _iso(30),
-        "last_error": "artifact server unreachable",
-    })
+    checker._write_cache(
+        {
+            "channel": "dev",
+            "version": "2.4.2",
+            "checked_at": _iso(30),
+            "last_attempt_at": _iso(30),
+            "last_error": "artifact server unreachable",
+        }
+    )
     _stub_remote(monkeypatch, checker, version="2.4.2")
 
     checker.ensure_latest_version(channel="dev")
@@ -166,13 +178,15 @@ def test_success_clears_a_previous_error(tmp_path, monkeypatch):
 
 def test_request_path_answers_from_cache_instead_of_waiting_for_a_refresh(tmp_path, monkeypatch):
     checker = _checker(tmp_path)
-    checker._write_cache({
-        "channel": "dev",
-        "version": "2.4.2",
-        "checked_at": _iso(30),
-        "last_attempt_at": _iso(30),
-        "last_error": None,
-    })
+    checker._write_cache(
+        {
+            "channel": "dev",
+            "version": "2.4.2",
+            "checked_at": _iso(30),
+            "last_attempt_at": _iso(30),
+            "last_error": None,
+        }
+    )
     started = threading.Event()
     release = threading.Event()
 

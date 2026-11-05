@@ -1,5 +1,5 @@
-from typing import Optional
 import re
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -21,9 +21,18 @@ def _normalize_display_name(value: str) -> str:
 def _normalize_password(value: str) -> str:
     normalized = str(value)
     if len(normalized) < 8:
-        raise ValueError("Password must be at least 8 characters and include uppercase, lowercase, number, and special character")
-    if not re.search(r"[A-Z]", normalized) or not re.search(r"[a-z]", normalized) or not re.search(r"\d", normalized) or not re.search(r"[^A-Za-z0-9]", normalized):
-        raise ValueError("Password must be at least 8 characters and include uppercase, lowercase, number, and special character")
+        raise ValueError(
+            "Password must be at least 8 characters and include uppercase, lowercase, number, and special character"
+        )
+    if (
+        not re.search(r"[A-Z]", normalized)
+        or not re.search(r"[a-z]", normalized)
+        or not re.search(r"\d", normalized)
+        or not re.search(r"[^A-Za-z0-9]", normalized)
+    ):
+        raise ValueError(
+            "Password must be at least 8 characters and include uppercase, lowercase, number, and special character"
+        )
     return normalized
 
 

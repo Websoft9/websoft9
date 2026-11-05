@@ -6,16 +6,16 @@ import tempfile
 import time
 from contextlib import contextmanager
 from io import StringIO
+from urllib.parse import urlparse, urlunparse
 
 from dotenv.parser import parse_stream
 from git import Repo
-from src.core.logger import logger
-from src.core.config import ConfigManager
+
 from src.core.exception import CustomException
+from src.core.logger import logger
 from src.external.gitea_api import GiteaAPI
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.utils.env_file import format_env_assignment
-from urllib.parse import urlparse, urlunparse
 
 
 class GiteaManager:
@@ -29,6 +29,7 @@ class GiteaManager:
         update_file_in_repo: Update file in repository.
         remove_repo: Remove repository.
     """
+
     def __init__(self):
         """
         Init GiteaManager
@@ -38,8 +39,8 @@ class GiteaManager:
             self._set_basic_auth_credential()
         except Exception as e:
             logger.error(f"Init Gitea API Error:{e}")
-            raise CustomException()
-        
+            raise CustomException() from e
+
     def _set_basic_auth_credential(self):
         """
         Set basic auth credential
@@ -47,9 +48,9 @@ class GiteaManager:
         credentials = IntegrationCredentialProvider().get_gitea_credentials()
         username = credentials.username
         password = credentials.password
-          
-        credentials = f"{username}:{password}"
-        credentials_encoded = base64.b64encode(credentials.encode()).decode()
+
+        basic_credentials = f"{username}:{password}"
+        credentials_encoded = base64.b64encode(basic_credentials.encode()).decode()
         self.gitea.set_credential(credentials_encoded)
 
     def _normalize_clone_url(self, clone_url: str) -> str:
@@ -77,7 +78,7 @@ class GiteaManager:
         if runtime_layout == "single-container-target" and parsed.hostname in {public_netloc, "127.0.0.1", "localhost"}:
             internal_path = parsed.path
             if internal_path.startswith("/w9git/"):
-                internal_path = internal_path[len("/w9git"):]  # strip prefix so Gitea serves /owner/repo.git
+                internal_path = internal_path[len("/w9git") :]  # strip prefix so Gitea serves /owner/repo.git
             return urlunparse(parsed._replace(scheme="http", netloc="127.0.0.1:3001", path=internal_path))
 
         if parsed.hostname == "localhost":
@@ -85,7 +86,7 @@ class GiteaManager:
 
         return clone_url
 
-    def check_repo_exists(self,repo_name: str):
+    def check_repo_exists(self, repo_name: str):
         """
         Check repo is exist
 
@@ -103,7 +104,7 @@ class GiteaManager:
         else:
             logger.error(f"Check repo:{repo_name} exists error:{response.status_code}:{response.text}")
             raise CustomException()
-        
+
     def create_repo(self, repo_name: str):
         """
         Create repository
@@ -146,7 +147,7 @@ class GiteaManager:
             )
         result.sort(key=lambda entry: str(entry.get("name") or ""))
         return result
-        
+
     @staticmethod
     def _validate_repo_file_path(file_path: str) -> str:
         raw = (file_path or "").strip().replace("\\", "/")
@@ -155,7 +156,7 @@ class GiteaManager:
         normalized = posixpath.normpath(raw)
         if normalized in {".", ".."} or normalized.startswith("../") or "/../" in f"/{normalized}/":
             raise CustomException(400, "Invalid Request", "Invalid repository file path")
-        if normalized == ".git" or normalized.startswith(".git/") or normalized.startswith("src/.websoft9/"):
+        if normalized == ".git" or normalized.startswith((".git/", "src/.websoft9/")):
             raise CustomException(403, "Forbidden", "Access to internal repository metadata is not allowed")
         return normalized
 
@@ -203,7 +204,7 @@ class GiteaManager:
                     if not isinstance(entry, dict):
                         continue
                     path = str(entry.get("path") or "").strip()
-                    if not path or path == ".git" or path.startswith(".git/") or path.startswith("src/.websoft9/"):
+                    if not path or path == ".git" or path.startswith((".git/", "src/.websoft9/")):
                         continue
                     raw_type = str(entry.get("type") or "file")
                     item_type = "dir" if raw_type in {"dir", "tree"} else "file"
@@ -226,12 +227,13 @@ class GiteaManager:
             if tree_resp.status_code == 200:
                 payload = tree_resp.json() or {}
                 head_sha = str(payload.get("sha") or "")
-                tree = payload.get("tree") if isinstance(payload.get("tree"), list) else []
+                tree_raw = payload.get("tree")
+                tree: list = tree_raw if isinstance(tree_raw, list) else []
                 for entry in tree:
                     if not isinstance(entry, dict):
                         continue
                     raw_path = str(entry.get("path") or "").strip()
-                    if not raw_path or raw_path == ".git" or raw_path.startswith(".git/") or raw_path.startswith("src/.websoft9/"):
+                    if not raw_path or raw_path == ".git" or raw_path.startswith((".git/", "src/.websoft9/")):
                         continue
                     raw_type = str(entry.get("type") or "")
                     if raw_type not in {"tree", "blob"}:
@@ -253,7 +255,7 @@ class GiteaManager:
                         if prefix:
                             if not raw_path.startswith(prefix):
                                 continue
-                            rel = raw_path[len(prefix):]
+                            rel = raw_path[len(prefix) :]
                         else:
                             rel = raw_path
                         if not rel:
@@ -331,11 +333,15 @@ class GiteaManager:
                 f"File {normalized_path} has been modified in Gitea by another session. Reload the latest version before saving.",
             )
         if response.status_code != 200:
-            logger.error(f"Update file:{normalized_path} content in repo:{repo_name} error:{response.status_code}:{response.text}")
+            logger.error(
+                f"Update file:{normalized_path} content in repo:{repo_name} error:{response.status_code}:{response.text}"
+            )
             raise CustomException(400, "Update Failed", f"Failed to update {normalized_path} in repository")
         result = response.json() if response.text else {}
-        content_meta = result.get("content") if isinstance(result, dict) and isinstance(result.get("content"), dict) else {}
-        commit_meta = result.get("commit") if isinstance(result, dict) and isinstance(result.get("commit"), dict) else {}
+        content_raw = result.get("content") if isinstance(result, dict) else None
+        content_meta: dict = content_raw if isinstance(content_raw, dict) else {}
+        commit_raw = result.get("commit") if isinstance(result, dict) else None
+        commit_meta: dict = commit_raw if isinstance(commit_raw, dict) else {}
         return {
             "path": normalized_path,
             "sha": str(content_meta.get("sha") or ""),
@@ -357,7 +363,9 @@ class GiteaManager:
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
                 raise CustomException(400, "Invalid Request", "Invalid environment variable key")
             if str(value) == "******":
-                raise CustomException(400, "Invalid Request", f"Refusing to overwrite '{key}' with masked placeholder '******'")
+                raise CustomException(
+                    400, "Invalid Request", f"Refusing to overwrite '{key}' with masked placeholder '******'"
+                )
             normalized_updates[key] = str(value)
 
         file_data = self.read_repo_text_file(repo_name, ".env")
@@ -377,7 +385,8 @@ class GiteaManager:
 
         for binding in parse_stream(StringIO(file_data.get("content") or "")):
             if not binding.error and binding.key in normalized_updates:
-                prefix = re.match(r"\s*(?:export[^\S\r\n]+)?", binding.original.string).group(0)
+                prefix_match = re.match(r"\s*(?:export[^\S\r\n]+)?", binding.original.string)
+                prefix = prefix_match.group(0) if prefix_match else ""
                 chunks.append(prefix + assignment(binding.key))
                 if binding.key not in updated_keys:
                     updated_keys.append(binding.key)
@@ -423,7 +432,8 @@ class GiteaManager:
             logger.error(f"Delete file:{normalized_path} in repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException(400, "Delete Failed", f"Failed to delete {normalized_path} from repository")
         result = response.json() if getattr(response, "text", "") else {}
-        commit_meta = result.get("commit") if isinstance(result, dict) and isinstance(result.get("commit"), dict) else {}
+        commit_raw = result.get("commit") if isinstance(result, dict) else None
+        commit_meta: dict = commit_raw if isinstance(commit_raw, dict) else {}
         return {
             "path": normalized_path,
             "deleted_sha": current_sha,
@@ -486,7 +496,9 @@ class GiteaManager:
         if diff_resp.status_code == 404:
             raise CustomException(404, "Not Found", f"Commit '{resolved_commit}' not found in repository {repo_name}")
         if diff_resp.status_code != 200:
-            logger.error(f"Get commit diff for repo:{repo_name} commit:{resolved_commit} error:{diff_resp.status_code}:{diff_resp.text}")
+            logger.error(
+                f"Get commit diff for repo:{repo_name} commit:{resolved_commit} error:{diff_resp.status_code}:{diff_resp.text}"
+            )
             raise CustomException()
         return {
             "repo": repo_name,
@@ -526,7 +538,9 @@ class GiteaManager:
             try:
                 resolved_target = repo.commit(target).hexsha
             except Exception as exc:
-                raise CustomException(400, "Invalid Request", f"Target commit '{target}' not found in repository '{repo_name}'") from exc
+                raise CustomException(
+                    400, "Invalid Request", f"Target commit '{target}' not found in repository '{repo_name}'"
+                ) from exc
 
             repo.git.checkout("--detach", "refs/remotes/origin/main")
             head_before = repo.head.commit.hexsha
@@ -579,7 +593,7 @@ class GiteaManager:
         """
         response = self.gitea.get_file_content_from_repo(repo_name, file_path)
         if response.status_code == 200:
-            response_json = response.json() # The gitea Api: if the repo is empty, the response is: []
+            response_json = response.json()  # The gitea Api: if the repo is empty, the response is: []
             if not response_json:
                 return None
             else:
@@ -595,7 +609,7 @@ class GiteaManager:
             logger.error(f"Get file:{file_path} content from repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
 
-    def update_file_in_repo(self, repo_name: str, file_path: str, content: str,sha: str):
+    def update_file_in_repo(self, repo_name: str, file_path: str, content: str, sha: str):
         """
         Update file in repository
 
@@ -623,7 +637,7 @@ class GiteaManager:
         if response.status_code != 201:
             logger.error(f"Create file:{file_path} content in repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
-        
+
     def remove_repo(self, repo_name: str):
         """
         Remove repository
@@ -635,7 +649,7 @@ class GiteaManager:
         if response.status_code != 204:
             logger.error(f"Remove repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
-        
+
     def get_file_raw_from_repo(self, repo_name: str, file_path: str):
         """
         Get a file from a repository
@@ -656,7 +670,16 @@ class GiteaManager:
             logger.error(f"Get file:{file_path} content from repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
 
-    def wait_for_repo_files(self, repo_name: str, repo_url: str, user_name: str, user_pwd: str, file_paths: list[str], timeout_seconds: int = 20, poll_interval: int = 1):
+    def wait_for_repo_files(
+        self,
+        repo_name: str,
+        repo_url: str,
+        user_name: str,
+        user_pwd: str,
+        file_paths: list[str],
+        timeout_seconds: int = 20,
+        poll_interval: int = 1,
+    ):
         pending_paths = [path for path in file_paths if path]
         if not pending_paths:
             return
@@ -670,10 +693,7 @@ class GiteaManager:
                 with tempfile.TemporaryDirectory(prefix=f"repo-ready-{repo_name}-") as temp_root:
                     clone_path = os.path.join(temp_root, "repo")
                     GitManager(clone_path).clone_remote_repo_to_local(repo_url, user_name, user_pwd)
-                    remaining = [
-                        path for path in pending_paths
-                        if not os.path.isfile(os.path.join(clone_path, path))
-                    ]
+                    remaining = [path for path in pending_paths if not os.path.isfile(os.path.join(clone_path, path))]
             except CustomException:
                 remaining = list(pending_paths)
 
@@ -681,16 +701,11 @@ class GiteaManager:
                 return
 
             if time.time() >= deadline:
-                logger.error(
-                    f"Repository files not ready after push for repo:{repo_name}: {remaining}"
-                )
+                logger.error(f"Repository files not ready after push for repo:{repo_name}: {remaining}")
                 raise CustomException(
                     status_code=400,
                     message="Invalid Request",
-                    details=(
-                        "The application repository is not ready for deployment yet: "
-                        + ", ".join(remaining[:5])
-                    ),
+                    details=("The application repository is not ready for deployment yet: " + ", ".join(remaining[:5])),
                 )
 
             time.sleep(max(poll_interval, 1))

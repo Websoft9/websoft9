@@ -5,6 +5,7 @@ host through a short-lived privileged helper container. It has no password, no
 login shell, no sudo rule and no docker group membership.
 """
 
+import contextlib
 import fcntl
 import json
 import logging
@@ -111,9 +112,10 @@ class AppSftpAccountService:
             attributes = self.state_file.lstat()
             if attributes.st_uid != os.geteuid() or attributes.st_mode & 0o077:
                 return {}
-            return json.loads(self.state_file.read_text())
+            loaded = json.loads(self.state_file.read_text())
         except (OSError, ValueError):
             return {}
+        return loaded if isinstance(loaded, dict) else {}
 
     def _read_private_key(self) -> str:
         attributes = self.key_file.lstat()
@@ -167,24 +169,27 @@ class AppSftpAccountService:
                     )
                 raise CustomException(409, "SFTP Account Unavailable", detail)
             try:
-                return json.loads(output.splitlines()[-1])
+                loaded = json.loads(output.splitlines()[-1])
             except (ValueError, IndexError) as exc:
-                raise CustomException(500, "SFTP Account Unavailable", "The host SFTP helper returned an invalid response") from exc
+                raise CustomException(
+                    500, "SFTP Account Unavailable", "The host SFTP helper returned an invalid response"
+                ) from exc
+            if not isinstance(loaded, dict):
+                raise CustomException(500, "SFTP Account Unavailable", "The host SFTP helper returned an invalid response")
+            return loaded
         except CustomException:
             raise
         except Exception as exc:
-            raise CustomException(409, "SFTP Account Unavailable", f"Unable to prepare the platform SFTP account: {exc}") from exc
+            raise CustomException(
+                409, "SFTP Account Unavailable", f"Unable to prepare the platform SFTP account: {exc}"
+            ) from exc
         finally:
             if container is not None:
-                try:
+                with contextlib.suppress(Exception):
                     container.remove(force=True)
-                except Exception:
-                    pass
             if client is not None:
-                try:
+                with contextlib.suppress(Exception):
                     client.close()
-                except Exception:
-                    pass
 
     def _verify(self) -> None:
         import paramiko

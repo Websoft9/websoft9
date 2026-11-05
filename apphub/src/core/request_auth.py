@@ -1,7 +1,6 @@
 import hmac
 from typing import Mapping, Optional
 
-
 INTERNAL_REQUEST_HEADER = "x-websoft9-internal-request"
 INTERNAL_REQUEST_SECRET_HEADER = "x-websoft9-internal-secret"
 

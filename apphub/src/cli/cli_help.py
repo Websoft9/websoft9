@@ -5,11 +5,18 @@ from copy import copy
 import click
 from click.shell_completion import CompletionItem
 
-
 LEGACY_COMMAND_NAMES = (
-    "getconfig", "setconfig", "setsysconfig", "resetpwd",
-    "check-update", "log-cleanup", "images", "upgrade",
+    "getconfig",
+    "setconfig",
+    "setsysconfig",
+    "resetpwd",
+    "check-update",
+    "log-cleanup",
+    "images",
+    "upgrade",
 )
+
+HELP_OPTION_NAMES = ("-h", "--help")
 
 
 class TopicGroup(click.Group):
@@ -30,8 +37,13 @@ class TopicGroup(click.Group):
             ("Platform", ("overview", "service", "task", "settings")),
         )
         displayed = set()
-        limit = formatter.width - 6 - max(
-            (len(name) for name, command in self.commands.items() if not command.hidden), default=0,
+        limit = (
+            formatter.width
+            - 6
+            - max(
+                (len(name) for name, command in self.commands.items() if not command.hidden),
+                default=0,
+            )
         )
 
         def write_section(title: str, names: tuple[str, ...]) -> None:
@@ -48,6 +60,31 @@ class TopicGroup(click.Group):
         for title, names in sections:
             write_section(title, names)
         write_section("Other commands", tuple(name for name in self.list_commands(ctx) if name not in displayed))
+
+
+def ensure_short_help_options(group: click.Group) -> None:
+    """Make every group accept ``-h`` no matter how it is entered.
+
+    click builds and caches the help option of a command the first time it is
+    used, taking the option names from the active context (normally inherited
+    from the parent command). A group reached without a parent context - as in
+    tests that call ``runner.invoke(app_group, ...)`` directly - caches
+    ``--help`` only, and later ``websoft9 app -h`` would then be rejected.
+    Declaring the names on each group keeps that cache independent of the entry
+    point.
+    """
+    settings = dict(group.context_settings or {})
+    settings.setdefault("help_option_names", list(HELP_OPTION_NAMES))
+    group.context_settings = settings
+
+    cached = getattr(group, "_help_option", None)
+    if cached is not None and "-h" not in cached.opts:
+        # Drop a help option cached under the wrong names.
+        group._help_option = None
+
+    for command in group.commands.values():
+        if isinstance(command, click.Group):
+            ensure_short_help_options(command)
 
 
 def register_organized_commands(cli: click.Group) -> None:

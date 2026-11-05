@@ -13,7 +13,6 @@ from src.schemas.runtimeLogs import RuntimeLogsQuery, RuntimeLogsResponse, Runti
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 from src.services.runtime_logs import RuntimeLogsService
 
-
 router = APIRouter()
 _runtime_logs_service = RuntimeLogsService()
 
@@ -24,7 +23,14 @@ def _get_runtime_logs_service() -> RuntimeLogsService:
 
 def _build_runtime_logs_response(session_token: Optional[str], query: RuntimeLogsQuery) -> RuntimeLogsResponse:
     entries = _get_runtime_logs_service().get_runtime_logs(session_token=session_token, query=query)
-    return RuntimeLogsResponse(source="runtime-console", level=query.level, keyword=query.keyword, time_range=query.time_range, limit=query.limit, entries=entries)
+    return RuntimeLogsResponse(
+        source="runtime-console",
+        level=query.level,
+        keyword=query.keyword,
+        time_range=query.time_range,
+        limit=query.limit,
+        entries=entries,
+    )
 
 
 def _serialize_stream_snapshot(payload: dict[str, Any]) -> tuple[str, str]:
@@ -49,7 +55,12 @@ def list_runtime_log_sources(
     "/logs/runtime",
     summary="Query runtime console logs",
     description="Return curated Websoft9 runtime-console logs from the current product container.",
-    responses={200: {"model": RuntimeLogsResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"model": RuntimeLogsResponse},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def get_runtime_logs(
     level: Optional[str] = Query(default=None, description="Severity filter: error, warning, info"),
@@ -66,7 +77,12 @@ def get_runtime_logs(
     "/logs/runtime/stream",
     summary="Stream runtime console logs",
     description="Server-sent events stream for curated Websoft9 runtime-console logs.",
-    responses={200: {"description": "Runtime logs stream established"}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        200: {"description": "Runtime logs stream established"},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 async def stream_runtime_logs(
     request: Request,
@@ -88,7 +104,9 @@ async def stream_runtime_logs(
 
             try:
                 if stream_cursor is None:
-                    entries, stream_cursor = _get_runtime_logs_service().open_runtime_logs_stream(session_token=session_token, query=query)
+                    entries, stream_cursor = _get_runtime_logs_service().open_runtime_logs_stream(
+                        session_token=session_token, query=query
+                    )
                     response = RuntimeLogsResponse(
                         source="runtime-console",
                         level=query.level,
@@ -106,7 +124,9 @@ async def stream_runtime_logs(
                     yield f"retry: {int(refresh_seconds * 1000)}\n"
                     yield f"event: snapshot\ndata: {event_json}\n\n"
                 else:
-                    delta = _get_runtime_logs_service().poll_runtime_logs_stream(session_token=session_token, cursor=stream_cursor)
+                    delta = _get_runtime_logs_service().poll_runtime_logs_stream(
+                        session_token=session_token, cursor=stream_cursor
+                    )
                     if delta.snapshot is not None:
                         refresh_seconds = 5.0
                         response = RuntimeLogsResponse(
@@ -143,8 +163,8 @@ async def stream_runtime_logs(
                         yield ": keep-alive\n\n"
             except Exception as exc:
                 logger.warning(f"Runtime logs stream failed: {exc}")
-                payload = json.dumps({"message": "Runtime logs stream refresh failed"}, separators=(",", ":"))
-                yield f"event: error\ndata: {payload}\n\n"
+                error_payload = json.dumps({"message": "Runtime logs stream refresh failed"}, separators=(",", ":"))
+                yield f"event: error\ndata: {error_payload}\n\n"
                 refresh_seconds = min(refresh_seconds + 2.5, 15.0)
 
             await asyncio.sleep(refresh_seconds)

@@ -86,18 +86,14 @@ def test_database_path_honours_the_environment_override(tmp_path, monkeypatch):
 
 
 def test_replace_entries_keeps_the_given_order(store: DockerMirrorStore):
-    entries = store.replace_entries(
-        [{"url": "docker.1ms.run"}, {"url": "docker.m.daocloud.io"}]
-    )
+    entries = store.replace_entries([{"url": "docker.1ms.run"}, {"url": "docker.m.daocloud.io"}])
 
     assert [entry.url for entry in entries] == ["docker.1ms.run", "docker.m.daocloud.io"]
     assert [entry.position for entry in entries] == [0, 1]
 
 
 def test_replace_entries_ignores_duplicates_and_normalises_urls(store: DockerMirrorStore):
-    entries = store.replace_entries(
-        [{"url": "https://docker.1ms.run/"}, {"url": "docker.1ms.run"}]
-    )
+    entries = store.replace_entries([{"url": "https://docker.1ms.run/"}, {"url": "docker.1ms.run"}])
 
     assert [entry.url for entry in entries] == ["docker.1ms.run"]
 
@@ -114,9 +110,7 @@ def test_renaming_an_entry_keeps_its_credentials(store: DockerMirrorStore):
         ]
     )
 
-    renamed = store.replace_entries(
-        [{"id": created[0].id, "url": "new.example.com", "username": "ops"}]
-    )
+    renamed = store.replace_entries([{"id": created[0].id, "url": "new.example.com", "username": "ops"}])
 
     assert renamed[0].url == "new.example.com"
     assert renamed[0].password == "s3cret"
@@ -136,9 +130,7 @@ def test_replace_entries_accepts_an_explicit_https_address(store: DockerMirrorSt
 
 
 def test_replace_entries_accepts_a_host_with_a_port_and_a_path(store: DockerMirrorStore):
-    entries = store.replace_entries(
-        [{"url": "registry.example.com:5000/docker"}, {"url": "docker.1ms.run"}]
-    )
+    entries = store.replace_entries([{"url": "registry.example.com:5000/docker"}, {"url": "docker.1ms.run"}])
 
     assert [entry.url for entry in entries] == [
         "registry.example.com:5000/docker",
@@ -147,9 +139,7 @@ def test_replace_entries_accepts_a_host_with_a_port_and_a_path(store: DockerMirr
 
 
 def test_lookup_password_finds_the_stored_password_by_id_then_url(store: DockerMirrorStore):
-    created = store.replace_entries(
-        [{"url": "old.example.com", "username": "ops", "password": "s3cret"}]
-    )
+    created = store.replace_entries([{"url": "old.example.com", "username": "ops", "password": "s3cret"}])
 
     assert store.lookup_password(created[0].id, "renamed.example.com") == "s3cret"
     assert store.lookup_password(None, "old.example.com") == "s3cret"
@@ -157,25 +147,19 @@ def test_lookup_password_finds_the_stored_password_by_id_then_url(store: DockerM
 
 
 def test_import_from_config_skips_addresses_docker_could_not_use(store: DockerMirrorStore):
-    imported = store.import_from_config(
-        _ConfigStub("docker.1ms.run\nftp://broken.example.com\nnot a host")
-    )
+    imported = store.import_from_config(_ConfigStub("docker.1ms.run\nftp://broken.example.com\nnot a host"))
 
     assert imported == 1
     assert [entry.url for entry in store.list_entries()] == ["docker.1ms.run"]
 
 
 def test_omitted_password_keeps_the_stored_one_and_can_clear_a_public_entry(store: DockerMirrorStore):
-    store.replace_entries(
-        [{"url": "registry.example.com", "username": "ops", "password": "s3cret"}]
-    )
+    store.replace_entries([{"url": "registry.example.com", "username": "ops", "password": "s3cret"}])
 
     kept = store.replace_entries([{"url": "registry.example.com", "username": "ops"}])
     assert kept[0].password == "s3cret"
 
-    cleared = store.replace_entries(
-        [{"url": "registry.example.com", "username": "", "password": ""}]
-    )
+    cleared = store.replace_entries([{"url": "registry.example.com", "username": "", "password": ""}])
     assert cleared[0].password == ""
 
 
@@ -185,9 +169,7 @@ def test_replace_entries_requires_a_password_when_a_user_name_is_set(store: Dock
 
 
 def test_disabled_entries_stay_stored_but_are_not_offered(store: DockerMirrorStore):
-    store.replace_entries(
-        [{"url": "docker.1ms.run", "enabled": False}, {"url": "docker.xuanyuan.me"}]
-    )
+    store.replace_entries([{"url": "docker.1ms.run", "enabled": False}, {"url": "docker.xuanyuan.me"}])
 
     assert [entry.url for entry in store.list_entries()] == [
         "docker.1ms.run",
@@ -207,9 +189,7 @@ def test_replace_entries_survives_a_new_store_instance(store: DockerMirrorStore,
 
 
 def test_import_from_config_moves_the_list_once(store: DockerMirrorStore):
-    imported = store.import_from_config(
-        _ConfigStub("docker.1ms.run\ndocker.m.daocloud.io")
-    )
+    imported = store.import_from_config(_ConfigStub("docker.1ms.run\ndocker.m.daocloud.io"))
 
     assert imported == 2
     assert [entry.url for entry in store.list_entries()] == [
@@ -295,9 +275,7 @@ def test_registry_returns_nothing_when_every_entry_is_disabled(registry: MirrorR
 
 
 def test_registry_credentials_only_answer_for_their_own_host(registry: MirrorRegistry):
-    registry.store.replace_entries(
-        [{"url": "registry.example.com", "username": "ops", "password": "s3cret"}]
-    )
+    registry.store.replace_entries([{"url": "registry.example.com", "username": "ops", "password": "s3cret"}])
 
     assert registry.credentials_for("registry.example.com") == {
         "username": "ops",
@@ -319,9 +297,7 @@ def test_refresh_failure_keeps_the_previous_list(registry: MirrorRegistry, monke
     assert registry.default_list_file.read_text(encoding="utf-8") == before
 
 
-def test_refresh_writes_the_fetched_list_and_prefers_the_region_path(
-    registry: MirrorRegistry, monkeypatch
-):
+def test_refresh_writes_the_fetched_list_and_prefers_the_region_path(registry: MirrorRegistry, monkeypatch):
     monkeypatch.setattr("src.services.mirror_registry.read_region", lambda: "cn")
     requested: list[str] = []
 
@@ -333,14 +309,10 @@ def test_refresh_writes_the_fetched_list_and_prefers_the_region_path(
 
     assert registry.refresh_default_list(force=True) is True
     assert requested[0].endswith("/cn/mirrors.json")
-    assert json.loads(registry.default_list_file.read_text(encoding="utf-8"))["mirrors"] == [
-        "docker.1ms.run"
-    ]
+    assert json.loads(registry.default_list_file.read_text(encoding="utf-8"))["mirrors"] == ["docker.1ms.run"]
 
 
-def test_refresh_falls_back_to_the_channel_path_when_the_region_path_is_missing(
-    registry: MirrorRegistry, monkeypatch
-):
+def test_refresh_falls_back_to_the_channel_path_when_the_region_path_is_missing(registry: MirrorRegistry, monkeypatch):
     monkeypatch.setattr("src.services.mirror_registry.read_region", lambda: "global")
     requested: list[str] = []
 
@@ -360,9 +332,7 @@ def test_refresh_falls_back_to_the_channel_path_when_the_region_path_is_missing(
 
 
 def test_host_visible_export_carries_addresses_without_credentials(registry: MirrorRegistry):
-    registry.store.replace_entries(
-        [{"url": "registry.example.com", "username": "ops", "password": "s3cret"}]
-    )
+    registry.store.replace_entries([{"url": "registry.example.com", "username": "ops", "password": "s3cret"}])
 
     path = registry.export_host_visible_list()
 

@@ -24,10 +24,7 @@ class ImagePrewarmService:
     """Pull all images required by one supported application version."""
 
     def __init__(self, library_path: str | None = None, docker_client=None):
-        self.library_path = Path(
-            library_path
-            or ConfigManager("system.ini").get_value("docker_library", "path")
-        )
+        self.library_path = Path(library_path or ConfigManager("system.ini").get_value("docker_library", "path"))
         self.docker_client = docker_client
 
     def prewarm(self, app_name: str, version: str, on_progress=None, *, refresh: bool = False) -> dict[str, Any]:
@@ -113,9 +110,7 @@ class ImagePrewarmService:
             variables = json.loads((app_directory / "variables.json").read_text(encoding="utf-8"))
             editions = variables.get("edition", [])
             supported = any(
-                isinstance(entry, dict)
-                and entry.get("dist") == "community"
-                and version in entry.get("version", [])
+                isinstance(entry, dict) and entry.get("dist") == "community" and version in entry.get("version", [])
                 for entry in editions
             )
         except (OSError, json.JSONDecodeError, AttributeError, TypeError) as exc:

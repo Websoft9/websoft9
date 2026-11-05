@@ -3,7 +3,6 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-
 HostAccessAuthMethod = Literal["password", "key"]
 HostAccessFileViewMode = Literal["list", "grid"]
 

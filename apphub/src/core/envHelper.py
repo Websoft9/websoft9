@@ -1,8 +1,11 @@
-from dotenv import set_key, unset_key, dotenv_values
 import os
 import re
-from src.core.logger import logger
+
+from dotenv import dotenv_values, set_key
+
 from src.core.exception import CustomException
+from src.core.logger import logger
+
 
 class EnvHelper:
     def __init__(self, dotenv_path='.env'):
@@ -10,13 +13,13 @@ class EnvHelper:
         if not os.path.exists(dotenv_path):
             logger.error(f"{dotenv_path} does not exist.")
             raise CustomException()
-        
+
     def get_all_values(self):
         try:
             return dotenv_values(self.dotenv_path)
         except Exception as e:
             logger.error(f"Error getting values from {self.dotenv_path}: {e}")
-            raise CustomException()
+            raise CustomException() from e
 
     def get_value(self, key):
         try:
@@ -36,7 +39,7 @@ class EnvHelper:
                         return os.getenv(reference, default)
                     return resolve_value(reference, visiting | {field})
 
-                return re.sub(pattern, resolve_reference, values[field])
+                return re.sub(pattern, resolve_reference, values[field] or "")
 
             if key not in values or values[key] is None:
                 return None

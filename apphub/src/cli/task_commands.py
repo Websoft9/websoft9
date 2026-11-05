@@ -21,6 +21,7 @@ def task_prewarm_records_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_tasks_command(as_json: bool) -> None:
     """List platform system tasks and user scheduled tasks."""
+
     def action() -> dict[str, Any]:
         from src.services.scheduled_tasks import ScheduledTaskService
 
@@ -52,11 +53,14 @@ def list_tasks_command(as_json: bool) -> None:
 
 @task_group.command(name="runs")
 @click.argument("task_id")
-@click.option("--limit", type=click.IntRange(min=1, max=100), default=20, show_default=True, help="Maximum execution records to return.")
+@click.option(
+    "--limit", type=click.IntRange(min=1, max=100), default=20, show_default=True, help="Maximum execution records to return."
+)
 @click.option("--offset", type=click.IntRange(min=0), default=0, show_default=True, help="Zero-based pagination offset.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_task_runs_command(task_id: str, limit: int, offset: int, as_json: bool) -> None:
     """List execution history for a scheduled task."""
+
     def action() -> dict[str, Any]:
         from src.services.scheduled_tasks import ScheduledTaskService
 
@@ -80,10 +84,16 @@ def list_task_runs_command(task_id: str, limit: int, offset: int, as_json: bool)
 @task_group.command(name="log")
 @click.argument("task_id")
 @click.argument("run_id")
-@click.option("--before", type=click.IntRange(min=1), default=None, help="Read lines before the given line number (logs up to 1 MiB; larger logs return a bounded tail without pagination).")
+@click.option(
+    "--before",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Read lines before the given line number (logs up to 1 MiB; larger logs return a bounded tail without pagination).",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def task_run_log_command(task_id: str, run_id: str, before: int | None, as_json: bool) -> None:
     """Read bounded execution log output for a container scheduled task run."""
+
     def action() -> tuple[dict[str, Any], bool]:
         from src.services.scheduled_tasks import ScheduledTaskService
 
@@ -110,6 +120,7 @@ def task_run_log_command(task_id: str, run_id: str, before: int | None, as_json:
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_prewarm_records_command(as_json: bool) -> None:
     """List queued, running, and completed image prewarm records."""
+
     def action() -> dict[str, Any]:
         from src.services.scheduled_tasks import ScheduledTaskService
 

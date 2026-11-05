@@ -1,15 +1,18 @@
-import sys
-import types
 import os
+import sys
 import tempfile
-from types import SimpleNamespace
-import pytest
-from pathlib import Path
+import types
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from support_module_stubs import restore_module_stubs, stub_module
 
 sys.modules.setdefault('aiodocker', types.ModuleType('aiodocker'))
 os.environ.setdefault('WEBSOFT9_INSTALL_TRACKING_DIR', tempfile.mkdtemp(prefix='app-manager-tests-'))
@@ -17,20 +20,28 @@ os.environ.setdefault('WEBSOFT9_INSTALL_TRACKING_DIR', tempfile.mkdtemp(prefix='
 git_module = types.ModuleType('git')
 git_module.Repo = object
 git_module.GitCommandError = RuntimeError
-sys.modules.setdefault('git', git_module)
+stub_module('git', git_module)
 
 jwt_module = types.ModuleType('jwt')
-sys.modules.setdefault('jwt', jwt_module)
+stub_module('jwt', jwt_module)
 
 keyring_module = types.ModuleType('keyring')
 keyring_module.get_password = lambda *args, **kwargs: None
 keyring_module.set_password = lambda *args, **kwargs: None
-sys.modules.setdefault('keyring', keyring_module)
+stub_module('keyring', keyring_module)
 
+from src.core.exception import CustomException
 from src.services import app_manager as app_manager_module
 from src.services.app_manager import AppManger
-from src.core.exception import CustomException
-from src.services.app_status import appInstalling, appInstallingCancelled, appInstallingError, configure_install_state_store, start_app_installation
+from src.services.app_status import (
+    appInstalling,
+    appInstallingCancelled,
+    appInstallingError,
+    configure_install_state_store,
+    start_app_installation,
+)
+
+restore_module_stubs()
 
 
 class FakePortainerManager:
@@ -116,7 +127,10 @@ def test_get_apps_preserves_original_install_error(monkeypatch):
     assert len(apps) == 1
     assert apps[0].app_id == 'php_t87jd'
     assert apps[0].status == 4
-    assert apps[0].error == 'Failed to deploy a stack: compose up operation failed: network websoft9 declared as external, but could not be found'
+    assert (
+        apps[0].error
+        == 'Failed to deploy a stack: compose up operation failed: network websoft9 declared as external, but could not be found'
+    )
 
 
 def test_get_apps_turns_stale_install_into_visible_error(monkeypatch, tmp_path):
@@ -140,11 +154,17 @@ def test_get_apps_turns_stale_install_into_visible_error(monkeypatch, tmp_path):
 def test_failure_survives_running_residue_and_resource_cleanup(monkeypatch, tmp_path):
     configure_install_state_store(str(tmp_path))
     _patch_dependencies(monkeypatch)
-    monkeypatch.setattr(FakePortainerManager, 'get_containers', lambda self, endpoint_id: [
-        {'Labels': {'com.docker.compose.project': 'php_t87jd'}, 'State': 'running', 'Names': ['/php_t87jd-worker']},
-    ])
+    monkeypatch.setattr(
+        FakePortainerManager,
+        'get_containers',
+        lambda self, endpoint_id: [
+            {'Labels': {'com.docker.compose.project': 'php_t87jd'}, 'State': 'running', 'Names': ['/php_t87jd-worker']},
+        ],
+    )
     appInstallingError['failed-install'] = {
-        'app_id': 'php_t87jd', 'app_name': 'wordpress', 'status': 4,
+        'app_id': 'php_t87jd',
+        'app_name': 'wordpress',
+        'status': 4,
         'error': 'Proxy configuration failed',
         'logs': [{'title': 'Configuring the domain', 'sub_logs': ['Connection refused']}],
     }
@@ -170,9 +190,13 @@ def test_failure_survives_running_residue_and_resource_cleanup(monkeypatch, tmp_
 def test_cancelled_install_survives_running_residue(monkeypatch, tmp_path):
     configure_install_state_store(str(tmp_path))
     _patch_dependencies(monkeypatch)
-    monkeypatch.setattr(FakePortainerManager, 'get_containers', lambda self, endpoint_id: [
-        {'Labels': {'com.docker.compose.project': 'php_t87jd'}, 'State': 'running'},
-    ])
+    monkeypatch.setattr(
+        FakePortainerManager,
+        'get_containers',
+        lambda self, endpoint_id: [
+            {'Labels': {'com.docker.compose.project': 'php_t87jd'}, 'State': 'running'},
+        ],
+    )
     appInstallingCancelled['cancelled-install'] = {'app_id': 'php_t87jd', 'app_name': 'wordpress', 'status': 6}
     manager = AppManger()
     monkeypatch.setattr(manager, '_get_available_app_logo_map', lambda locale: {})
@@ -185,10 +209,19 @@ def test_cancelled_install_survives_running_residue(monkeypatch, tmp_path):
 def test_detail_query_cannot_delete_failure_record(monkeypatch, tmp_path):
     configure_install_state_store(str(tmp_path))
     _patch_dependencies(monkeypatch)
-    monkeypatch.setattr(FakePortainerManager, 'get_containers_by_stack_name', lambda self, app_id, endpoint_id: [
-        {'State': 'running', 'Names': ['/php_t87jd-worker']},
-    ])
-    appInstallingError['failed-install'] = {'app_id': 'php_t87jd', 'app_name': 'wordpress', 'status': 4, 'error': 'Proxy configuration failed'}
+    monkeypatch.setattr(
+        FakePortainerManager,
+        'get_containers_by_stack_name',
+        lambda self, app_id, endpoint_id: [
+            {'State': 'running', 'Names': ['/php_t87jd-worker']},
+        ],
+    )
+    appInstallingError['failed-install'] = {
+        'app_id': 'php_t87jd',
+        'app_name': 'wordpress',
+        'status': 4,
+        'error': 'Proxy configuration failed',
+    }
     manager = AppManger()
     monkeypatch.setattr(manager, '_read_compose_metadata_safe', lambda app_id: {})
     detail = manager.get_app_by_id('php_t87jd', endpointId=21)
@@ -199,7 +232,12 @@ def test_detail_query_cannot_delete_failure_record(monkeypatch, tmp_path):
 def test_retry_hides_but_does_not_delete_previous_failure(monkeypatch, tmp_path):
     configure_install_state_store(str(tmp_path))
     _patch_dependencies(monkeypatch)
-    appInstallingError['previous-failure'] = {'app_id': 'php_t87jd', 'app_name': 'wordpress', 'status': 4, 'error': 'Previous failure'}
+    appInstallingError['previous-failure'] = {
+        'app_id': 'php_t87jd',
+        'app_name': 'wordpress',
+        'status': 4,
+        'error': 'Previous failure',
+    }
     start_app_installation('php_t87jd', 'wordpress')
     manager = AppManger()
     monkeypatch.setattr(manager, '_get_available_app_logo_map', lambda locale: {})
@@ -211,8 +249,10 @@ def test_retry_hides_but_does_not_delete_previous_failure(monkeypatch, tmp_path)
 
 def test_install_entrypoint_persists_unexpected_initialization_failure(monkeypatch, tmp_path):
     configure_install_state_store(str(tmp_path))
+
     def fail_portainer():
         raise RuntimeError('Portainer unavailable')
+
     monkeypatch.setattr(app_manager_module, 'PortainerManager', fail_portainer)
     payload = SimpleNamespace(app_id='php_t87jd', app_name='wordpress')
     tracking_id = start_app_installation(payload.app_id, payload.app_name)
@@ -226,13 +266,24 @@ def test_rollback_failure_cannot_replace_original_install_error(monkeypatch, tmp
     configure_install_state_store(str(tmp_path))
     _patch_dependencies(monkeypatch)
     monkeypatch.setattr(FakeGiteaManager, 'create_repo', lambda self, app_id: 'http://repository.git', raising=False)
+
     def fail_cleanup(self, app_id):
         raise RuntimeError('Repository cleanup failed')
+
     def fail_configuration(*args):
         raise CustomException(400, 'Invalid configuration', 'yaml: invalid application configuration')
+
     monkeypatch.setattr(FakeGiteaManager, 'remove_repo', fail_cleanup, raising=False)
     monkeypatch.setattr(app_manager_module, 'is_external_database_profile', fail_configuration)
-    payload = SimpleNamespace(app_id='php_t87jd', app_name='wordpress', edition=SimpleNamespace(version='1'), proxy_enabled=False, domain_names=[], settings={}, profile=None)
+    payload = SimpleNamespace(
+        app_id='php_t87jd',
+        app_name='wordpress',
+        edition=SimpleNamespace(version='1'),
+        proxy_enabled=False,
+        domain_names=[],
+        settings={},
+        profile=None,
+    )
     tracking_id = start_app_installation(payload.app_id, payload.app_name)
     with pytest.raises(RuntimeError, match='Repository cleanup failed'):
         AppManger().install_app(payload, endpointId=21, tracking_id=tracking_id, library_path=str(tmp_path))

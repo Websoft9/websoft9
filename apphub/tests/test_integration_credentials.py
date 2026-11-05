@@ -1,9 +1,8 @@
-import sys
 import sqlite3
+import sys
 from pathlib import Path
 
 import pytest
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -38,7 +37,11 @@ def test_provider_prefers_runtime_credential_files(monkeypatch, tmp_path):
             {
                 "gitea": {"user_name": "fallback-user", "user_email": "fallback@example.com", "user_pwd": "fallback-pass"},
                 "portainer": {"user_name": "fallback-admin", "user_pwd": "fallback-pass"},
-                "nginx_proxy_manager": {"user_name": "fallback@example.com", "user_pwd": "fallback-pass", "nike_name": "fallback"},
+                "nginx_proxy_manager": {
+                    "user_name": "fallback@example.com",
+                    "user_pwd": "fallback-pass",
+                    "nike_name": "fallback",
+                },
             },
         ),
     )
@@ -54,17 +57,24 @@ def test_provider_prefers_runtime_credential_files(monkeypatch, tmp_path):
     assert provider.get_npm_credentials().display_name == "admin"
 
 
-def test_provider_falls_back_to_config_when_runtime_files_missing(monkeypatch):
-    monkeypatch.delenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", raising=False)
-    monkeypatch.delenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", raising=False)
-    monkeypatch.delenv("WEBSOFT9_NPM_CREDENTIAL_PATH", raising=False)
+def test_provider_falls_back_to_config_when_runtime_files_missing(monkeypatch, tmp_path):
+    # Point every runtime credential at a path that does not exist. Deleting the override variables
+    # would fall back to the host defaults under WEBSOFT9_DATA_ROOT, which do exist on a dev machine
+    # and would silently replace the config values the test is asserting.
+    for name in ("WEBSOFT9_GITEA_CREDENTIAL_PATH", "WEBSOFT9_PORTAINER_CREDENTIAL_PATH", "WEBSOFT9_NPM_CREDENTIAL_PATH"):
+        monkeypatch.setenv(name, str(tmp_path / f"missing-{name.lower()}"))
+    monkeypatch.setenv("WEBSOFT9_DATA_ROOT", str(tmp_path / "data-root"))
 
     provider = IntegrationCredentialProvider(
         config=FakeConfig(
             {
                 "gitea": {"user_name": "fallback-user", "user_email": "fallback@example.com", "user_pwd": "fallback-pass"},
                 "portainer": {"user_name": "fallback-admin", "user_pwd": "fallback-portainer-pass"},
-                "nginx_proxy_manager": {"user_name": "fallback@example.com", "user_pwd": "fallback-npm-pass", "nike_name": "fallback"},
+                "nginx_proxy_manager": {
+                    "user_name": "fallback@example.com",
+                    "user_pwd": "fallback-npm-pass",
+                    "nike_name": "fallback",
+                },
             },
         ),
     )
@@ -132,7 +142,11 @@ def test_provider_syncs_npm_runtime_profile_without_overriding_credential_source
             {
                 "gitea": {"user_name": "fallback-user", "user_email": "fallback@example.com", "user_pwd": "fallback-pass"},
                 "portainer": {"user_name": "fallback-admin", "user_pwd": "fallback-portainer-pass"},
-                "nginx_proxy_manager": {"user_name": "fallback@example.com", "user_pwd": "fallback-npm-pass", "nike_name": "fallback"},
+                "nginx_proxy_manager": {
+                    "user_name": "fallback@example.com",
+                    "user_pwd": "fallback-npm-pass",
+                    "nike_name": "fallback",
+                },
             },
         ),
     )

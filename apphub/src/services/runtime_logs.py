@@ -1,9 +1,9 @@
 import json
 import os
-from hashlib import sha1
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from hashlib import sha1
 from pathlib import Path
 from typing import Optional
 
@@ -40,7 +40,7 @@ class RuntimeLogsService:
         log_path: Optional[str] = None,
     ):
         self.auth_service = auth_service or ProductAuthService()
-        self.log_path = Path(log_path or os.getenv("WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH", PLATFORM_RUNTIME_LOG_PATH))
+        self.log_path = Path(log_path or os.getenv("WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH") or PLATFORM_RUNTIME_LOG_PATH)
         self.excluded_components = {"apphub-api"}
 
     def list_sources(self, session_token: Optional[str]) -> list[RuntimeLogsSourceSummary]:
@@ -59,7 +59,9 @@ class RuntimeLogsService:
         entries = self._read_entries(limit=query.limit)
         return self._filter_entries(entries, query)
 
-    def open_runtime_logs_stream(self, session_token: Optional[str], query: RuntimeLogsQuery) -> tuple[list[RuntimeLogEntry], RuntimeLogsStreamCursor]:
+    def open_runtime_logs_stream(
+        self, session_token: Optional[str], query: RuntimeLogsQuery
+    ) -> tuple[list[RuntimeLogEntry], RuntimeLogsStreamCursor]:
         entries = self.get_runtime_logs(session_token, query)
         return entries, RuntimeLogsStreamCursor(
             query=query.model_copy(deep=True),
@@ -67,7 +69,9 @@ class RuntimeLogsService:
             file_cursor=self._capture_file_cursor(),
         )
 
-    def poll_runtime_logs_stream(self, session_token: Optional[str], cursor: RuntimeLogsStreamCursor) -> RuntimeLogsStreamDelta:
+    def poll_runtime_logs_stream(
+        self, session_token: Optional[str], cursor: RuntimeLogsStreamCursor
+    ) -> RuntimeLogsStreamDelta:
         self.auth_service._require_authenticated_operator(session_token)
         next_cursor = self._capture_file_cursor()
         previous_cursor = cursor.file_cursor
@@ -78,7 +82,11 @@ class RuntimeLogsService:
             cursor.file_cursor = next_cursor
             return RuntimeLogsStreamDelta(entries=[], snapshot=snapshot)
 
-        if next_cursor.inode != previous_cursor.inode or next_cursor.device != previous_cursor.device or next_cursor.position < previous_cursor.position:
+        if (
+            next_cursor.inode != previous_cursor.inode
+            or next_cursor.device != previous_cursor.device
+            or next_cursor.position < previous_cursor.position
+        ):
             snapshot = self.get_runtime_logs(session_token, cursor.query)
             cursor.entries = list(snapshot)
             cursor.file_cursor = next_cursor
@@ -97,7 +105,7 @@ class RuntimeLogsService:
             next_entries = trimmed_entries
 
         if len(next_entries) > cursor.query.limit:
-            next_entries = next_entries[-cursor.query.limit:]
+            next_entries = next_entries[-cursor.query.limit :]
 
         cursor.file_cursor = next_file_cursor
 
@@ -114,7 +122,9 @@ class RuntimeLogsService:
 
     def _read_entries(self, limit: int, *, max_scan_bytes: int = 1024 * 1024) -> list[RuntimeLogEntry]:
         if not self.log_path.exists():
-            raise CustomException(503, "Runtime Logs Unavailable", f"Platform runtime log source {self.log_path} is not available")
+            raise CustomException(
+                503, "Runtime Logs Unavailable", f"Platform runtime log source {self.log_path} is not available"
+            )
 
         tail = max(limit * 10, 400)
         try:
@@ -124,7 +134,7 @@ class RuntimeLogsService:
                 if start_offset > 0:
                     handle.seek(start_offset)
                     handle.readline()
-                lines = deque(maxlen=tail)
+                lines: deque[tuple[str, int]] = deque(maxlen=tail)
                 while True:
                     offset = handle.tell()
                     line = handle.readline()
@@ -134,7 +144,7 @@ class RuntimeLogsService:
                     if stripped.strip():
                         lines.append((stripped, offset))
         except OSError as exc:
-            raise CustomException(503, "Runtime Logs Unavailable", f"Failed to read platform runtime logs: {exc}")
+            raise CustomException(503, "Runtime Logs Unavailable", f"Failed to read platform runtime logs: {exc}") from exc
 
         entries: list[RuntimeLogEntry] = []
         for line, offset in lines:
@@ -145,7 +155,9 @@ class RuntimeLogsService:
 
     def _read_incremental_entries(self, start_position: int) -> tuple[list[RuntimeLogEntry], int]:
         if not self.log_path.exists():
-            raise CustomException(503, "Runtime Logs Unavailable", f"Platform runtime log source {self.log_path} is not available")
+            raise CustomException(
+                503, "Runtime Logs Unavailable", f"Platform runtime log source {self.log_path} is not available"
+            )
 
         entries: list[RuntimeLogEntry] = []
         try:
@@ -164,7 +176,7 @@ class RuntimeLogsService:
                         entries.append(entry)
                 position = handle.tell()
         except OSError as exc:
-            raise CustomException(503, "Runtime Logs Unavailable", f"Failed to read platform runtime logs: {exc}")
+            raise CustomException(503, "Runtime Logs Unavailable", f"Failed to read platform runtime logs: {exc}") from exc
         return entries, position
 
     def _capture_file_cursor(self) -> Optional[RuntimeLogCursor]:
@@ -214,10 +226,12 @@ class RuntimeLogsService:
 
         if query.keyword:
             keyword = query.keyword.lower()
-            filtered_entries = [entry for entry in filtered_entries if keyword in entry.raw.lower() or keyword in entry.message.lower()]
+            filtered_entries = [
+                entry for entry in filtered_entries if keyword in entry.raw.lower() or keyword in entry.message.lower()
+            ]
 
         if len(filtered_entries) > query.limit:
-            filtered_entries = filtered_entries[-query.limit:]
+            filtered_entries = filtered_entries[-query.limit :]
 
         return filtered_entries
 
@@ -244,10 +258,7 @@ class RuntimeLogsService:
         except ValueError:
             return None
 
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        else:
-            parsed = parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
         return parsed.isoformat().replace("+00:00", "Z")
 
     def _within_threshold(self, entry: RuntimeLogEntry, threshold: datetime) -> bool:

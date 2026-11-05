@@ -3,8 +3,13 @@ from typing import Any
 
 import click
 
-from src.cli.cli_output import CLIError, MAX_TEXT_BUDGET_BYTES, mask_sensitive_text, route_console_logs_to_stderr, run_cli_action, truncate_utf8_text
-
+from src.cli.cli_output import (
+    MAX_TEXT_BUDGET_BYTES,
+    CLIError,
+    mask_sensitive_text,
+    route_console_logs_to_stderr,
+    run_cli_action,
+)
 
 _STATUS_NAME_BY_CODE = {
     0: "unknown",
@@ -46,7 +51,11 @@ def _summarize_container(container: dict[str, Any]) -> dict[str, Any]:
     else:
         state = str(state_obj or "").strip() or None
         status_text = str(container.get("Status") or "")
-        health = "healthy" if "(healthy)" in status_text.lower() else ("unhealthy" if "(unhealthy)" in status_text.lower() else None)
+        health = (
+            "healthy"
+            if "(healthy)" in status_text.lower()
+            else ("unhealthy" if "(unhealthy)" in status_text.lower() else None)
+        )
         exit_code = None
         oom_killed = None
     return {
@@ -107,7 +116,7 @@ def _serialize_app_detail(app: Any) -> dict[str, Any]:
         "containers": [_summarize_container(item) for item in containers if isinstance(item, dict)],
         "volumes": [_summarize_volume(item) for item in volumes if isinstance(item, dict)],
         "domains": [_summarize_domain(item) for item in domains if isinstance(item, dict)],
-        "env_keys": sorted(str(key) for key in env.keys()) if isinstance(env, dict) else [],
+        "env_keys": sorted(str(key) for key in env) if isinstance(env, dict) else [],
         "logs": getattr(app, "logs", None) or [],
     }
 
@@ -154,15 +163,11 @@ def _parse_settings(set_values: tuple[str, ...]) -> dict[str, str]:
     settings: dict[str, str] = {}
     for item in set_values:
         if "=" not in item:
-            raise click.ClickException(
-                f"Invalid --set value '{item}': expected KEY=VALUE"
-            )
+            raise click.ClickException(f"Invalid --set value '{item}': expected KEY=VALUE")
         key, _, value = item.partition("=")
         key = key.strip()
         if not key:
-            raise click.ClickException(
-                f"Invalid --set value '{item}': key cannot be empty"
-            )
+            raise click.ClickException(f"Invalid --set value '{item}': key cannot be empty")
         settings[key] = value
     return settings
 
@@ -277,8 +282,7 @@ def install(
             ]
             if conflicting_options:
                 raise click.ClickException(
-                    "--from-json cannot be combined with installation arguments: "
-                    + ", ".join(conflicting_options)
+                    "--from-json cannot be combined with installation arguments: " + ", ".join(conflicting_options)
                 )
             install_payload = appInstall(**payload)
         else:
@@ -325,10 +329,7 @@ def install(
         if as_json:
             click.echo(json.dumps({"app_id": tracked_app_id, "tracking_id": tracking_id}))
         else:
-            click.echo(
-                f"Installed: {install_payload.app_name} "
-                f"(app_id={tracked_app_id}, tracking_id={tracking_id})"
-            )
+            click.echo(f"Installed: {install_payload.app_name} (app_id={tracked_app_id}, tracking_id={tracking_id})")
     except click.ClickException:
         raise
     except CustomException as exc:
@@ -375,7 +376,9 @@ def refresh(as_json):
 
 
 @app_group.command(name="list")
-@click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID to query (defaults to the local endpoint).")
+@click.option(
+    "--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID to query (defaults to the local endpoint)."
+)
 @click.option(
     "--type",
     "app_type",
@@ -392,12 +395,21 @@ def refresh(as_json):
     show_default=True,
     help="Filter applications by runtime status.",
 )
-@click.option("--limit", type=click.IntRange(min=1, max=1000), default=100, show_default=True, help="Maximum number of items to return.")
+@click.option(
+    "--limit", type=click.IntRange(min=1, max=1000), default=100, show_default=True, help="Maximum number of items to return."
+)
 @click.option("--offset", type=click.IntRange(min=0), default=0, show_default=True, help="Zero-based pagination offset.")
-@click.option("--locale", type=click.Choice(["en", "zh"], case_sensitive=False), default="en", show_default=True, help="Locale for application metadata.")
+@click.option(
+    "--locale",
+    type=click.Choice(["en", "zh"], case_sensitive=False),
+    default="en",
+    show_default=True,
+    help="Locale for application metadata.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def list_apps(endpoint_id, app_type, status_filter, limit, offset, locale, as_json):
     """List installed, compose, external, and tracked applications."""
+
     def action() -> dict[str, Any]:
         from src.services.app_manager import AppManger
 
@@ -432,11 +444,20 @@ def list_apps(endpoint_id, app_type, status_filter, limit, offset, locale, as_js
 
 @app_group.command(name="inspect")
 @click.argument("app_id")
-@click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID to query (defaults to the local endpoint).")
-@click.option("--locale", type=click.Choice(["en", "zh"], case_sensitive=False), default="en", show_default=True, help="Locale for application metadata.")
+@click.option(
+    "--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID to query (defaults to the local endpoint)."
+)
+@click.option(
+    "--locale",
+    type=click.Choice(["en", "zh"], case_sensitive=False),
+    default="en",
+    show_default=True,
+    help="Locale for application metadata.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def inspect_app(app_id, endpoint_id, locale, as_json):
     """Inspect a single application instance without mutating state."""
+
     def action() -> dict[str, Any]:
         from src.core.exception import CustomException
         from src.services.app_manager import AppManger
@@ -500,9 +521,7 @@ def _run_app_lifecycle_command(
             "endpoint_id": getattr(app, "endpointId", endpoint_id),
             "status": _resolve_app_status(app),
             "containers": [
-                _summarize_container(item)
-                for item in (getattr(app, "containers", None) or [])
-                if isinstance(item, dict)
+                _summarize_container(item) for item in (getattr(app, "containers", None) or []) if isinstance(item, dict)
             ],
         }
 
@@ -541,14 +560,29 @@ def restart_app_command(app_id, endpoint_id, as_json):
 
 
 @app_group.command(name="validate-compose")
-@click.option("--file", "compose_file", required=True, type=click.Path(exists=True, dir_okay=False, readable=True), help="Path to docker-compose.yml file.")
-@click.option("--app-id", default="composeapp", show_default=True, help="Candidate application identifier (2-20 lowercase alphanumeric chars).")
-@click.option("--env", "env_pairs", multiple=True, metavar="KEY=VALUE", help="Environment variable key=value pair (repeatable).")
+@click.option(
+    "--file",
+    "compose_file",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help="Path to docker-compose.yml file.",
+)
+@click.option(
+    "--app-id",
+    default="composeapp",
+    show_default=True,
+    help="Candidate application identifier (2-20 lowercase alphanumeric chars).",
+)
+@click.option(
+    "--env", "env_pairs", multiple=True, metavar="KEY=VALUE", help="Environment variable key=value pair (repeatable)."
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def validate_compose_command(compose_file, app_id, env_pairs, as_json):
     """Validate a Docker Compose file before deployment."""
+
     def action() -> dict[str, Any]:
         from pathlib import Path
+
         from src.schemas.appComposeInstall import ComposeEnvironmentEntry, ComposeValidationRequest
         from src.services.compose_install import validate_compose_installation
 
@@ -572,16 +606,28 @@ def validate_compose_command(compose_file, app_id, env_pairs, as_json):
 
 @app_group.command(name="install-compose")
 @click.option("--app-id", required=True, help="Application identifier prefix (2-20 lowercase letters/numbers).")
-@click.option("--file", "compose_file", required=True, type=click.Path(exists=True, dir_okay=False, readable=True), help="Path to docker-compose.yml file.")
-@click.option("--env", "env_pairs", multiple=True, metavar="KEY=VALUE", help="Environment variable key=value pair (repeatable).")
+@click.option(
+    "--file",
+    "compose_file",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help="Path to docker-compose.yml file.",
+)
+@click.option(
+    "--env", "env_pairs", multiple=True, metavar="KEY=VALUE", help="Environment variable key=value pair (repeatable)."
+)
 @click.option("--domain", default=None, help="Optional domain or IP for reverse proxy configuration.")
-@click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID to install on (defaults to local endpoint).")
+@click.option(
+    "--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID to install on (defaults to local endpoint)."
+)
 @click.option("--yes", "-y", is_flag=True, help="Confirm deploying custom Compose application.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def install_compose_command(app_id, compose_file, env_pairs, domain, endpoint_id, yes, as_json):
     """Install a custom Docker Compose application."""
+
     def action() -> dict[str, Any]:
         from pathlib import Path
+
         from src.schemas.appComposeInstall import ComposeEnvironmentEntry, ComposeInstallRequest
         from src.services.compose_install import (
             install_compose_application,
@@ -626,18 +672,25 @@ def install_compose_command(app_id, compose_file, env_pairs, domain, endpoint_id
 
 @app_group.command(name="redeploy")
 @click.argument("app_id")
-@click.option("--pull-image/--no-pull-image", "pull_image", default=False, show_default=True, help="Whether to force re-pulling images before redeploying.")
+@click.option(
+    "--pull-image/--no-pull-image",
+    "pull_image",
+    default=False,
+    show_default=True,
+    help="Whether to force re-pulling images before redeploying.",
+)
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID (defaults to local endpoint).")
 @click.option("--yes", "-y", is_flag=True, help="Confirm redeploying the application stack.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def redeploy_app_command(app_id, pull_image, endpoint_id, yes, as_json):
     """Redeploy an application stack from its Gitea configuration repository."""
+
     def action() -> dict[str, Any]:
         import asyncio
+
         from src.core.exception import CustomException
         from src.services.app_manager import AppManger
-        from src.services.compose_app_manager import ComposeAppManager, _list_src_files, _parse_user_env
-        from src.services.gitea_manager import GiteaManager
+        from src.services.compose_app_manager import ComposeAppManager
 
         manager = AppManger()
         try:
@@ -691,23 +744,41 @@ def redeploy_app_command(app_id, pull_image, endpoint_id, yes, as_json):
 
 @app_group.command(name="update-compose")
 @click.argument("app_id")
-@click.option("--file", "compose_file", required=True, type=click.Path(exists=True, dir_okay=False, readable=True), help="Path to updated docker-compose.yml file.")
-@click.option("--env", "env_pairs", multiple=True, metavar="KEY=VALUE", help="Environment variable key=value override (repeatable; preserves unspecified existing vars unless --replace-env is set).")
-@click.option("--replace-env", is_flag=True, help="Replace all user environment variables instead of merging with existing .env.")
+@click.option(
+    "--file",
+    "compose_file",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help="Path to updated docker-compose.yml file.",
+)
+@click.option(
+    "--env",
+    "env_pairs",
+    multiple=True,
+    metavar="KEY=VALUE",
+    help="Environment variable key=value override (repeatable; preserves unspecified existing vars unless --replace-env is set).",
+)
+@click.option(
+    "--replace-env", is_flag=True, help="Replace all user environment variables instead of merging with existing .env."
+)
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID (defaults to local endpoint).")
 @click.option("--yes", "-y", is_flag=True, help="Confirm updating and redeploying the custom Compose application.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def update_compose_command(app_id, compose_file, env_pairs, replace_env, endpoint_id, yes, as_json):
     """Update docker-compose.yml and .env of a custom Compose application and redeploy it."""
+
     def action() -> dict[str, Any]:
         from pathlib import Path
+
         from src.schemas.appComposeInstall import ComposeEnvironmentEntry, ComposeValidationRequest
         from src.services.compose_app_manager import ComposeAppManager
         from src.services.compose_install import validate_compose_installation
 
         content = Path(compose_file).read_text(encoding="utf-8")
         if "******" in content:
-            raise CLIError("INVALID_ARGUMENT", "Refusing to update Compose file containing masked placeholder '******'", exit_code=2)
+            raise CLIError(
+                "INVALID_ARGUMENT", "Refusing to update Compose file containing masked placeholder '******'", exit_code=2
+            )
 
         overrides = _parse_settings(env_pairs)
         for k, v in overrides.items():
@@ -716,7 +787,11 @@ def update_compose_command(app_id, compose_file, env_pairs, replace_env, endpoin
 
         compose_mgr = ComposeAppManager()
         current = compose_mgr.get_compose_content(app_id)
-        existing_env = {entry["key"]: entry["value"] for entry in (current.get("env") or []) if isinstance(entry, dict) and entry.get("key")}
+        existing_env = {
+            entry["key"]: entry["value"]
+            for entry in (current.get("env") or [])
+            if isinstance(entry, dict) and entry.get("key")
+        }
         merged_env = dict(overrides) if replace_env else {**existing_env, **overrides}
         env_list = [{"key": k, "value": v} for k, v in merged_env.items()]
         mounts = current.get("mounts") or []
@@ -762,11 +837,24 @@ def update_compose_command(app_id, compose_file, env_pairs, replace_env, endpoin
 @app_group.command(name="diagnose")
 @click.argument("app_id")
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID (defaults to local endpoint).")
-@click.option("--lines", type=click.IntRange(min=1, max=1000), default=80, show_default=True, help="Number of tail log lines per abnormal container.")
-@click.option("--locale", type=click.Choice(["en", "zh"], case_sensitive=False), default="en", show_default=True, help="Locale for application metadata.")
+@click.option(
+    "--lines",
+    type=click.IntRange(min=1, max=1000),
+    default=80,
+    show_default=True,
+    help="Number of tail log lines per abnormal container.",
+)
+@click.option(
+    "--locale",
+    type=click.Choice(["en", "zh"], case_sensitive=False),
+    default="en",
+    show_default=True,
+    help="Locale for application metadata.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def diagnose_app_command(app_id, endpoint_id, lines, locale, as_json):
     """Collect deterministic diagnostic evidence and findings for an application."""
+
     def action() -> tuple[dict[str, Any], bool]:
         from src.core.exception import CustomException
         from src.services.app_access_manager import AppAccessManager
@@ -904,11 +992,7 @@ def diagnose_app_command(app_id, endpoint_id, lines, locale, as_json):
                     )
 
                 should_collect_logs = (
-                    oom_killed
-                    or chealth == "unhealthy"
-                    or cstate not in {"running"}
-                    or status_code == 4
-                    or idx == 0
+                    oom_killed or chealth == "unhealthy" or cstate not in {"running"} or status_code == 4 or idx == 0
                 )
                 if should_collect_logs and cid and resolved_endpoint:
                     source_key = f"container_logs:{cname}"
@@ -921,7 +1005,14 @@ def diagnose_app_command(app_id, endpoint_id, lines, locale, as_json):
                             timeout_seconds=15,
                         )
                         if raw_bytes is None:
-                            evidence.append({"source": source_key, "status": "unavailable", "data": None, "error": "Container logs not found"})
+                            evidence.append(
+                                {
+                                    "source": source_key,
+                                    "status": "unavailable",
+                                    "data": None,
+                                    "error": "Container logs not found",
+                                }
+                            )
                         else:
                             decoded = AppAccessManager.decode_container_log_entries(raw_bytes, allow_partial_frame=scan_trunc)
                             tail_entries = decoded[-lines:] if len(decoded) > lines else decoded
@@ -937,9 +1028,18 @@ def diagnose_app_command(app_id, endpoint_id, lines, locale, as_json):
                             bounded_entries.reverse()
                             if scan_trunc:
                                 truncated = True
-                            evidence.append({"source": source_key, "status": "collected", "data": bounded_entries, "error": None})
+                            evidence.append(
+                                {"source": source_key, "status": "collected", "data": bounded_entries, "error": None}
+                            )
                     except Exception as exc:
-                        evidence.append({"source": source_key, "status": "unavailable", "data": None, "error": mask_sensitive_text(str(exc))})
+                        evidence.append(
+                            {
+                                "source": source_key,
+                                "status": "unavailable",
+                                "data": None,
+                                "error": mask_sensitive_text(str(exc)),
+                            }
+                        )
 
             evidence.insert(1, {"source": "containers", "status": "collected", "data": container_details, "error": None})
 
@@ -972,18 +1072,34 @@ def diagnose_app_command(app_id, endpoint_id, lines, locale, as_json):
 
 @app_group.command(name="uninstall")
 @click.argument("app_id")
-@click.option("--keep-data", "keep_data", is_flag=True, default=True, show_default=True, help="Keep application volumes and Gitea repository (transition to inactive).")
-@click.option("--purge-data", "purge_data", is_flag=True, default=False, help="Permanently delete application stack, volumes, proxy, and repository.")
+@click.option(
+    "--keep-data",
+    "keep_data",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Keep application volumes and Gitea repository (transition to inactive).",
+)
+@click.option(
+    "--purge-data",
+    "purge_data",
+    is_flag=True,
+    default=False,
+    help="Permanently delete application stack, volumes, proxy, and repository.",
+)
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID (defaults to local endpoint).")
 @click.option("--yes", "-y", is_flag=True, help="Confirm uninstalling the application.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def uninstall_app_command(app_id, keep_data, purge_data, endpoint_id, yes, as_json):
     """Uninstall an active application (retains data by default unless --purge-data is set)."""
+
     def action() -> dict[str, Any]:
         from src.services.app_manager import AppManger
 
         effective_purge = bool(purge_data)
-        mode_desc = "PURGE ALL DATA (stack, volumes, repository, proxy)" if effective_purge else "KEEP DATA (transition to inactive)"
+        mode_desc = (
+            "PURGE ALL DATA (stack, volumes, repository, proxy)" if effective_purge else "KEEP DATA (transition to inactive)"
+        )
         if not yes:
             if as_json:
                 raise CLIError(
@@ -1015,8 +1131,10 @@ def uninstall_app_command(app_id, keep_data, purge_data, endpoint_id, yes, as_js
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def restore_inactive_app_command(app_id, endpoint_id, yes, as_json):
     """Restore an inactive (uninstalled with retained data) application stack."""
+
     def action() -> dict[str, Any]:
         import asyncio
+
         from src.services.app_manager import AppManger
         from src.services.compose_app_manager import ComposeAppManager
 
@@ -1029,11 +1147,17 @@ def restore_inactive_app_command(app_id, endpoint_id, yes, as_json):
             strict_exists=True,
         )
         if getattr(app, "status", None) != 2:
-            raise CLIError("INVALID_REQUEST", f"Application '{app_id}' is not inactive (status={getattr(app, 'status', None)})")
+            raise CLIError(
+                "INVALID_REQUEST", f"Application '{app_id}' is not inactive (status={getattr(app, 'status', None)})"
+            )
 
         if not yes:
             if as_json:
-                raise CLIError("CONFIRMATION_REQUIRED", f"Restoring inactive application '{app_id}' requires --yes confirmation", details={"app_id": app_id})
+                raise CLIError(
+                    "CONFIRMATION_REQUIRED",
+                    f"Restoring inactive application '{app_id}' requires --yes confirmation",
+                    details={"app_id": app_id},
+                )
             if not click.confirm(f"Restore inactive application '{app_id}'?"):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
@@ -1063,12 +1187,18 @@ def restore_inactive_app_command(app_id, endpoint_id, yes, as_json):
 
 @app_group.command(name="remove")
 @click.argument("app_id")
-@click.option("--purge-data", is_flag=True, required=True, help="Confirm permanent removal of inactive stack, volumes, repository, and proxy.")
+@click.option(
+    "--purge-data",
+    is_flag=True,
+    required=True,
+    help="Confirm permanent removal of inactive stack, volumes, repository, and proxy.",
+)
 @click.option("--endpoint-id", "endpoint_id", type=click.IntRange(min=1), help="Endpoint ID (defaults to local endpoint).")
 @click.option("--yes", "-y", is_flag=True, help="Confirm permanent removal.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def remove_app_command(app_id, purge_data, endpoint_id, yes, as_json):
     """Permanently remove an inactive application and all retained volumes/repositories."""
+
     def action() -> dict[str, Any]:
         from src.services.app_manager import AppManger
 
@@ -1106,17 +1236,27 @@ def remove_app_command(app_id, purge_data, endpoint_id, yes, as_json):
 
 @app_group.command(name="clean-error")
 @click.argument("app_id")
-@click.option("--yes", "-y", is_flag=True, help="Confirm cleaning failed/cancelled installation record and orphaned repository/proxy resources.")
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    help="Confirm cleaning failed/cancelled installation record and orphaned repository/proxy resources.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def clean_error_app_command(app_id, yes, as_json):
     """Clean failed/cancelled tracking and orphaned repo/proxy resources; refuses existing deployments."""
+
     def action() -> dict[str, Any]:
         from src.services.app_manager import AppManger
         from src.services.app_status import list_install_tasks_readonly
 
-        active_installing = [item for _, item in list_install_tasks_readonly((3,), strict=True) if item.get("app_id") == app_id]
+        active_installing = [
+            item for _, item in list_install_tasks_readonly((3,), strict=True) if item.get("app_id") == app_id
+        ]
         if active_installing:
-            raise CLIError("INVALID_REQUEST", f"Application '{app_id}' has an active installation in progress; cancel it first")
+            raise CLIError(
+                "INVALID_REQUEST", f"Application '{app_id}' has an active installation in progress; cancel it first"
+            )
 
         if not yes:
             if as_json:
@@ -1125,7 +1265,9 @@ def clean_error_app_command(app_id, yes, as_json):
                     f"Cleaning failed/cancelled installation '{app_id}' (including any orphaned repository and proxy; existing deployments are refused) requires --yes confirmation",
                     details={"app_id": app_id},
                 )
-            if not click.confirm(f"Clean failed/cancelled installation '{app_id}' and delete any orphaned repository and proxy (refuses existing deployments)?"):
+            if not click.confirm(
+                f"Clean failed/cancelled installation '{app_id}' and delete any orphaned repository and proxy (refuses existing deployments)?"
+            ):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
         AppManger().remove_error_app(app_id)
@@ -1146,12 +1288,17 @@ def clean_error_app_command(app_id, yes, as_json):
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def cancel_app_install_command(app_id, yes, as_json):
     """Request cancellation of an application installation during image pull."""
+
     def action() -> dict[str, Any]:
         from src.services.app_status import request_install_cancel
 
         if not yes:
             if as_json:
-                raise CLIError("CONFIRMATION_REQUIRED", f"Cancelling installation of '{app_id}' requires --yes confirmation", details={"app_id": app_id})
+                raise CLIError(
+                    "CONFIRMATION_REQUIRED",
+                    f"Cancelling installation of '{app_id}' requires --yes confirmation",
+                    details={"app_id": app_id},
+                )
             if not click.confirm(f"Request cancellation for installing application '{app_id}'?"):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
@@ -1176,6 +1323,7 @@ def cancel_app_install_command(app_id, yes, as_json):
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def app_credentials_command(app_id, endpoint_id, as_json):
     """Inspect credential descriptors and login guidance for an application (secrets masked)."""
+
     def action() -> dict[str, Any]:
         from src.services.app_access_manager import AppAccessManager
 
@@ -1201,10 +1349,12 @@ def app_credentials_command(app_id, endpoint_id, as_json):
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def app_php_info_command(app_id, endpoint_id, as_json):
     """Inspect PHP runtime version and loaded extensions for a PHP-capable application."""
+
     def action() -> dict[str, Any]:
         from src.services.app_manager import AppManger
 
-        return AppManger().get_php_info(app_id, endpoint_id)
+        info: dict[str, Any] = AppManger().get_php_info(app_id, endpoint_id)
+        return info
 
     def render_text(payload: dict[str, Any]) -> str:
         return f"PHP Version: {payload.get('version')}"
@@ -1222,6 +1372,7 @@ def app_custom_fields_group():
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def get_custom_fields_command(app_id, as_json):
     """Get custom metadata fields for an application."""
+
     def action() -> dict[str, Any]:
         from src.services.app_status import get_app_custom_fields
 
@@ -1239,25 +1390,34 @@ def get_custom_fields_command(app_id, as_json):
 
 @app_custom_fields_group.command(name="set")
 @click.argument("app_id")
-@click.option("--field", "field_pairs", multiple=True, required=True, metavar="NAME=VALUE", help="Custom field key=value pair (repeatable).")
+@click.option(
+    "--field",
+    "field_pairs",
+    multiple=True,
+    required=True,
+    metavar="NAME=VALUE",
+    help="Custom field key=value pair (repeatable).",
+)
 @click.option("--yes", "-y", is_flag=True, help="Confirm saving custom metadata fields.")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON envelope.")
 def set_custom_fields_command(app_id, field_pairs, yes, as_json):
     """Save custom metadata fields for an application."""
+
     def action() -> dict[str, Any]:
         from src.services.app_status import save_app_custom_fields
 
         parsed = _parse_settings(field_pairs)
         if not yes:
             if as_json:
-                raise CLIError("CONFIRMATION_REQUIRED", f"Saving custom fields for '{app_id}' requires --yes confirmation", details={"app_id": app_id})
+                raise CLIError(
+                    "CONFIRMATION_REQUIRED",
+                    f"Saving custom fields for '{app_id}' requires --yes confirmation",
+                    details={"app_id": app_id},
+                )
             if not click.confirm(f"Save {len(parsed)} custom field(s) for '{app_id}'?"):
                 raise CLIError("OPERATION_CANCELLED", "Operation cancelled by operator")
 
-        fields_payload = [
-            {"field_name": k, "field_value": v, "field_type": "text"}
-            for k, v in parsed.items()
-        ]
+        fields_payload = [{"field_name": k, "field_value": v, "field_type": "text"} for k, v in parsed.items()]
         saved = save_app_custom_fields(app_id, fields_payload)
         return {"app_id": app_id, "fields": saved}
 

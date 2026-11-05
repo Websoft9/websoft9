@@ -1,6 +1,6 @@
-from typing import List
 import os
 import socket
+from typing import List
 from urllib.parse import urlparse
 
 import requests
@@ -98,9 +98,7 @@ class NginxProxyManagerAPI:
         Returns:
             Response: Response from Nginx Proxy Manager API
         """
-        return self.api.get(
-            path="nginx/proxy-hosts", params={"expand": "owner,access_list,certificate"}
-        )
+        return self.api.get(path="nginx/proxy-hosts", params={"expand": "owner,access_list,certificate"})
 
     def create_proxy_host(
         self,
@@ -147,9 +145,7 @@ class NginxProxyManagerAPI:
             },
         )
 
-    def update_proxy_host(
-        self,proxy_id :int,json: dict
-    ):
+    def update_proxy_host(self, proxy_id: int, json: dict):
         """
         Update an existing proxy host
 
@@ -185,9 +181,7 @@ class NginxProxyManagerAPI:
         Returns:
             Response: Response from Nginx Proxy Manager API
         """
-        return self.api.get(
-            path="nginx/certificates", params={"expand": "owner,proxy_hosts,dead_hosts,redirection_hosts"}
-        )
+        return self.api.get(path="nginx/certificates", params={"expand": "owner,proxy_hosts,dead_hosts,redirection_hosts"})
 
     def create_certificate(self, domain_names: List[str], email: str, nice_name: str | None = None):
         """
@@ -268,9 +262,7 @@ class NginxProxyManagerAPI:
             return create_resp
 
         if upload_resp.status_code not in [200, 201]:
-            logger.error(
-                f"NPM upload returned {upload_resp.status_code}: {upload_resp.text[:500]}"
-            )
+            logger.error(f"NPM upload returned {upload_resp.status_code}: {upload_resp.text[:500]}")
             return create_resp
 
         # Step 3: Fetch the updated certificate to get the real expires_on

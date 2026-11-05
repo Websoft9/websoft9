@@ -10,12 +10,12 @@ accelerator that needs credentials can carry them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import os
-from pathlib import Path
 import re
 import threading
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from src.core.logger import logger
@@ -75,16 +75,13 @@ def normalize_mirror_url(value: str) -> str:
     normalized = str(value or "").strip().rstrip("/")
     for scheme in ("http://", "https://"):
         if normalized.lower().startswith(scheme):
-            normalized = normalized[len(scheme):]
+            normalized = normalized[len(scheme) :]
     return normalized.strip().rstrip("/")
 
 
 def parse_mirror_entries(raw: str) -> list[str]:
     """Split a newline/comma separated list into unique accelerator prefixes."""
-    entries = [
-        normalize_mirror_url(item)
-        for item in str(raw or "").replace("\n", ",").split(",")
-    ]
+    entries = [normalize_mirror_url(item) for item in str(raw or "").replace("\n", ",").split(",")]
     return list(dict.fromkeys(entry for entry in entries if entry))
 
 
@@ -117,19 +114,15 @@ def validate_mirror_url(value: str) -> str:
         # Docker cannot speak plain HTTP to a registry unless the host daemon is told to, so
         # this is refused instead of being silently rewritten into an HTTPS address.
         raise ValueError(
-            "Accelerators are reached over HTTPS only: enter the address without a scheme, "
-            "for example docker.1ms.run"
+            "Accelerators are reached over HTTPS only: enter the address without a scheme, for example docker.1ms.run"
         )
     if "://" in lowered and not lowered.startswith("https://"):
-        raise ValueError(
-            "Only HTTPS accelerators are supported: enter the address without a scheme"
-        )
+        raise ValueError("Only HTTPS accelerators are supported: enter the address without a scheme")
     if not normalized:
         raise ValueError("An accelerator address is required")
     if not is_valid_mirror_url(normalized):
         raise ValueError(
-            f"'{normalized}' is not a usable accelerator address: expected a registry host "
-            "such as docker.1ms.run"
+            f"'{normalized}' is not a usable accelerator address: expected a registry host such as docker.1ms.run"
         )
     return normalized
 
@@ -191,7 +184,7 @@ def _normalize_incoming(
     if isinstance(raw, MirrorEntry):
         return raw.url, raw.username, raw.password or None, raw.enabled, raw.id
     data = dict(raw)
-    raw_id = data.get("id", None)
+    raw_id = data.get("id")
     try:
         entry_id = int(raw_id) if raw_id is not None else None
     except (TypeError, ValueError):
@@ -199,8 +192,8 @@ def _normalize_incoming(
     return (
         str(data.get("url") or ""),
         str(data.get("username") or ""),
-        data.get("password", None),
-        data.get("enabled", None),
+        data.get("password"),
+        data.get("enabled"),
         entry_id,
     )
 
@@ -224,11 +217,7 @@ class DockerMirrorStore(SqliteStore):
     def __init__(self, database_file: str | Path | None = None):
         if database_file is None:
             override = (os.getenv("WEBSOFT9_PLATFORM_DB_PATH") or "").strip()
-            database_file = (
-                Path(override)
-                if override
-                else resolve_data_root() / "config" / "platform" / "platform.sqlite"
-            )
+            database_file = Path(override) if override else resolve_data_root() / "config" / "platform" / "platform.sqlite"
         super().__init__(
             database_file,
             schema_version=SCHEMA_VERSION,
@@ -246,9 +235,7 @@ class DockerMirrorStore(SqliteStore):
         with self._cache_lock:
             if self._cache is not None:
                 return list(self._cache)
-        rows = self.query_all(
-            "SELECT * FROM docker_mirror_entries ORDER BY position ASC, id ASC"
-        )
+        rows = self.query_all("SELECT * FROM docker_mirror_entries ORDER BY position ASC, id ASC")
         entries = [_row_to_entry(row) for row in rows]
         with self._cache_lock:
             self._cache = entries
@@ -266,9 +253,7 @@ class DockerMirrorStore(SqliteStore):
 
     # ── Writes ────────────────────────────────────────────────────────────────
 
-    def replace_entries(
-        self, entries: Iterable[Mapping[str, Any] | MirrorEntry]
-    ) -> list[MirrorEntry]:
+    def replace_entries(self, entries: Iterable[Mapping[str, Any] | MirrorEntry]) -> list[MirrorEntry]:
         """Replace the whole list in one transaction, keeping the given order.
 
         A `password` of ``None`` means "leave the stored one alone", which is what the console
@@ -369,9 +354,7 @@ class DockerMirrorStore(SqliteStore):
 
         imported = self.replace_entries([MirrorEntry(url=url) for url in urls])
         self._write_meta(LEGACY_IMPORT_META_KEY, utc_now())
-        logger.info(
-            f"Imported {len(imported)} Docker accelerator(s) from config.ini"
-        )
+        logger.info(f"Imported {len(imported)} Docker accelerator(s) from config.ini")
         return len(imported)
 
     # ── Meta bookkeeping ──────────────────────────────────────────────────────
@@ -392,9 +375,7 @@ class DockerMirrorStore(SqliteStore):
 
     def _read_meta(self, key: str) -> str:
         self.initialize()
-        row = self.query_one(
-            "SELECT value FROM platform_meta WHERE key = ?", (key,)
-        )
+        row = self.query_one("SELECT value FROM platform_meta WHERE key = ?", (key,))
         return str(row["value"]) if row is not None else ""
 
     def _write_meta(self, key: str, value: str) -> None:

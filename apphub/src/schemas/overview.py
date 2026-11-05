@@ -29,7 +29,9 @@ class OverviewProductSummary(BaseModel):
     edition_name: Optional[str] = Field(default=None, description="Current edition display name")
     catalog_app_count: Optional[int] = Field(default=None, description="Total application count exposed in the App Store")
     installed_count: Optional[int] = Field(default=None, description="Installed application count")
-    available_app_count: Optional[int] = Field(default=None, description="Available application count for the current product edition")
+    available_app_count: Optional[int] = Field(
+        default=None, description="Available application count for the current product edition"
+    )
     upgrade_state: str = Field(default="unknown", description="Compact upgrade state")
     target_route: str = Field(default="/settings", description="Owning module route")
 
@@ -48,18 +50,32 @@ class OverviewHostSummary(BaseModel):
 class OverviewRuntimeSummary(BaseModel):
     available: bool = Field(default=True, description="Whether runtime resource summary loaded successfully")
     unavailable_reason: Optional[str] = Field(default=None, description="Reason when runtime summary is unavailable")
-    runtime_scope: Literal["container", "system"] = Field(default="system", description="Whether runtime metrics were sourced from cgroup/container scope or system scope")
-    health_state: Literal["healthy", "warning", "critical"] = Field(default="healthy", description="Overall runtime health state")
+    runtime_scope: Literal["container", "system"] = Field(
+        default="system", description="Whether runtime metrics were sourced from cgroup/container scope or system scope"
+    )
+    health_state: Literal["healthy", "warning", "critical"] = Field(
+        default="healthy", description="Overall runtime health state"
+    )
     cpu_percent: Optional[float] = Field(default=None, description="Approximate CPU load percent")
     cpu_cores: Optional[int] = Field(default=None, description="Logical CPU cores available to the runtime")
-    cpu_quota_cores: Optional[float] = Field(default=None, description="Container CPU quota in cores when a cgroup limit is available")
+    cpu_quota_cores: Optional[float] = Field(
+        default=None, description="Container CPU quota in cores when a cgroup limit is available"
+    )
     memory_percent: Optional[float] = Field(default=None, description="Current memory usage percent")
     memory_used_bytes: Optional[int] = Field(default=None, description="Current memory used bytes")
     memory_total_bytes: Optional[int] = Field(default=None, description="Current memory total bytes")
-    network_rx_rate_bytes: Optional[int] = Field(default=None, description="Current inbound network traffic rate in bytes per second")
-    network_tx_rate_bytes: Optional[int] = Field(default=None, description="Current outbound network traffic rate in bytes per second")
-    network_rx_bytes: Optional[int] = Field(default=None, description="Current total inbound network bytes from container interfaces")
-    network_tx_bytes: Optional[int] = Field(default=None, description="Current total outbound network bytes from container interfaces")
+    network_rx_rate_bytes: Optional[int] = Field(
+        default=None, description="Current inbound network traffic rate in bytes per second"
+    )
+    network_tx_rate_bytes: Optional[int] = Field(
+        default=None, description="Current outbound network traffic rate in bytes per second"
+    )
+    network_rx_bytes: Optional[int] = Field(
+        default=None, description="Current total inbound network bytes from container interfaces"
+    )
+    network_tx_bytes: Optional[int] = Field(
+        default=None, description="Current total outbound network bytes from container interfaces"
+    )
     disk_percent: Optional[float] = Field(default=None, description="Current root filesystem usage percent")
     disk_used_bytes: Optional[int] = Field(default=None, description="Current root filesystem used bytes")
     disk_total_bytes: Optional[int] = Field(default=None, description="Current root filesystem total bytes")

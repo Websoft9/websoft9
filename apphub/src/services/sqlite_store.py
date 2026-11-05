@@ -14,12 +14,12 @@ work, and rewriting four working stores is a larger risk than the inconsistency 
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import os
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Sequence
+from typing import Any, Iterable, Iterator, Sequence, cast
 
 from src.core.logger import logger
 
@@ -63,9 +63,7 @@ class SqliteStore:
     def connect(self) -> sqlite3.Connection:
         """Open a connection that waits for other writers instead of failing."""
         self.database_file.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(
-            self.database_file, timeout=DEFAULT_BUSY_TIMEOUT_SECONDS
-        )
+        connection = sqlite3.connect(self.database_file, timeout=DEFAULT_BUSY_TIMEOUT_SECONDS)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA foreign_keys=ON")
@@ -95,6 +93,9 @@ class SqliteStore:
 
     # ── Schema ────────────────────────────────────────────────────────────────
 
+    def _is_initialized(self) -> bool:
+        return self._initialized
+
     def initialize(self) -> None:
         """Create the schema and apply pending migrations, once per process.
 
@@ -102,10 +103,12 @@ class SqliteStore:
         call, so a read path does not pay for ``PRAGMA table_info`` and ``executescript``
         on every request.
         """
-        if self._initialized:
+        if self._is_initialized():
             return
         with self._initialize_lock:
-            if self._initialized:
+            # Re-check under the lock: another thread may have finished meanwhile. mypy cannot see
+            # that, so the check lives behind a method call.
+            if self._is_initialized():
                 return
             fresh = not self.database_file.exists() or self.database_file.stat().st_size == 0
             with self.transaction() as connection:
@@ -156,4 +159,4 @@ class SqliteStore:
 
     def query_one(self, sql: str, parameters: Sequence[Any] = ()) -> sqlite3.Row | None:
         with self.connection() as connection:
-            return connection.execute(sql, parameters).fetchone()
+            return cast(sqlite3.Row | None, connection.execute(sql, parameters).fetchone())

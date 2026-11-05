@@ -5,12 +5,12 @@ import os
 import sqlite3
 import threading
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator, cast
 
 from src.core.logger import logger, set_tracking_context
-
 
 MAX_SUB_LOGS = 30
 
@@ -41,26 +41,37 @@ class InstallStateStore:
         if initialize:
             self._ensure_storage()
 
-    def _raw_connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _raw_connect(self) -> Iterator[sqlite3.Connection]:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.database_file, timeout=30)
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("PRAGMA foreign_keys=ON")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
-    def _db_connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _db_connect(self) -> Iterator[sqlite3.Connection]:
         if not self._storage_initialized:
             self._ensure_storage()
-        return self._raw_connect()
+        with self._raw_connect() as connection:
+            yield connection
 
-    def _readonly_connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _readonly_connect(self) -> Iterator[sqlite3.Connection]:
         if not self.database_file.is_file():
             raise FileNotFoundError(f"Install tracking database does not exist: {self.database_file}")
         uri = f"{self.database_file.resolve().as_uri()}?mode=ro"
         connection = sqlite3.connect(uri, uri=True, timeout=10)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            yield connection
+        finally:
+            connection.close()
 
     def _ensure_storage(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -255,10 +266,11 @@ class InstallStateStore:
         }
 
     def _get_stage_row(self, connection: sqlite3.Connection, tracking_id: str, stage_name: str) -> sqlite3.Row | None:
-        return connection.execute(
+        row = connection.execute(
             "SELECT id, tracking_id, stage_name, stage_order FROM install_stages WHERE tracking_id = ? AND stage_name = ?",
             (tracking_id, stage_name),
         ).fetchone()
+        return cast(sqlite3.Row | None, row)
 
     def _ensure_stage(self, connection: sqlite3.Connection, tracking_id: str, stage_name: str) -> sqlite3.Row:
         now = _utc_now()
@@ -268,7 +280,7 @@ class InstallStateStore:
                 "UPDATE install_stages SET updated_at = ? WHERE id = ?",
                 (now, stage_row["id"]),
             )
-            return self._get_stage_row(connection, tracking_id, stage_name)
+            return cast(sqlite3.Row, self._get_stage_row(connection, tracking_id, stage_name))
 
         next_order = connection.execute(
             "SELECT COALESCE(MAX(stage_order), 0) + 1 AS next_order FROM install_stages WHERE tracking_id = ?",
@@ -278,9 +290,20 @@ class InstallStateStore:
             "INSERT INTO install_stages (tracking_id, stage_name, stage_order, started_at, updated_at) VALUES (?, ?, ?, ?, ?)",
             (tracking_id, stage_name, next_order, now, now),
         )
-        return self._get_stage_row(connection, tracking_id, stage_name)
+        return cast(sqlite3.Row, self._get_stage_row(connection, tracking_id, stage_name))
 
-    def create_task(self, app_id: str, app_name: str | None, tracking_id: str | None = None, reserved_ports: Any = None, status: int = 3, app_official: bool = True, error: str | None = None, logs: list[dict[str, Any]] | None = None, updated_at: str | None = None) -> str:
+    def create_task(
+        self,
+        app_id: str,
+        app_name: str | None,
+        tracking_id: str | None = None,
+        reserved_ports: Any = None,
+        status: int = 3,
+        app_official: bool = True,
+        error: str | None = None,
+        logs: list[dict[str, Any]] | None = None,
+        updated_at: str | None = None,
+    ) -> str:
         tracking_id = tracking_id or str(uuid.uuid4())
         now = _utc_now()
         effective_updated_at = str(updated_at).strip() if isinstance(updated_at, str) and updated_at.strip() else now
@@ -329,7 +352,16 @@ class InstallStateStore:
 
             if message != "" or raw_payload not in (None, '""'):
                 previous = None
-                progress_statuses = ("Downloading", "Extracting", "Pulling fs layer", "Download complete", "Pull complete", "Already exists", "Waiting", "Verifying Checksum")
+                progress_statuses = (
+                    "Downloading",
+                    "Extracting",
+                    "Pulling fs layer",
+                    "Download complete",
+                    "Pull complete",
+                    "Already exists",
+                    "Waiting",
+                    "Verifying Checksum",
+                )
                 if isinstance(log, dict) and log.get("image") and log.get("id") and log.get("status") in progress_statuses:
                     previous = connection.execute(
                         """SELECT id FROM install_stage_logs WHERE stage_id = ?
@@ -383,7 +415,10 @@ class InstallStateStore:
 
     def set_phase(self, tracking_id: str, phase: str) -> None:
         with self._lock, self._db_connect() as connection:
-            connection.execute("UPDATE install_tasks SET phase = ?, updated_at = ? WHERE tracking_id = ? AND status = 3", (phase, _utc_now(), tracking_id))
+            connection.execute(
+                "UPDATE install_tasks SET phase = ?, updated_at = ? WHERE tracking_id = ? AND status = 3",
+                (phase, _utc_now(), tracking_id),
+            )
             connection.commit()
 
     def request_cancel(self, app_id: str) -> str | None:
@@ -403,7 +438,9 @@ class InstallStateStore:
 
     def is_cancel_requested(self, tracking_id: str) -> bool:
         with self._lock, self._db_connect() as connection:
-            row = connection.execute("SELECT cancel_requested FROM install_tasks WHERE tracking_id = ?", (tracking_id,)).fetchone()
+            row = connection.execute(
+                "SELECT cancel_requested FROM install_tasks WHERE tracking_id = ?", (tracking_id,)
+            ).fetchone()
             return bool(row and row["cancel_requested"])
 
     def begin_deploy(self, tracking_id: str) -> bool:
@@ -417,7 +454,10 @@ class InstallStateStore:
 
     def mark_cancelled(self, tracking_id: str) -> None:
         with self._lock, self._db_connect() as connection:
-            connection.execute("UPDATE install_tasks SET status = 6, phase = 'cancelled', error = NULL, updated_at = ? WHERE tracking_id = ?", (_utc_now(), tracking_id))
+            connection.execute(
+                "UPDATE install_tasks SET status = 6, phase = 'cancelled', error = NULL, updated_at = ? WHERE tracking_id = ?",
+                (_utc_now(), tracking_id),
+            )
             connection.commit()
 
     def delete_task(self, tracking_id: str) -> None:
@@ -479,7 +519,9 @@ class InstallStateStore:
             if strict:
                 from src.core.exception import CustomException
 
-                raise CustomException(503, "Install State Unavailable", f"Install tracking database is unavailable or incompatible: {exc}") from exc
+                raise CustomException(
+                    503, "Install State Unavailable", f"Install tracking database is unavailable or incompatible: {exc}"
+                ) from exc
             return []
 
     def upsert_task_from_payload(self, tracking_id: str, payload: dict[str, Any]) -> None:
@@ -527,8 +569,11 @@ class InstallStateStore:
             "logs": grouped_logs,
             "reserved_ports": reserved_ports,
             "error": row["error"],
-            "phase": row["phase"] if "phase" in row.keys() else None,
-            "cancel_requested": bool(row["cancel_requested"]) if "cancel_requested" in row.keys() else False,
+            # sqlite3.Row 的 `in` 测试的是值，不是列名，所以这里必须用 keys()。
+            "phase": row["phase"] if "phase" in row.keys() else None,  # noqa: SIM118
+            "cancel_requested": bool(row["cancel_requested"])
+            if "cancel_requested" in row.keys()  # noqa: SIM118
+            else False,
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -537,7 +582,7 @@ class InstallStateStore:
 
     def get_custom_fields(self, app_id: str, *, readonly: bool = False) -> list[dict[str, Any]]:
         try:
-            with self._lock, (self._readonly_connect() if readonly else self._db_connect()) as connection:
+            with self._lock, self._readonly_connect() if readonly else self._db_connect() as connection:
                 rows = connection.execute(
                     "SELECT id, app_id, field_name, field_value, field_type, sort_order FROM app_custom_fields WHERE app_id = ? ORDER BY sort_order, id",
                     (app_id,),
@@ -546,7 +591,9 @@ class InstallStateStore:
         except sqlite3.Error as exc:
             from src.core.exception import CustomException
 
-            raise CustomException(503, "Install State Unavailable", f"Custom field storage is unavailable or incompatible: {exc}") from exc
+            raise CustomException(
+                503, "Install State Unavailable", f"Custom field storage is unavailable or incompatible: {exc}"
+            ) from exc
 
     def save_custom_fields(self, app_id: str, fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
         with self._lock, self._db_connect() as connection:
@@ -598,7 +645,7 @@ class InstallStateCollection:
         item = self.get(tracking_id)
         if item is None:
             raise KeyError(tracking_id)
-        return item
+        return dict(item)
 
     def __setitem__(self, tracking_id: str, payload: dict[str, Any]) -> None:
         self.store.upsert_task_from_payload(tracking_id, payload)

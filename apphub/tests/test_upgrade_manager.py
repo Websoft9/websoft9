@@ -150,13 +150,24 @@ def test_compose_file_follows_the_file_the_deployment_used():
     fallback = "/opt/websoft9/dev/docker-compose.yml"
 
     assert manager._resolve_compose_file({}, "/opt/websoft9/dev") == fallback
-    assert manager._resolve_compose_file({"com.docker.compose.project.config_files": "docker-compose.yml"}, "/opt/websoft9/dev") == fallback
+    assert (
+        manager._resolve_compose_file({"com.docker.compose.project.config_files": "docker-compose.yml"}, "/opt/websoft9/dev")
+        == fallback
+    )
     # The runner only mounts the install path, so a file elsewhere is not usable.
-    assert manager._resolve_compose_file({"com.docker.compose.project.config_files": "/etc/other/docker-compose.yml"}, "/opt/websoft9/dev") == fallback
-    assert manager._resolve_compose_file(
-        {"com.docker.compose.project.config_files": "/etc/other/extra.yml,/opt/websoft9/dev/docker-compose.dev.yml"},
-        "/opt/websoft9/dev",
-    ) == "/opt/websoft9/dev/docker-compose.dev.yml"
+    assert (
+        manager._resolve_compose_file(
+            {"com.docker.compose.project.config_files": "/etc/other/docker-compose.yml"}, "/opt/websoft9/dev"
+        )
+        == fallback
+    )
+    assert (
+        manager._resolve_compose_file(
+            {"com.docker.compose.project.config_files": "/etc/other/extra.yml,/opt/websoft9/dev/docker-compose.dev.yml"},
+            "/opt/websoft9/dev",
+        )
+        == "/opt/websoft9/dev/docker-compose.dev.yml"
+    )
 
 
 def test_prepare_writes_verified_task_with_precise_image_digest(tmp_path, monkeypatch):
@@ -230,7 +241,10 @@ def test_prepare_rejects_non_newer_target_before_inspecting_deployment(tmp_path,
         manager,
         "_download_and_verify_artifacts",
         lambda **_kwargs: (
-            {"image": {"repository": "websoft9dev/websoft9", "version_tag": "2.4.2"}, "install": {"runner_upgrade_script": "runner-upgrade.sh"}},
+            {
+                "image": {"repository": "websoft9dev/websoft9", "version_tag": "2.4.2"},
+                "install": {"runner_upgrade_script": "runner-upgrade.sh"},
+            },
             {"version": "2.4.2"},
         ),
     )
@@ -248,20 +262,22 @@ def test_apply_starts_only_the_fixed_runner_for_a_ready_task(tmp_path, monkeypat
     install_path.mkdir()
     manager = UpgradeManager(data_root=str(data_root))
     (staging_dir / "task.env").write_text(
-        "\n".join([
-            "RUN_ID=run-1",
-            f"DATA_ROOT={data_root}",
-            f"STAGING_DIR={staging_dir}",
-            f"INSTALL_PATH={install_path}",
-            f"COMPOSE_FILE={install_path}/docker-compose.yml",
-            "COMPOSE_PROJECT=websoft9",
-            "TARGET_IMAGE_REPO=websoft9dev/websoft9",
-            "TARGET_IMAGE_TAG=2.5.0",
-            f"TARGET_IMAGE_DIGEST=sha256:{'b' * 64}",
-            "TARGET_VERSION=2.5.0",
-            "CONTAINER_NAME=websoft9",
-            "",
-        ]),
+        "\n".join(
+            [
+                "RUN_ID=run-1",
+                f"DATA_ROOT={data_root}",
+                f"STAGING_DIR={staging_dir}",
+                f"INSTALL_PATH={install_path}",
+                f"COMPOSE_FILE={install_path}/docker-compose.yml",
+                "COMPOSE_PROJECT=websoft9",
+                "TARGET_IMAGE_REPO=websoft9dev/websoft9",
+                "TARGET_IMAGE_TAG=2.5.0",
+                f"TARGET_IMAGE_DIGEST=sha256:{'b' * 64}",
+                "TARGET_VERSION=2.5.0",
+                "CONTAINER_NAME=websoft9",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     manager._write_state({"run_id": "run-1", "state": "ready", "target_version": "2.5.0"})
@@ -303,20 +319,22 @@ def test_apply_rejects_a_runner_image_that_lost_its_pin(tmp_path, monkeypatch):
     install_path.mkdir()
     manager = UpgradeManager(data_root=str(data_root))
     (staging_dir / "task.env").write_text(
-        "\n".join([
-            "RUN_ID=run-1",
-            f"DATA_ROOT={data_root}",
-            f"STAGING_DIR={staging_dir}",
-            f"INSTALL_PATH={install_path}",
-            f"COMPOSE_FILE={install_path}/docker-compose.yml",
-            "COMPOSE_PROJECT=websoft9",
-            "TARGET_IMAGE_REPO=websoft9dev/websoft9",
-            "TARGET_IMAGE_TAG=2.5.0",
-            f"TARGET_IMAGE_DIGEST=sha256:{'b' * 64}",
-            "TARGET_VERSION=2.5.0",
-            "CONTAINER_NAME=websoft9",
-            "",
-        ]),
+        "\n".join(
+            [
+                "RUN_ID=run-1",
+                f"DATA_ROOT={data_root}",
+                f"STAGING_DIR={staging_dir}",
+                f"INSTALL_PATH={install_path}",
+                f"COMPOSE_FILE={install_path}/docker-compose.yml",
+                "COMPOSE_PROJECT=websoft9",
+                "TARGET_IMAGE_REPO=websoft9dev/websoft9",
+                "TARGET_IMAGE_TAG=2.5.0",
+                f"TARGET_IMAGE_DIGEST=sha256:{'b' * 64}",
+                "TARGET_VERSION=2.5.0",
+                "CONTAINER_NAME=websoft9",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     manager._write_state({"run_id": "run-1", "state": "ready", "target_version": "2.5.0"})
@@ -478,13 +496,15 @@ def test_interrupted_upgrade_reports_the_runner_exit_reason(tmp_path, monkeypatc
 def test_terminal_failures_keep_their_state_and_expose_a_failure_record(tmp_path, state, reason):
     """The console keeps explaining a failed upgrade long after it happened."""
     manager = UpgradeManager(data_root=str(tmp_path / "data"))
-    manager._write_state({
-        "run_id": "run-1",
-        "state": state,
-        "target_version": "2.5.0",
-        "detail": "previous deployment restored after health_check_timeout",
-        "reason": reason,
-    })
+    manager._write_state(
+        {
+            "run_id": "run-1",
+            "state": state,
+            "target_version": "2.5.0",
+            "detail": "previous deployment restored after health_check_timeout",
+            "reason": reason,
+        }
+    )
 
     status = manager.status()
 
@@ -570,20 +590,22 @@ def _stage_release(data_root: Path, install_path: Path, run_id: str) -> Path:
     (staging_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
     (staging_dir / "runner-upgrade.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     (staging_dir / "task.env").write_text(
-        "\n".join([
-            f"RUN_ID={run_id}",
-            f"DATA_ROOT={data_root}",
-            f"STAGING_DIR={staging_dir}",
-            f"INSTALL_PATH={install_path}",
-            f"COMPOSE_FILE={install_path}/docker-compose.yml",
-            "COMPOSE_PROJECT=websoft9",
-            "TARGET_IMAGE_REPO=websoft9dev/websoft9",
-            "TARGET_IMAGE_TAG=2.5.0",
-            f"TARGET_IMAGE_DIGEST=sha256:{'b' * 64}",
-            "TARGET_VERSION=2.5.0",
-            "CONTAINER_NAME=websoft9",
-            "",
-        ]),
+        "\n".join(
+            [
+                f"RUN_ID={run_id}",
+                f"DATA_ROOT={data_root}",
+                f"STAGING_DIR={staging_dir}",
+                f"INSTALL_PATH={install_path}",
+                f"COMPOSE_FILE={install_path}/docker-compose.yml",
+                "COMPOSE_PROJECT=websoft9",
+                "TARGET_IMAGE_REPO=websoft9dev/websoft9",
+                "TARGET_IMAGE_TAG=2.5.0",
+                f"TARGET_IMAGE_DIGEST=sha256:{'b' * 64}",
+                "TARGET_VERSION=2.5.0",
+                "CONTAINER_NAME=websoft9",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     return staging_dir
@@ -596,7 +618,9 @@ def test_retry_restarts_the_failed_run_without_downloading(tmp_path, monkeypatch
     install_path.mkdir()
     manager = UpgradeManager(data_root=str(data_root))
     _stage_release(data_root, install_path, "run-1")
-    manager._write_state({"run_id": "run-1", "state": "rolled_back", "target_version": "2.5.0", "reason": "health_check_timeout"})
+    manager._write_state(
+        {"run_id": "run-1", "state": "rolled_back", "target_version": "2.5.0", "reason": "health_check_timeout"}
+    )
     applied = []
 
     def fake_apply(self):

@@ -8,9 +8,9 @@ These are separate from the marketplace (/apps) endpoints because:
   - Redeploy: pulls from Gitea without catalog version tracking
   - Start/Stop/Restart: same Portainer operations but scoped to compose apps only
 """
+
 from fastapi import APIRouter, Path, Query
 
-from src.core.exception import CustomException
 from src.schemas.appResponse import AppResponse
 from src.schemas.composeApp import ComposeContentResponse, ComposeRedeployRequest, ComposeUpdateRequest
 from src.schemas.errorResponse import ErrorResponse
@@ -19,6 +19,7 @@ from src.services.compose_app_manager import ComposeAppManager
 router = APIRouter()
 
 # ── List / Detail ──────────────────────────────────────────────────────────────
+
 
 @router.get(
     "/compose-apps",
@@ -32,7 +33,7 @@ router = APIRouter()
 )
 def list_compose_apps(
     endpointId: int = Query(None, description="Portainer endpoint ID. Defaults to local endpoint."),
-    locale: str = Query("en", description="Language for app media resolution", regex="^(zh|en)(-[A-Za-z]{2})?$"),
+    locale: str = Query("en", description="Language for app media resolution", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return ComposeAppManager().list_compose_apps(endpointId, locale)
 
@@ -51,7 +52,7 @@ def list_compose_apps(
 def get_compose_app(
     app_id: str = Path(..., description="Compose app ID"),
     endpointId: int = Query(None, description="Portainer endpoint ID. Defaults to local endpoint."),
-    locale: str = Query("en", description="Language for app media resolution", regex="^(zh|en)(-[A-Za-z]{2})?$"),
+    locale: str = Query("en", description="Language for app media resolution", pattern="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return ComposeAppManager().get_compose_app(app_id, endpointId, locale)
 
@@ -74,6 +75,7 @@ def get_compose_content(
 
 
 # ── Start / Stop / Restart ─────────────────────────────────────────────────────
+
 
 @router.post(
     "/compose-apps/{app_id}/start",
@@ -134,6 +136,7 @@ def restart_compose_app(
 
 # ── Redeploy ───────────────────────────────────────────────────────────────────
 
+
 @router.post(
     "/compose-apps/{app_id}/redeploy",
     summary="Redeploy Compose App",
@@ -155,6 +158,7 @@ def redeploy_compose_app(
 
 
 # ── Update compose content ─────────────────────────────────────────────────────
+
 
 @router.put(
     "/compose-apps/{app_id}/content",
@@ -187,6 +191,7 @@ def update_compose_content(
 
 
 # ── Remove ─────────────────────────────────────────────────────────────────────
+
 
 @router.delete(
     "/compose-apps/{app_id}",
