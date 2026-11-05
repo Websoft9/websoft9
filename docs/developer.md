@@ -20,12 +20,56 @@ websoft9/
 │   ├── Dockerfile   # Single-container image build
 │   └── docker-compose.yml
 ├── install/         # Installation scripts
-├── cli/             # CLI tools
+├── apphub/src/cli/  # CLI entrypoints (websoft9 command)
 ├── scripts/         # Utility scripts
 └── docs/            # Documentation
 ```
 
 ## Development Setup
+
+### Shortcut: `make`
+
+The repository `Makefile` wraps the commands below — it only orchestrates them, so nothing is
+duplicated between it, `package.json`, `pytest.ini` and the CI workflows. Run `make` to list the
+targets.
+
+```bash
+make            # list targets
+make doctor     # check node / python / docker versions before anything else
+make setup      # npm ci + apphub/.venv with dev and runtime dependencies
+make dev-up     # build and start the local container (console on :9000)
+make lint       # console ESLint + apphub ruff (the checks CI runs)
+make typecheck  # tsc -b + mypy
+make test       # apphub contract suites + console unit tests
+make build      # console production build
+make ci         # everything a pull request has to pass locally
+```
+
+| Target | Runs |
+| --- | --- |
+| `make setup-console` | `cd console && npm ci` |
+| `make setup-apphub` | creates `apphub/.venv`, then installs `ruff`/`mypy`/`pytest` plus `requirements.txt` and `requirements-dev.txt` |
+| `make dev-up` / `dev-down` / `dev-logs` | `docker compose -f docker/docker-compose.dev.yml up -d --build` / `down` / `logs -f` |
+| `make lint-console` | `npm run lint` |
+| `make lint-apphub` | `ruff check src/` (merge gate; config in `apphub/pyproject.toml`) |
+| `make format-check-apphub` | `ruff format --check src/ tests/` (blocking in CI) |
+| `make format-apphub` | `ruff format src/` — one-shot whitespace-only baseline |
+| `make i18n` | `npm run i18n:check` (stricter than CI) |
+| `make typecheck-console` | `npm run typecheck` |
+| `make typecheck-apphub` | `mypy src/` (blocking; the tree is clean) |
+| `make test-apphub` | the whole AppHub suite in one pytest process, with coverage reports and the branch-coverage floor (`COVERAGE_MIN`, default 69) |
+| `make test-contracts` | a fast subset of the AppHub contract tests (previously the only CI test step) |
+| `make test-fast` | the whole suite without coverage, for a quick local loop |
+| `make test-unit` | `npm run test:unit` |
+| `make test-e2e` | `npm run test:e2e` against a running platform (`W9_BASE_URL`, default `http://127.0.0.1:9000`) |
+| `make build-console` | `npm run build` |
+| `make image` | `docker build -f docker/Dockerfile -t $IMAGE_REPO:$IMAGE_TAG` (single architecture) |
+| `make version-check` | mirrors the CI `version-consistency` job against `version.json`, `apphub/setup.py` and `console/package.json` |
+| `make ci` | `lint typecheck test version-check build` |
+| `make clean` | removes `console/dist`, `htmlcov` and `coverage.xml` |
+
+`PYTHON` and `NPM` are overridable from the command line:
+`make test-apphub PYTHON=apphub/.venv/bin/python`.
 
 ### 1. Backend (AppHub)
 
@@ -274,11 +318,17 @@ session reuse, expiry, concurrent entry, and isolated close regression checks.
 ## Code Standards
 
 ### Python (AppHub)
-- Formatter: **Black** (line length 100)
-- Linter: **Flake8**, **Pylint**
-- Import sorting: **isort**
-- Type hints required for public APIs
-- Test coverage target: ≥70%
+- Formatter: **ruff format** (line length 127)
+- Linter: **ruff check** (`E4`, `E7`, `E9`, `F`, `I`, `B` subset, `PIE`, `SIM` subset);
+  flake8/pylint/black/isort were retired. FastAPI's `Depends()`/`Body()` defaults are allowed
+  through `flake8-bugbear.extend-immutable-calls`
+- Import sorting: **ruff** (`I` rules)
+- Type hints required for public APIs; `mypy src/` is a blocking gate with no error codes muted
+  (the pydantic models use v2 `@field_validator`/`json_schema_extra`, and `pydantic.mypy` is enabled)
+- Test coverage: `--cov-branch` over `apphub/src`, currently ~70.8% (line coverage ~75%); the
+  blocking floor is `COVERAGE_MIN` (69) in the `Makefile`, also passed as `--cov-fail-under` by the
+  PR workflow. Note that `pytest-cov` ignores `[coverage:report] fail_under`, which is why the floor
+  is an explicit flag
 
 ### TypeScript (Console)
 - Formatter: **ESLint** + **Prettier**
@@ -291,8 +341,9 @@ All pull requests must pass:
 
 | Check | Tool |
 |-------|------|
-| Linting | Black, isort, Flake8, ESLint |
-| Tests | Pytest (≥70% coverage) |
+| Linting | ruff check + ruff format --check, ESLint, ShellCheck (`--severity=warning`) |
+| Tests | Pytest (single process, branch coverage floor `COVERAGE_MIN` = 69) + Console unit + `install/tests/*.sh` |
+| E2E | Playwright against a real platform, required when `console/**` changes |
 | Build | Docker image build |
 | Security | Container vulnerability scan |
 

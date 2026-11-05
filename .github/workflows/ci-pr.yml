@@ -15,6 +15,10 @@ concurrency:
   group: pr-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  # Branch coverage floor for the AppHub suite; keep in sync with `COVERAGE_MIN` in the Makefile.
+  COVERAGE_MIN: '69'
+
 jobs:
   # ── Governance: branch naming and merge direction ──
   governance-check:
@@ -22,11 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate PR branch policy
+        env:
+          # 分支名来自 PR 作者，经环境变量传入而不是直接拼进脚本。
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
-
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
 
           echo "Base branch: $BASE_REF"
           echo "Head branch: $HEAD_REF"
@@ -72,7 +77,6 @@ jobs:
     outputs:
       python: ${{ steps.filter.outputs.python }}
       console: ${{ steps.filter.outputs.console }}
-      cli: ${{ steps.filter.outputs.cli }}
       docker: ${{ steps.filter.outputs.docker }}
       scripts: ${{ steps.filter.outputs.scripts }}
       appstore_data: ${{ steps.filter.outputs.appstore_data }}
@@ -87,8 +91,6 @@ jobs:
               - 'requirements*.txt'
             console:
               - 'console/**'
-            cli:
-              - 'cli/**'
             docker:
               - 'docker/**'
               - 'Dockerfile'
@@ -131,21 +133,6 @@ jobs:
             echo "::error::version.json version is invalid: '$VERSION'"
             exit 1
           fi
-
-          if [[ ! -f cli/version ]]; then
-            echo "::error::cli/version file is missing"
-            exit 1
-          fi
-
-          grep -Eq '^stable:[[:space:]]*[0-9]+\.[0-9]+$' cli/version || {
-            echo "::error::cli/version must contain 'stable: <major.minor>'"
-            exit 1
-          }
-
-          grep -Eq '^compatible:[[:space:]]*[0-9]+\.[0-9]+$' cli/version || {
-            echo "::error::cli/version must contain 'compatible: <major.minor>'"
-            exit 1
-          }
 
           if [[ ! -f apphub/setup.py ]]; then
             echo "::error::apphub/setup.py is missing"
@@ -195,29 +182,20 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install ruff mypy pytest pytest-cov pytest-asyncio httpx
           pip install -r requirements.txt
-          pip install -r requirements-dev.txt || true
+          pip install -r requirements-dev.txt
 
       - name: Ruff lint
-        run: ruff check src/
+        run: ruff check src/ tests/
 
       - name: Ruff format check
-        run: ruff format --check src/
+        run: ruff format --check src/ tests/
 
       - name: Mypy type check
         run: mypy src/
 
-      - name: CLI compatibility contracts
-        run: python3 -m pytest -q -o addopts='' tests/test_cli_usability.py tests/test_apphub_cli_check_update.py tests/test_cli_contract_regressions.py
-
-      - name: Installation, Compose Git and environment regressions
-        run: python3 -m pytest -q -o addopts='' tests/test_cli_git_regressions.py tests/test_app_compose_install.py tests/test_compose_app_classification.py tests/test_apphub_cli_apps.py
-
       - name: Unit tests + coverage
-        run: |
-          pytest tests/ -v --cov=src --cov-report=xml --cov-fail-under=60 2>&1 || \
-            echo "::warning::Coverage below threshold or tests failed"
+        run: python3 -m pytest -q -o addopts='--tb=short --cov=src --cov-branch --cov-report=term-missing --cov-report=xml' --cov-fail-under=${{ env.COVERAGE_MIN }} tests/
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -260,50 +238,8 @@ jobs:
       - name: Build check
         run: npm run build
 
-      - name: Run tests (if configured)
-        run: |
-          if npm run test --if-present 2>/dev/null; then
-            echo "✅ Tests passed"
-          else
-            echo "⚠️ No test script configured — skipping"
-          fi
-
-  # ── CLI Checks ──
-  cli-ci:
-    name: CLI CI
-    needs: changes
-    if: needs.changes.outputs.cli == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: cli
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-          cache-dependency-path: cli/requirements.txt
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Syntax check
-        run: |
-          python -m compileall -q .
-
-      - name: Optional unit tests
-        run: |
-          if python -m unittest discover -p 'test*.py' -v; then
-            echo "✅ CLI tests passed"
-          else
-            echo "::warning::CLI tests failed or are not unittest-compatible"
-          fi
+      - name: Unit tests
+        run: npm run test:unit
 
   # ── Dockerfile Lint ──
   dockerfile-lint:
@@ -320,6 +256,13 @@ jobs:
           ignore: DL3008,DL3013
           failure-threshold: warning
 
+  # ── Console end-to-end (real platform) ──
+  console-e2e:
+    name: Console E2E
+    needs: changes
+    if: needs.changes.outputs.console == 'true'
+    uses: ./.github/workflows/console-e2e.yml
+
   # ── Shell script checks ──
   shellcheck:
     name: ShellCheck
@@ -330,9 +273,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run ShellCheck on scripts
+        # Blocks on warnings and errors (the tree is clean). Notes stay out on purpose: they are
+        # mostly style hints. `|| true` used to hide even errors.
         run: |
+          set -euo pipefail
           find scripts/ install/ -type f \( -name "*.sh" -o -executable \) -print0 | \
-            xargs -0 -I{} sh -c 'echo "Checking {}" && shellcheck -e SC1091,SC2034 "{}" || true'
+            xargs -0 -I{} sh -c 'echo "Checking {}" && shellcheck -e SC1091,SC2034 --severity=warning "{}"'
+
+      - name: Installer self-tests
+        run: |
+          set -euo pipefail
+          for test_file in install/tests/*.sh; do
+            echo "Running ${test_file}"
+            bash "${test_file}"
+          done
 
   # ── App Store artifact validator smoke checks ──
   appstore-artifact-ci:
@@ -1057,7 +1011,7 @@ jobs:
   summary:
     name: PR Check Summary
     runs-on: ubuntu-latest
-    needs: [governance-check, secret-scan, version-consistency, python-ci, console-ci, cli-ci, dockerfile-lint, shellcheck, appstore-artifact-ci]
+    needs: [governance-check, secret-scan, version-consistency, python-ci, console-ci, console-e2e, dockerfile-lint, shellcheck, appstore-artifact-ci]
     if: always()
     steps:
       - name: Evaluate results
@@ -1068,14 +1022,14 @@ jobs:
           echo "Version Check:  ${{ needs.version-consistency.result }}"
           echo "Python CI:      ${{ needs.python-ci.result }}"
           echo "Console CI:     ${{ needs.console-ci.result }}"
-          echo "CLI CI:         ${{ needs.cli-ci.result }}"
+          echo "Console E2E:    ${{ needs.console-e2e.result }}"
           echo "Dockerfile Lint:${{ needs.dockerfile-lint.result }}"
           echo "ShellCheck:     ${{ needs.shellcheck.result }}"
           echo "AppStore CI:    ${{ needs.appstore-artifact-ci.result }}"
 
           FAIL=false
-          for job in governance-check secret-scan version-consistency python-ci console-ci cli-ci dockerfile-lint shellcheck appstore-artifact-ci; do
-            result="${{ needs[job].result }}"
+          check() {
+            local job="$1" result="$2"
             if [[ "$result" == "failure" ]] || [[ "$result" == "cancelled" ]]; then
               echo "❌ $job: $result"
               FAIL=true
@@ -1084,7 +1038,17 @@ jobs:
             else
               echo "✅ $job: $result"
             fi
-          done
+          }
+
+          check governance-check   "${{ needs.governance-check.result }}"
+          check secret-scan        "${{ needs.secret-scan.result }}"
+          check version-consistency "${{ needs.version-consistency.result }}"
+          check python-ci          "${{ needs.python-ci.result }}"
+          check console-ci         "${{ needs.console-ci.result }}"
+          check console-e2e        "${{ needs.console-e2e.result }}"
+          check dockerfile-lint    "${{ needs.dockerfile-lint.result }}"
+          check shellcheck         "${{ needs.shellcheck.result }}"
+          check appstore-artifact-ci "${{ needs.appstore-artifact-ci.result }}"
 
           if $FAIL; then
             echo "❌ PR checks failed — fix issues above before merging"

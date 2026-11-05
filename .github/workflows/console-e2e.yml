@@ -1,0 +1,88 @@
+name: Console E2E
+
+# The console end-to-end suite signs in against the real API and drives the terminal page, so it
+# needs a running platform. `ci-pr.yml` calls this workflow whenever `console/**` changes; the
+# schedule keeps the same suite green on the default branch even when no PR touches the console.
+on:
+  workflow_call:
+  schedule:
+    - cron: '0 19 * * *' # 03:00 Asia/Shanghai
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: console-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright e2e against a local platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image build dominates the runtime, so keep the layers around between runs.
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the product image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          tags: websoft9:e2e
+          load: true
+          cache-from: type=gha,scope=console-e2e
+          cache-to: type=gha,mode=max,scope=console-e2e
+
+      - name: Start the platform
+        run: |
+          set -euo pipefail
+          docker run -d --name w9-e2e -p 9000:9000 \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            websoft9:e2e
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/ >/dev/null 2>&1; then
+              echo "console is reachable"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "console did not become reachable" >&2
+          docker logs w9-e2e | tail -50
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+
+      - name: Install console dependencies
+        working-directory: console
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: console
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the e2e suite
+        working-directory: console
+        env:
+          W9_BASE_URL: http://127.0.0.1:9000
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-e2e-report
+          path: |
+            console/test-results
+            console/playwright-report
+
+      - name: Stop the platform
+        if: always()
+        run: docker rm -f w9-e2e || true

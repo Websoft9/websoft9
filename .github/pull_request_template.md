@@ -43,7 +43,7 @@ Fixes #(issue number)
 
 - [ ] Unit tests pass locally (`pytest`)
 - [ ] Code coverage maintained or improved
-- [ ] Linting checks pass (`black`, `isort`, `flake8`)
+- [ ] Linting checks pass (`make lint`)
 - [ ] Manual testing completed
 - [ ] Integration tests pass (if applicable)
 
