@@ -1090,6 +1090,110 @@
     border-collapse: collapse;
 }
 
+/* Columns size themselves: percentages squeeze "5432" into two lines as soon as
+   the detail panel narrows. Values never break mid-token, headers never wrap. */
+.myapps-database-table-resolved {
+    table-layout: auto;
+}
+
+.myapps-database-table-resolved th {
+    white-space: nowrap;
+}
+
+.myapps-database-table-resolved td {
+    overflow-wrap: break-word;
+}
+
+/* The password cell is the only one whose content is a fixed-width mask, so
+   leaving it `auto` made it swallow the spare width and strand a gap at the
+   right edge. Pinning it to its content hands the spare width to the columns
+   that actually use it (container names, database names). */
+.myapps-database-table-resolved th:nth-child(6) {
+    width: 1%;
+}
+
+.myapps-db-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    color: var(--myapps-detail-text);
+}
+
+.myapps-db-th {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.myapps-db-hint {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--myapps-detail-border-strong);
+    border-radius: 50%;
+    color: var(--myapps-detail-subtle);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.myapps-db-hint:hover {
+    background: var(--myapps-detail-surface-muted);
+    color: var(--myapps-detail-text-strong);
+    border-color: var(--myapps-detail-text-strong);
+}
+
+.myapps-db-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--myapps-detail-border-strong);
+    border-radius: 50%;
+    color: var(--myapps-detail-subtle);
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 600;
+    cursor: help;
+    user-select: none;
+}
+
+.myapps-db-help:focus-visible {
+    outline: 2px solid var(--myapps-detail-accent);
+    outline-offset: 1px;
+}
+
+.myapps-db-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--myapps-detail-subtle);
+}
+
+.myapps-db-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.myapps-db-tag {
+    padding: 1px 7px;
+    border: 1px solid var(--myapps-detail-border-strong);
+    background: var(--myapps-detail-surface);
+    color: var(--myapps-detail-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+
+.myapps-db-empty {
+    color: var(--myapps-detail-subtle);
+}
+
 .myapps-database-table th,
 .myapps-database-table td {
     padding: 10px;
@@ -1186,8 +1290,9 @@
 }
 
 .myapps-database-password-text {
-    font-family: monospace;
-    letter-spacing: 2px;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
 }
 
 .myapps-database-icon-btn {

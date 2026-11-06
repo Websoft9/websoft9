@@ -7,6 +7,12 @@ from pathlib import Path
 from ruamel.yaml import YAML
 
 from src.core.exception import CustomException
+from src.services.external_database import (
+    EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS,
+    EXTERNAL_DATABASE_PROFILE,
+    apply_datasource,
+    external_database_declaration,
+)
 
 _COMPOSE_YAML = YAML()
 _COMPOSE_YAML.preserve_quotes = True
@@ -17,15 +23,6 @@ _COMPOSE_YAML.indent(mapping=2, sequence=4, offset=2)
 _PROFILE_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _PROFILE_COMPOSE_PATTERN = re.compile(r"^docker-compose\.([a-z0-9][a-z0-9-]*)\.yml$")
 _PROFILE_ENV_PATTERN = re.compile(r"^\.env\.([a-z0-9][a-z0-9-]*)$")
-EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS = frozenset(
-    {
-        "W9_DB_HOST_SET",
-        "W9_DB_PORT_SET",
-        "W9_DB_NAME_SET",
-        "W9_DB_USER_SET",
-        "W9_DB_PASSWORD_SET",
-    }
-)
 
 
 @dataclass(frozen=True)
@@ -78,7 +75,13 @@ def is_external_database_profile(app_directory: str | Path | None, profile: str 
     if app_directory is None or profile is None:
         return False
 
-    _, env_path = get_profile_template(app_directory, profile)
+    env_path = Path(app_directory) / f".env.{profile}"
+    if not env_path.is_file():
+        # New library contract: ``.env.<profile>`` files are retired and the
+        # capability lives in ``database[]``. Keep the same profile name so the
+        # install form, manifests and stored instances stay compatible.
+        return profile == EXTERNAL_DATABASE_PROFILE and external_database_declaration(app_directory) is not None
+
     for raw_line in env_path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -187,8 +190,14 @@ def validate_profile_settings(app_directory: str | Path, profile: str | None, se
         return
 
     app_path = Path(app_directory)
-    _, env_path = get_profile_template(app_path, profile)
-    expected_keys = _load_template_settings(app_path / ".env") | _load_template_settings(env_path)
+    expected_keys = _load_template_settings(app_path / ".env")
+    env_path = app_path / f".env.{profile}"
+    if env_path.is_file():
+        expected_keys |= _load_template_settings(env_path)
+    else:
+        # Synthesised profile: ``database[]`` replaced the profile file, so the
+        # caller supplies exactly the connection fields.
+        expected_keys |= set(EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS)
     supplied_settings = settings or {}
     if set(supplied_settings) != expected_keys:
         raise CustomException(400, "Invalid Request", "Profile settings do not match the selected installation profile.")
@@ -332,18 +341,26 @@ def _version_matches_prefix(actual: tuple[int, ...], expected: tuple[int, ...]) 
 
 def materialize_profile_template(workspace_directory: str | Path, profile: str | None) -> None:
     workspace_path = Path(workspace_directory)
+    compose_path = workspace_path / "docker-compose.yml"
     if profile is not None:
-        compose_path, env_path = get_profile_template(workspace_path, profile)
-        _merge_env_profile(workspace_path / ".env", env_path)
+        env_path = workspace_path / f".env.{profile}"
+        if env_path.is_file():
+            _merge_env_profile(workspace_path / ".env", env_path)
 
-        profile_values = _read_env_values(env_path)
-        if profile_values.get("W9_DATABASE_MODE", "").strip().strip("\"'") == "external":
-            excluded_services = {
-                service.strip()
-                for service in profile_values.get("W9_COMPOSE_EXCLUDE_SERVICES", "").split(",")
-                if service.strip()
-            }
-            _remove_external_services(compose_path, excluded_services)
+            profile_values = _read_env_values(env_path)
+            if profile_values.get("W9_DATABASE_MODE", "").strip().strip("\"'") == "external":
+                excluded_services = {
+                    service.strip()
+                    for service in profile_values.get("W9_COMPOSE_EXCLUDE_SERVICES", "").split(",")
+                    if service.strip()
+                }
+                _remove_external_services(compose_path, excluded_services)
+        elif profile == EXTERNAL_DATABASE_PROFILE:
+            # No profile template to merge: the bundled service to drop is now
+            # named by the declaration instead of ``W9_COMPOSE_EXCLUDE_SERVICES``.
+            declaration = external_database_declaration(workspace_path)
+            if declaration is not None:
+                _remove_external_services(compose_path, set(declaration["internal_services"]))
 
     profile_names = []
     for candidate in workspace_path.iterdir():
@@ -360,3 +377,36 @@ def materialize_profile_template(workspace_directory: str | Path, profile: str |
         candidate = workspace_path / f".env.{profile_name}"
         if candidate.is_file():
             candidate.unlink()
+
+
+def _setting_text(settings: dict, key: str, *, strip: bool = True) -> str:
+    raw = settings.get(key)
+    if not isinstance(raw, str):
+        return ""
+    return raw.strip() if strip else raw
+
+
+def external_database_datasource_values(settings: dict | None) -> dict[str, str]:
+    """Semantic connection values collected from the installation form."""
+    supplied: dict = settings or {}
+    return {
+        "host": _setting_text(supplied, "W9_DB_HOST_SET"),
+        "port": _setting_text(supplied, "W9_DB_PORT_SET"),
+        "name": _setting_text(supplied, "W9_DB_NAME_SET"),
+        "user": _setting_text(supplied, "W9_DB_USER_SET"),
+        # A password is written verbatim: trimming would change the credential.
+        "password": _setting_text(supplied, "W9_DB_PASSWORD_SET", strip=False),
+    }
+
+
+def external_database_mapping(workspace_directory: str | Path, settings: dict | None) -> dict[str, str]:
+    """Native variables the declaration says should receive the connection.
+
+    The returned mapping is empty for applications that do not declare
+    ``datasource`` (the retired profile contract), or when a template cannot be
+    resolved from the supplied values: a partial write is worse than none.
+    """
+    declaration = external_database_declaration(workspace_directory)
+    if declaration is None:
+        return {}
+    return apply_datasource(declaration["datasource"], external_database_datasource_values(settings))

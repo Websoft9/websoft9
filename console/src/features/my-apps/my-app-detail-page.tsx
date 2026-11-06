@@ -7,6 +7,7 @@ import {
     IconButton,
     Switch,
     SvgIcon,
+    Tooltip,
     Typography,
 } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
@@ -26,6 +27,8 @@ import { VolumeFileBrowserDialog } from './volume-file-browser-dialog'
 import { AppSftpDialog } from './app-sftp-dialog'
 import { MyAppComposeWorkspace } from './my-app-compose-workspace'
 import { type MyAppDetail, useMyAppDetail } from './use-my-app-detail'
+import { useAppDatabases } from './use-app-databases'
+import { buildDatabaseRows, formatDatabaseNames, formatDatabaseRoles, formatDatabaseTypeLabel } from './my-app-database-rows'
 import { MyAppAccessPanel } from './my-app-access-panel'
 import { useMyAppPhpInfo } from './use-my-app-php-info'
 import './my-app-detail-page.css'
@@ -181,10 +184,10 @@ function hasAccessTab(data: MyAppDetail | undefined) {
     )
 }
 
-function getDetailTabs(data: MyAppDetail): DetailTabKey[] {
+function getDetailTabs(data: MyAppDetail, hasResolvedDatabases = false): DetailTabKey[] {
     const tabs: DetailTabKey[] = ['overview', 'container', 'compose', 'uninstall']
     if (hasAccessTab(data)) tabs.splice(1, 0, 'access')
-    if ((data.volumes ?? []).length > 0) tabs.splice(3, 0, 'volumes')
+    if ((data.volumes ?? []).length > 0 || hasResolvedDatabases) tabs.splice(3, 0, 'volumes')
     if (data.is_php_app) tabs.splice(4, 0, 'php')
     if (data.is_monitor_app) tabs.splice(6, 0, 'monitor')
     return tabs
@@ -755,6 +758,16 @@ export function MyAppDetailPage() {
     }, [appId, location.pathname, navigate])
 
     const { data, error, isLoading, refetch } = useMyAppDetail(appId)
+    // Fetched in parallel with the detail request: the declaration decides the
+    // rendering mode, so waiting for the detail first only delays the switch.
+    const databasesQuery = useAppDatabases(appId)
+    const databasesSettled = databasesQuery.isSuccess || databasesQuery.isError
+    const databasesAreV2 = databasesQuery.data?.declaration === 'v2'
+    const resolvedDatabases = useMemo(
+        () => (databasesQuery.data?.declaration === 'v2' ? (databasesQuery.data.components ?? []) : []),
+        [databasesQuery.data],
+    )
+    const resolvedRows = useMemo(() => buildDatabaseRows(resolvedDatabases), [resolvedDatabases])
     const canLoadPhpRuntime = canProbePhpRuntime(data?.containers, data?.app_id)
     const phpInfoQuery = useMyAppPhpInfo(data?.app_id, Boolean(data?.is_php_app && selectedTab === 'php' && canLoadPhpRuntime))
 
@@ -935,9 +948,16 @@ export function MyAppDetailPage() {
         },
     }), [dialogPrimaryButtonSx])
 
-    const detailTabs = useMemo(() => (data ? getDetailTabs(data) : ['overview' as const]), [data])
+    const detailTabs = useMemo(() => (data ? getDetailTabs(data, resolvedRows.length > 0) : ['overview' as const]), [data, resolvedRows.length])
     const portEntries = useMemo(() => getPortEntries(data?.env), [data?.env])
-    const databaseRows = useMemo(() => (data ? getDatabaseRows(data) : []), [data])
+    const databaseRows = useMemo(() => {
+        // The declaration owns the database section. Once it exists the flat table
+        // renders every component (including the external connection, which the API
+        // reverses out of the instance configuration); the legacy table would only
+        // duplicate it. Before that, nothing is guessed from `env`.
+        if (!databasesSettled || databasesAreV2) return []
+        return data ? getDatabaseRows(data) : []
+    }, [data, databasesAreV2, databasesSettled])
     const containerStateSummary = useMemo(() => getContainerStateSummary(data?.containers), [data?.containers])
     const sortedVolumes = useMemo(() => {
         const volumes = [...(data?.volumes ?? [])]
@@ -1686,7 +1706,7 @@ export function MyAppDetailPage() {
 
                                     {/* ── Volumes ── */}
                                     {selectedTab === 'volumes' ? (
-                                        (sortedVolumes.length > 0 || databaseRows.length > 0) ? (
+                                        (sortedVolumes.length > 0 || databaseRows.length > 0 || resolvedRows.length > 0) ? (
                                             <>
                                                 {sortedVolumes.length > 0 ? (
                                                     <div className="myapps-access-section myapps-volume-card">
@@ -1838,6 +1858,121 @@ export function MyAppDetailPage() {
                                                         </div>
                                                     </div>
                                                 </div>
+
+                                                {resolvedRows.length > 0 ? (
+                                                    <div className="myapps-access-section myapps-volume-card">
+                                                        <div className="myapps-access-section-head">
+                                                            <div className="myapps-section-label-bar">
+                                                                <span className="myapps-section-label-indicator" />
+                                                                <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.database.title')}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="myapps-php-card-body">
+                                                            <div className="myapps-php-runtime-card myapps-volume-runtime-card">
+                                                                <div className="myapps-database-card-body myapps-volume-database-card-body">
+                                                                    <table className="myapps-database-table myapps-database-table-resolved" role="table">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.database')}</th>
+                                                                                <th>
+                                                                                    <span className="myapps-db-th">
+                                                                                        {t('myAppsDetailPage.tabs.database.columns.hostLabel')}
+                                                                                        <Tooltip title={t('myAppsDetailPage.tabs.database.columns.hostHint')}>
+                                                                                            <span
+                                                                                                aria-label={t('myAppsDetailPage.tabs.database.columns.hostHint')}
+                                                                                                className="myapps-db-hint"
+                                                                                                role="img"
+                                                                                            >
+                                                                                                ?
+                                                                                            </span>
+                                                                                        </Tooltip>
+                                                                                    </span>
+                                                                                </th>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.port')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.name')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.user')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.password')}</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {resolvedRows.map((row) => {
+                                                                                const passwordKey = `resolved-${row.key}`
+                                                                                const password = row.password ?? ''
+                                                                                const revealed = Boolean(showPasswords[passwordKey])
+                                                                                return (
+                                                                                    <tr key={row.key}>
+                                                                                        {row.groupStart ? (
+                                                                                            <>
+                                                                                                <td rowSpan={row.groupSize}>{formatDatabaseTypeLabel(row.driver)}</td>
+                                                                                                <td rowSpan={row.groupSize}>{row.host ?? <span className="myapps-db-empty">—</span>}</td>
+                                                                                                <td rowSpan={row.groupSize}>{row.port ?? <span className="myapps-db-empty">—</span>}</td>
+                                                                                                <td rowSpan={row.groupSize}>
+                                                                                                    {row.names.length > 0 ? (
+                                                                                                        <span className="myapps-db-tags">
+                                                                                                            {formatDatabaseNames(row.driver, row.names).map((name) => (
+                                                                                                                <span key={name} className="myapps-db-tag">{name}</span>
+                                                                                                            ))}
+                                                                                                        </span>
+                                                                                                    ) : (
+                                                                                                        <span className="myapps-db-empty">—</span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                            </>
+                                                                                        ) : null}
+                                                                                        <td>
+                                                                                            {row.user ? (
+                                                                                                <>
+                                                                                                    <span>{row.user}</span>
+                                                                                                    {formatDatabaseRoles(row.usage, t) ? (
+                                                                                                        <span className="myapps-db-sub">{formatDatabaseRoles(row.usage, t)}</span>
+                                                                                                    ) : null}
+                                                                                                </>
+                                                                                            ) : (
+                                                                                                <span className="myapps-db-empty">—</span>
+                                                                                            )}
+                                                                                        </td>
+                                                                                        <td>
+                                                                                            {password ? (
+                                                                                                <div className="myapps-database-password-cell">
+                                                                                                    <span className="myapps-database-password-text">
+                                                                                                        {revealed ? password : '•'.repeat(Math.min(password.length, 16))}
+                                                                                                    </span>
+                                                                                                    <button
+                                                                                                        className="myapps-database-icon-btn"
+                                                                                                        title={revealed ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}
+                                                                                                        onClick={() => setShowPasswords((prev) => ({ ...prev, [passwordKey]: !prev[passwordKey] }))}
+                                                                                                    >
+                                                                                                        {revealed ? <IconEyeOff /> : <IconEye />}
+                                                                                                    </button>
+                                                                                                    <button
+                                                                                                        className="myapps-database-icon-btn"
+                                                                                                        title={t('myAppsDetailPage.tabs.database.copy')}
+                                                                                                        onClick={async () => {
+                                                                                                            try {
+                                                                                                                await copyTextWithFallback(password)
+                                                                                                                setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.database.copied') })
+                                                                                                            } catch {
+                                                                                                                setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.database.copyFailed') })
+                                                                                                            }
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <IconCopy />
+                                                                                                    </button>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <span className="myapps-db-empty">—</span>
+                                                                                            )}
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                )
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : null}
 
                                                 {databaseRows.length > 0 ? (
                                                     <div className="myapps-access-section myapps-volume-card">

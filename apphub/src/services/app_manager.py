@@ -59,6 +59,7 @@ from src.services.image_pull import (
     validate_image_reference,
 )
 from src.services.install_profile import (
+    external_database_mapping,
     get_external_database_type,
     get_port_check_settings,
     is_external_database_profile,
@@ -1488,6 +1489,24 @@ class AppManger:
                     envHelper.get_value("W9_DB_PASSWORD_SET") or "",
                 )
                 envHelper.set_value("W9_DB_EXPOSE", connection.database_type)
+                # Compatibility marker: existing readers (detail view, external
+                # checks) still rely on it, and instances installed through the
+                # retired profile template carry the same value.
+                envHelper.set_value("W9_DATABASE_MODE", "external")
+                # The declaration owns where the connection goes: applications
+                # that provide ``datasource`` get their native variables written
+                # here, which is what the runtime actually reads.
+                for key, value in external_database_mapping(app_tmp_dir_path, settings).items():
+                    envHelper.set_value(key, value)
+                # Compatibility marker: readers (detail view, external check)
+                # still rely on it, and instances installed through the retired
+                # profile template carry the same value.
+                envHelper.set_value("W9_DATABASE_MODE", "external")
+                # The declaration owns where the connection goes: applications
+                # that provide ``datasource`` get their native variables written
+                # here, which is what the runtime actually reads.
+                for key, value in external_database_mapping(app_tmp_dir_path, settings).items():
+                    envHelper.set_value(key, value)
 
             # Verify the app is web app
             is_web_app = envHelper.get_value("W9_URL")

@@ -6,6 +6,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from src.services.external_database import (
+    EXTERNAL_DATABASE_PROFILE,
+    external_database_declaration,
+    external_database_profile_settings,
+)
+
 DATA_ROOT = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
 LOCAL_APP_STORE_ROOT = Path(os.getenv("WEBSOFT9_LOCAL_APP_STORE_ROOT", f"{DATA_ROOT}/localapps"))
 _APP_KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -72,7 +78,7 @@ def _catalog_collection(bindings: object) -> dict[str, object]:
     return {"items": list(items.values())}
 
 
-def _discover_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
+def _discover_profiles(app_dir: Path, variables: dict[str, Any] | None = None) -> dict[str, dict[str, object]]:
     profiles: dict[str, dict[str, object]] = {}
     for env_path in sorted(app_dir.glob(".env.*")):
         match = re.fullmatch(r"\.env\.([a-z0-9][a-z0-9-]*)", env_path.name)
@@ -85,6 +91,17 @@ def _discover_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
         if values.get("W9_DATABASE_MODE") == "external":
             profile["is_external_database"] = True
         profiles[match.group(1)] = profile
+
+    if EXTERNAL_DATABASE_PROFILE not in profiles:
+        # New library contract: external support is declared in ``database[]``
+        # instead of a ``.env.external-db`` profile file. Publish the profile the
+        # install form already understands so both library shapes look the same.
+        declaration = external_database_declaration(app_dir)
+        if declaration is not None:
+            profiles[EXTERNAL_DATABASE_PROFILE] = {
+                "settings": external_database_profile_settings(declaration),
+                "is_external_database": True,
+            }
     return profiles
 
 
@@ -133,7 +150,7 @@ def _build_app(media_path: Path, library_root: Path) -> dict[str, object]:
             "app_origin": "local",
         }
     )
-    profiles = _discover_profiles(app_dir)
+    profiles = _discover_profiles(app_dir, variables)
     if profiles:
         manifest["profiles"] = profiles
     if isinstance(variables.get("help"), dict):
@@ -141,7 +158,7 @@ def _build_app(media_path: Path, library_root: Path) -> dict[str, object]:
     return manifest
 
 
-def refresh_local_app_store(root: Path | None = None) -> dict[str, Any]:
+def reload_local_app_catalog(root: Path | None = None) -> dict[str, Any]:
     root = root or resolve_local_app_store_root()
     media_root = root / "catalog"
     library_root = root / "apps"
@@ -198,7 +215,12 @@ def _refresh_official_app_store() -> dict[str, Any]:
     return {"loaded": loaded, "errors": []}
 
 
-def refresh_local_app_store_catalog(root: Path | None = None) -> dict[str, Any]:
+def reload_app_store_catalog(root: Path | None = None) -> dict[str, Any]:
+    """Rebuild the official and custom App Store catalogs from the assets on disk.
+
+    This reloads manifests from what the platform already has; it never downloads
+    anything. Use ``appstore sync`` (``POST /appstore/sync``) for that.
+    """
     official_report: dict[str, Any]
     custom_report: dict[str, Any]
 
@@ -208,7 +230,7 @@ def refresh_local_app_store_catalog(root: Path | None = None) -> dict[str, Any]:
         official_report = {"loaded": {}, "errors": [{"error": str(exc)}]}
 
     try:
-        custom_report = refresh_local_app_store(root)
+        custom_report = reload_local_app_catalog(root)
     except Exception as exc:
         custom_report = {
             "loaded": 0,

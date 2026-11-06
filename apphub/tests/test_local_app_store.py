@@ -11,8 +11,8 @@ from src.services import local_app_store
 from src.services.local_app_store import (
     get_local_app_store_apps,
     local_manifest_path,
-    refresh_local_app_store,
-    refresh_local_app_store_catalog,
+    reload_app_store_catalog,
+    reload_local_app_catalog,
     resolve_local_app_store_root,
 )
 
@@ -38,7 +38,7 @@ def _write_app(root: Path, key: str, media: Optional[object] = None) -> None:
 def test_refresh_builds_and_reads_single_local_manifest(tmp_path):
     _write_app(tmp_path, "canvas")
 
-    report = refresh_local_app_store(tmp_path)
+    report = reload_local_app_catalog(tmp_path)
 
     assert report == {"loaded": 1, "skipped": 0, "errors": []}
     apps = get_local_app_store_apps(tmp_path)
@@ -54,7 +54,7 @@ def test_refresh_skips_invalid_app_and_keeps_valid_apps(tmp_path):
     _write_app(tmp_path, "canvas")
     _write_app(tmp_path, "broken", media=[])
 
-    report = refresh_local_app_store(tmp_path)
+    report = reload_local_app_catalog(tmp_path)
 
     assert report["loaded"] == 1
     assert report["skipped"] == 1
@@ -64,13 +64,13 @@ def test_refresh_skips_invalid_app_and_keeps_valid_apps(tmp_path):
 
 def test_refresh_preserves_previous_manifest_when_no_valid_apps_exist(tmp_path):
     _write_app(tmp_path, "canvas")
-    refresh_local_app_store(tmp_path)
+    reload_local_app_catalog(tmp_path)
     _write_app(tmp_path, "broken", media=[])
 
     (tmp_path / "catalog" / "canvas.json").unlink()
 
     try:
-        refresh_local_app_store(tmp_path)
+        reload_local_app_catalog(tmp_path)
     except ValueError as exc:
         assert "previous manifest was preserved" in str(exc)
     else:
@@ -98,7 +98,7 @@ def test_catalog_refresh_rebuilds_official_and_custom_catalogs(tmp_path, monkeyp
     _write_app(tmp_path, "canvas")
     monkeypatch.setattr(local_app_store, "_refresh_official_app_store", lambda: {"loaded": {"zh": 2, "en": 2}, "errors": []})
 
-    report = refresh_local_app_store_catalog(tmp_path)
+    report = reload_app_store_catalog(tmp_path)
 
     assert report == {
         "official": {"loaded": {"zh": 2, "en": 2}, "errors": []},
@@ -114,8 +114,55 @@ def test_catalog_refresh_preserves_each_catalog_failure_in_its_report(tmp_path, 
     )
     _write_app(tmp_path, "broken", media=[])
 
-    report = refresh_local_app_store_catalog(tmp_path)
+    report = reload_app_store_catalog(tmp_path)
 
     assert report["official"]["errors"] == [{"error": "invalid official metadata"}]
     assert report["custom"]["skipped"] == 1
     assert "previous manifest was preserved" in report["custom"]["errors"][0]["error"]
+
+
+def _write_external_declaration(app_root: Path) -> None:
+    (app_root / "variables.json").write_text(
+        json.dumps(
+            {
+                "edition": [{"dist": "community", "version": "1.0.0"}],
+                "database": [
+                    {
+                        "id": "rds",
+                        "providers": [
+                            {"type": "internal", "service": "mysql", "driver": "mysql"},
+                            {"type": "external", "drivers": ["mysql", "mariadb"]},
+                        ],
+                        "datasource": {"WORDPRESS_DB_HOST": "${host}:${port}"},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_manifest_publishes_the_external_profile_declared_in_database(tmp_path):
+    """The library no longer ships ``.env.external-db``; the declaration replaces it."""
+    _write_app(tmp_path, "wordpress")
+    _write_external_declaration(tmp_path / "apps" / "wordpress")
+
+    reload_local_app_catalog(tmp_path)
+    app = get_local_app_store_apps(tmp_path)[0]
+
+    profile = app["profiles"]["external-db"]
+    assert profile["is_external_database"] is True
+    assert profile["settings"]["W9_DB_PORT_SET"] == "3306"
+
+
+def test_a_profile_file_still_wins_over_the_declaration(tmp_path):
+    _write_app(tmp_path, "wordpress")
+    _write_external_declaration(tmp_path / "apps" / "wordpress")
+    (tmp_path / "apps" / "wordpress" / ".env.external-db").write_text(
+        "W9_DATABASE_MODE=external\nW9_DB_PORT_SET=3307\n", encoding="utf-8"
+    )
+
+    reload_local_app_catalog(tmp_path)
+    app = get_local_app_store_apps(tmp_path)[0]
+
+    assert app["profiles"]["external-db"]["settings"]["W9_DB_PORT_SET"] == "3307"

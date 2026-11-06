@@ -1,0 +1,204 @@
+{
+    "postgresql": {
+        "images": [
+            "postgres",
+            "pgvector",
+            "paradedb",
+            "timescale",
+            "supabase/postgres"
+        ],
+        "host": "",
+        "port": 5432,
+        "url": "postgres://${users[*].user}:${users[*].password}@${host}:${port}/${name}",
+        "name": [
+            "${POSTGRES_DB}"
+        ],
+        "users": [
+            {
+                "user": "${POSTGRES_USER}",
+                "password": "${POSTGRES_PASSWORD}"
+            }
+        ]
+    },
+    "mysql": {
+        "images": [
+            "mysql"
+        ],
+        "host": "",
+        "port": 3306,
+        "url": "mysql://${users[*].user}:${users[*].password}@${host}:${port}/${name}",
+        "name": [
+            "${MYSQL_DATABASE}"
+        ],
+        "users": [
+            {
+                "user": "root",
+                "password": "${MYSQL_ROOT_PASSWORD}",
+                "usage": [
+                    "administration"
+                ]
+            },
+            {
+                "user": "${MYSQL_USER}",
+                "password": "${MYSQL_PASSWORD}",
+                "usage": [
+                    "application"
+                ]
+            }
+        ]
+    },
+    "mariadb": {
+        "images": [
+            "mariadb"
+        ],
+        "host": "",
+        "port": 3306,
+        "url": "mysql://${users[*].user}:${users[*].password}@${host}:${port}/${name}",
+        "name": [
+            "${MARIADB_DATABASE}"
+        ],
+        "users": [
+            {
+                "user": "root",
+                "password": "${MARIADB_ROOT_PASSWORD}",
+                "usage": [
+                    "administration"
+                ]
+            },
+            {
+                "user": "${MARIADB_USER}",
+                "password": "${MARIADB_PASSWORD}",
+                "usage": [
+                    "application"
+                ]
+            }
+        ]
+    },
+    "mongodb": {
+        "images": [
+            "mongo"
+        ],
+        "host": "",
+        "port": 27017,
+        "url": "mongodb://${users[*].user}:${users[*].password}@${host}:${port}/${name}",
+        "name": [
+            "${MONGO_INITDB_DATABASE}"
+        ],
+        "users": [
+            {
+                "user": "${MONGO_INITDB_ROOT_USERNAME}",
+                "password": "${MONGO_INITDB_ROOT_PASSWORD}"
+            }
+        ]
+    },
+    "redis": {
+        "images": [
+            "redis",
+            "valkey"
+        ],
+        "host": "",
+        "port": 6379,
+        "url": "redis://:${users[*].password}@${host}:${port}",
+        "users": [
+            {
+                "user": "default",
+                "password": "${REDIS_PASSWORD}"
+            }
+        ]
+    },
+    "clickhouse": {
+        "images": [
+            "clickhouse"
+        ],
+        "host": "",
+        "port": 8123,
+        "url": "http://${host}:${port}",
+        "name": [
+            "${CLICKHOUSE_DB}"
+        ],
+        "users": [
+            {
+                "user": "${CLICKHOUSE_USER}",
+                "password": "${CLICKHOUSE_PASSWORD}"
+            }
+        ]
+    },
+    "couchdb": {
+        "images": [
+            "couchdb",
+            "budibase/database"
+        ],
+        "host": "",
+        "port": 5984,
+        "url": "http://${users[*].user}:${users[*].password}@${host}:${port}",
+        "users": [
+            {
+                "user": "${COUCHDB_USER}",
+                "password": "${COUCHDB_PASSWORD}"
+            }
+        ]
+    },
+    "solr": {
+        "images": [
+            "solr",
+            "ckan/ckan-solr"
+        ],
+        "host": "",
+        "port": 8983,
+        "url": "http://${host}:${port}/solr",
+        "name": [],
+        "users": []
+    },
+    "elasticsearch": {
+        "images": [
+            "elasticsearch",
+            "docker.elastic.co/elasticsearch/elasticsearch"
+        ],
+        "host": "",
+        "port": 9200,
+        "url": "http://${host}:${port}",
+        "name": [],
+        "users": []
+    },
+    "meilisearch": {
+        "images": [
+            "getmeili/meilisearch"
+        ],
+        "host": "",
+        "port": 7700,
+        "url": "http://${host}:${port}",
+        "name": [],
+        "users": []
+    },
+    "chroma": {
+        "images": [
+            "chromadb/chroma"
+        ],
+        "host": "",
+        "port": 8000,
+        "url": "http://${host}:${port}",
+        "name": [],
+        "users": []
+    },
+    "weaviate": {
+        "images": [
+            "semitechnologies/weaviate"
+        ],
+        "host": "",
+        "port": 8080,
+        "url": "http://${host}:${port}",
+        "name": [],
+        "users": []
+    },
+    "opensearch": {
+        "images": [
+            "opensearchproject/opensearch",
+            "wazuh/wazuh-indexer"
+        ],
+        "host": "",
+        "port": 9200,
+        "url": "https://${host}:${port}",
+        "name": [],
+        "users": []
+    }
+}

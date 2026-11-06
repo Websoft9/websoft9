@@ -32,6 +32,7 @@ from src.schemas.appComposeInstall import (
     ComposeValidationResponse,
 )
 from src.schemas.appCustomFields import AppCustomFieldResponse, AppCustomFieldsRequest
+from src.schemas.appDatabase import AppDatabasesResponse
 from src.schemas.appInstall import ExternalDatabaseConnectionTestRequest, appInstall
 from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
 from src.schemas.appPhpInfo import AppPhpInfoResponse
@@ -40,6 +41,7 @@ from src.schemas.appResponse import AppResponse
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.scheduledTasks import ImagePrewarmRequest
 from src.services.app_access_manager import AppAccessManager
+from src.services.app_database_manager import AppDatabaseManager
 from src.services.app_manager import AppManger
 from src.services.app_status import get_app_custom_fields, request_install_cancel, save_app_custom_fields
 from src.services.apps_stream_cache import apps_stream_cache
@@ -58,7 +60,7 @@ from src.services.install_profile import (
 )
 from src.services.local_app_store import (
     get_local_app_store_apps,
-    refresh_local_app_store_catalog,
+    reload_app_store_catalog,
     resolve_local_app_store_root,
 )
 from src.services.portainer_manager import PortainerManager
@@ -138,9 +140,17 @@ def get_local_available_apps():
         raise CustomException(503, "Service Unavailable", str(exc)) from exc
 
 
-@router.post("/apps/local/refresh", summary="Rebuild Local App Store Catalog")
+@router.post(
+    "/apps/local/refresh",
+    summary="Reload App Store Catalogs (deprecated)",
+    description="Deprecated: use POST /appstore/reload. Kept so older console builds and scripts keep working.",
+    deprecated=True,
+)
 def refresh_local_apps():
-    return refresh_local_app_store_catalog()
+    # Deprecated entry point: the catalogs belong to the App Store, and the
+    # operation reloads them instead of fetching. `POST /appstore/reload` is the
+    # supported route; this alias keeps older console builds and scripts working.
+    return reload_app_store_catalog()
 
 
 @router.get(
@@ -266,6 +276,27 @@ def get_app_access(
     endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
 ):
     return AppAccessManager().get_access_overview(app_id, endpointId)
+
+
+@router.get(
+    "/apps/{app_id}/databases",
+    summary="Inspect App Databases",
+    description=(
+        "Resolve the database declaration of an installed app against that installation. "
+        "Returns declaration=v2 with resolved components, or legacy/missing so the caller keeps "
+        "its previous rendering. Values that cannot be resolved are returned as null."
+    ),
+    responses={
+        200: {"model": AppDatabasesResponse},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def get_app_databases(
+    app_id: str = Path(..., description="App ID to inspect databases for"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect the app from. If not set, use the local endpoint"),
+):
+    return AppDatabaseManager().get_databases(app_id, endpointId)
 
 
 @router.post(

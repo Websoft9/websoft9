@@ -285,14 +285,17 @@ def install_validate(appInstall: appInstall, endpointId: int, library_path: str 
         )
         app_directory = os.path.join(library_path, app_name)
         if is_external_database_profile(app_directory, appInstall.profile):
+            # ``validate_external_database_connection`` already rejects empty
+            # values with a 400; reading the fields defensively keeps a missing
+            # key from surfacing as an unhandled KeyError.
             settings = appInstall.settings or {}
             validate_external_database_connection(
                 get_external_database_type(app_directory),
-                settings["W9_DB_HOST_SET"],
-                settings["W9_DB_PORT_SET"],
+                str(settings.get("W9_DB_HOST_SET") or ""),
+                str(settings.get("W9_DB_PORT_SET") or ""),
                 settings.get("W9_DB_NAME_SET"),
-                settings["W9_DB_USER_SET"],
-                settings["W9_DB_PASSWORD_SET"],
+                str(settings.get("W9_DB_USER_SET") or ""),
+                str(settings.get("W9_DB_PASSWORD_SET") or ""),
             )
         # Check the app_id is exists in gitea and portainer
         check_appId(app_id, endpointId, giteaManager, portainerManager)
