@@ -2363,7 +2363,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             const report = await requestJson<{
                 official: { loaded: Record<string, number>; errors: Array<{ error: string }> }
                 custom: { loaded: number; skipped: number; errors: Array<{ app: string; error: string }> }
-            }>('/api/apps/local/refresh', {
+            }>('/api/appstore/reload', {
                 method: 'POST',
             })
             await Promise.all([

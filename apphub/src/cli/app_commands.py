@@ -338,7 +338,7 @@ def install(
         fail(str(exc))
 
 
-@app_group.command(name="refresh")
+@app_group.command(name="refresh", hidden=True)
 @click.option(
     "--json",
     "as_json",
@@ -346,33 +346,11 @@ def install(
     help="Print machine-readable JSON on completion.",
 )
 def refresh(as_json):
-    """Rebuild local platform and custom application catalogs."""
-    from src.services.local_app_store import refresh_local_app_store_catalog
+    """Deprecated: use `websoft9 appstore reload` instead."""
+    from src.cli.appstore_commands import reload_app_store_catalogs
 
-    try:
-        report = refresh_local_app_store_catalog()
-    except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
-
-    if as_json:
-        click.echo(json.dumps(report))
-    else:
-        click.echo(
-            f"Platform application manifests refreshed: "
-            f"zh={report['official']['loaded'].get('zh', 0)}, "
-            f"en={report['official']['loaded'].get('en', 0)}."
-        )
-        click.echo(
-            f"Custom application catalog refreshed: "
-            f"{report['custom']['loaded']} loaded, {report['custom']['skipped']} skipped."
-        )
-        for error in report["official"]["errors"]:
-            click.echo(f"platform: {error['error']}", err=True)
-        for error in report["custom"]["errors"]:
-            click.echo(f"{error['app']}: {error['error']}", err=True)
-
-    if report["official"]["errors"] or report["custom"]["skipped"]:
-        raise click.exceptions.Exit(2)
+    click.echo("'app refresh' moved to 'websoft9 appstore reload'.", err=True)
+    reload_app_store_catalogs(as_json)
 
 
 @app_group.command(name="list")

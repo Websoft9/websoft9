@@ -154,14 +154,14 @@ def test_install_json_rejects_installation_options(tmp_path):
     assert "profile" in result.output
 
 
-def _install_local_app_store_stub(monkeypatch, refresh_local_app_store_catalog):
+def _install_local_app_store_stub(monkeypatch, reload_app_store_catalog):
     local_app_store_module = types.ModuleType("src.services.local_app_store")
-    local_app_store_module.refresh_local_app_store_catalog = refresh_local_app_store_catalog
+    local_app_store_module.reload_app_store_catalog = reload_app_store_catalog
     monkeypatch.setitem(sys.modules, "src.services.local_app_store", local_app_store_module)
 
 
-def test_refresh_outputs_private_app_report_as_json(monkeypatch):
-    from src.cli.app_commands import app_group
+def test_reload_outputs_private_app_report_as_json(monkeypatch):
+    from src.cli.apphub_cli import appstore
 
     _install_local_app_store_stub(
         monkeypatch,
@@ -171,7 +171,7 @@ def test_refresh_outputs_private_app_report_as_json(monkeypatch):
         },
     )
 
-    result = CliRunner().invoke(app_group, ["refresh", "--json"])
+    result = CliRunner().invoke(appstore, ["reload", "--json"])
 
     assert result.exit_code == 0
     assert json.loads(result.output) == {
@@ -180,8 +180,8 @@ def test_refresh_outputs_private_app_report_as_json(monkeypatch):
     }
 
 
-def test_refresh_returns_nonzero_when_private_apps_are_skipped(monkeypatch):
-    from src.cli.app_commands import app_group
+def test_reload_returns_nonzero_when_private_apps_are_skipped(monkeypatch):
+    from src.cli.apphub_cli import appstore
 
     _install_local_app_store_stub(
         monkeypatch,
@@ -191,7 +191,7 @@ def test_refresh_returns_nonzero_when_private_apps_are_skipped(monkeypatch):
         },
     )
 
-    result = CliRunner().invoke(app_group, ["refresh", "--json"])
+    result = CliRunner().invoke(appstore, ["reload", "--json"])
 
     assert result.exit_code == 2
     assert json.loads(result.output) == {
@@ -200,8 +200,8 @@ def test_refresh_returns_nonzero_when_private_apps_are_skipped(monkeypatch):
     }
 
 
-def test_refresh_surfaces_local_catalog_validation_errors(monkeypatch):
-    from src.cli.app_commands import app_group
+def test_reload_surfaces_local_catalog_validation_errors(monkeypatch):
+    from src.cli.apphub_cli import appstore
 
     _install_local_app_store_stub(
         monkeypatch,
@@ -215,7 +215,26 @@ def test_refresh_surfaces_local_catalog_validation_errors(monkeypatch):
         },
     )
 
-    result = CliRunner().invoke(app_group, ["refresh"])
+    result = CliRunner().invoke(appstore, ["reload"])
 
     assert result.exit_code == 2
     assert "no valid local applications were found" in result.output
+
+
+def test_the_deprecated_app_refresh_alias_still_reloads_the_catalog(monkeypatch):
+    """Older scripts call `app refresh`; it must keep working until they migrate."""
+    from src.cli.app_commands import app_group
+
+    _install_local_app_store_stub(
+        monkeypatch,
+        lambda: {
+            "official": {"loaded": {"zh": 1, "en": 1}, "errors": []},
+            "custom": {"loaded": 1, "skipped": 0, "errors": []},
+        },
+    )
+
+    result = CliRunner().invoke(app_group, ["refresh", "--json"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output.splitlines()[-1])["custom"]["loaded"] == 1
+    assert "appstore reload" in result.output

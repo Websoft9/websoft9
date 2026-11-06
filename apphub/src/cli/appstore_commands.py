@@ -1,10 +1,44 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import click
 
 from src.cli.cli_output import CLIError, run_cli_action
+
+
+def reload_app_store_catalogs(as_json: bool) -> None:
+    """Rebuild the App Store catalogs from the assets already on disk.
+
+    Shared by ``appstore reload`` and the deprecated ``app refresh`` alias so the
+    two entry points can never drift apart.
+    """
+    from src.services.local_app_store import reload_app_store_catalog
+
+    try:
+        report: dict[str, Any] = reload_app_store_catalog()
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if as_json:
+        click.echo(json.dumps(report))
+    else:
+        click.echo(
+            f"App Store manifests reloaded: "
+            f"zh={report['official']['loaded'].get('zh', 0)}, "
+            f"en={report['official']['loaded'].get('en', 0)}."
+        )
+        click.echo(
+            f"Custom application catalog reloaded: {report['custom']['loaded']} loaded, {report['custom']['skipped']} skipped."
+        )
+        for error in report["official"]["errors"]:
+            click.echo(f"platform: {error['error']}", err=True)
+        for error in report["custom"]["errors"]:
+            click.echo(f"{error['app']}: {error['error']}", err=True)
+
+    if report["official"]["errors"] or report["custom"]["skipped"]:
+        raise click.exceptions.Exit(2)
 
 
 def _summarize_store_app(item: dict[str, Any], *, detailed: bool = False) -> dict[str, Any]:
@@ -220,3 +254,13 @@ def register_appstore_commands(appstore_group: click.Group) -> None:
             )
 
         run_cli_action(action, as_json=as_json, text_renderer=render_text)
+
+    @appstore_group.command(name="reload")
+    @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON report.")
+    def appstore_reload(as_json: bool) -> None:
+        """Rebuild the App Store catalogs from the assets already on disk.
+
+        Reloads the official and custom manifests without downloading anything;
+        use `websoft9 appstore sync` to fetch newer assets first.
+        """
+        reload_app_store_catalogs(as_json)

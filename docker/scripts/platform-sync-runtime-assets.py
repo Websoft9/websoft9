@@ -43,6 +43,21 @@ logging.getLogger("dotenv.main").setLevel(logging.ERROR)
 
 ENV_REFERENCE_PATTERN = re.compile(r"\$\{?(\w+)\}?")
 
+# ── external database profile ─────────────────────────────────────────
+# The library is retiring ``.env.external-db`` in favour of ``database[]``.
+# Keep publishing the profile the install form already consumes.
+EXTERNAL_DATABASE_PROFILE = "external-db"
+EXTERNAL_DATABASE_SETTING_KEYS = (
+    "W9_DB_HOST_SET",
+    "W9_DB_PORT_SET",
+    "W9_DB_NAME_SET",
+    "W9_DB_USER_SET",
+    "W9_DB_PASSWORD_SET",
+)
+EXTERNAL_DATABASE_DRIVERS = ("mysql", "mariadb", "postgresql")
+EXTERNAL_DATABASE_PORTS = {"mysql": 3306, "mariadb": 3306, "postgresql": 5432}
+
+
 # ── v2 manifest URL templates ──────────────────────────────────────────
 _V2_APPSTORE_MANIFEST_PATH = "appstore/{channel}/manifests/appstore-manifest.json"
 
@@ -576,7 +591,7 @@ def fetch_appstore_manifests(
             "[platform-assets] appstore dataset "
             f"{appstore_manifest.get('datasetVersion')} already active; component manifests not requested"
         )
-        return {
+        bundle: dict[str, object] = {
             "appstore_manifest_url": appstore_manifest_url,
             "catalog_manifest_url": None,
             "library_manifest_url": None,
@@ -585,6 +600,24 @@ def fetch_appstore_manifests(
             "library_manifest": None,
             "componentManifestsSkipped": True,
         }
+        # An unchanged dataset still has to keep its shared dictionary intact: the local file
+        # can go missing or be half-written without any version changing. Only then is the
+        # library manifest requested, so the common case stays a single request.
+        library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
+        if _dictionary_repair_needed(library_root, previous_state):
+            try:
+                _, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
+                library_manifest_url = f"{artifact_base}/appstore/{channel}/{library_relative}"
+                library_manifest = download_json(library_manifest_url)
+            except Exception as exc:
+                # The fast path must never turn a repair attempt into a failed sync.
+                log(f"[platform-assets] could not fetch the library manifest to repair the dictionary: {exc}")
+                library_manifest = None
+            if isinstance(library_manifest, dict):
+                bundle["library_manifest_url"] = library_manifest_url
+                bundle["library_manifest"] = library_manifest
+                log("[platform-assets] local database dictionary needs repair; library manifest requested")
+        return bundle
 
     catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
 
@@ -813,7 +846,14 @@ def determine_package_sync_plan(manifest_bundle: dict[str, object] | None, previ
     # If v2 detection couldn't determine no-change, fall through to
     # delta-based detection (legacy or v2 appsDelta).
     if plan["library"]:
-        library_delta_context = resolve_library_delta_context(manifest_bundle, previous_root_dsv, latest_dataset_version)
+        # ``appsDelta`` is expressed in *library* dataset versions, so the chain has to be
+        # checked against them. Older state files only record the root Appstore version;
+        # fall back to it so those installations keep their previous behaviour.
+        previous_library_version = previous_state.get("libraryDatasetVersion") or previous_root_dsv
+        latest_library_version = library_dsv if library_dsv is not None else latest_dataset_version
+        library_delta_context = resolve_library_delta_context(
+            manifest_bundle, previous_library_version, latest_library_version
+        )
         if library_delta_context is not None:
             apps_delta = library_delta_context.get("appsDelta", {})
             if isinstance(apps_delta, dict) and not delta_payload_has_changes(apps_delta, ("addedApps", "removedApps", "changedApps")):
@@ -887,6 +927,143 @@ def fetch_library_apps_index_payload(manifest_bundle: dict[str, object] | None) 
         return None
 
     return payload if isinstance(payload, dict) else None
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def library_dictionary_entry(manifest_bundle: dict[str, object] | None) -> dict[str, str] | None:
+    """Return the shared-dictionary entry published by the library manifest.
+
+    The library manifest names the dictionary by a content-addressed path plus its SHA-256, so a
+    consumer can tell whether its local copy is current without downloading anything.
+    """
+    if not manifest_bundle:
+        return None
+
+    library_manifest = manifest_bundle.get("library_manifest")
+    library_manifest_url = str(manifest_bundle.get("library_manifest_url") or "")
+    if not isinstance(library_manifest, dict) or not library_manifest_url:
+        return None
+
+    metadata = library_manifest.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+
+    entry = metadata.get("databaseTypes")
+    if not isinstance(entry, dict):
+        return None
+
+    relative_path = entry.get("path")
+    expected_sha256 = entry.get("sha256")
+    if not isinstance(relative_path, str) or not relative_path.strip():
+        return None
+    if not isinstance(expected_sha256, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_sha256.strip().lower()):
+        return None
+
+    return {
+        "path": relative_path.strip(),
+        "sha256": expected_sha256.strip().lower(),
+        "manifest_url": library_manifest_url,
+    }
+
+
+def _dictionary_repair_needed(library_root: Path, previous_state: dict[str, object] | None) -> bool:
+    """Whether the local dictionary disagrees with the last successful sync.
+
+    A recorded digest that matches means the file is intact; no extra request is needed. An
+    unrecorded digest (state written by an older platform) is treated as needing one check so
+    the digest gets recorded.
+    """
+    path = library_root / "metadata" / "database-types.json"
+    if not path.is_file():
+        return True
+    recorded = (previous_state or {}).get("databaseTypesSha256")
+    if not isinstance(recorded, str) or not recorded:
+        # State written before this field existed: keep the fast path as-is and let the next
+        # full sync record the digest.
+        return False
+    try:
+        return file_sha256(path) != recorded
+    except OSError:
+        return True
+
+
+def library_dictionary_targets(library_root: Path, package_snapshot_paths: dict[str, object]) -> list[Path]:
+    """Where the shared dictionary has to exist: the live library and every library snapshot."""
+    targets: list[Path] = [library_root / "metadata" / "database-types.json"]
+    seen = {str(targets[0])}
+    library_snapshots = package_snapshot_paths.get("library")
+    if isinstance(library_snapshots, dict):
+        for snapshot_key in ("staging", "release", "current"):
+            snapshot_value = library_snapshots.get(snapshot_key)
+            if not isinstance(snapshot_value, str) or not snapshot_value:
+                continue
+            candidate = Path(snapshot_value) / "metadata" / "database-types.json"
+            if str(candidate) in seen:
+                continue
+            seen.add(str(candidate))
+            targets.append(candidate)
+    return targets
+
+
+def sync_shared_database_dictionary(
+    manifest_bundle: dict[str, object] | None,
+    targets: list[Path],
+) -> dict[str, str]:
+    """Keep ``metadata/database-types.json`` identical to the published dictionary.
+
+    The dictionary travels inside the full package only, so an installation that keeps taking
+    per-app deltas would never see a dictionary-only release. Compare the local SHA-256 with the
+    library manifest, download the content-addressed payload when they differ, verify it and only
+    then replace the local copies.
+    """
+    entry = library_dictionary_entry(manifest_bundle)
+    if entry is None or not targets:
+        return {"status": "unavailable"}
+
+    expected_sha256 = entry["sha256"]
+    primary = targets[0]
+    if primary.is_file():
+        try:
+            if file_sha256(primary) == expected_sha256:
+                for target in targets[1:]:
+                    _copy_dictionary(primary, target)
+                return {"status": "unchanged", "sha256": expected_sha256}
+        except OSError as exc:
+            verbose_log(f"[platform-assets] could not read local database dictionary: {exc}")
+
+    payload_url = resolve_json_url(entry["manifest_url"], entry["path"])
+    with tempfile.TemporaryDirectory() as tmp_dir_name:
+        downloaded = Path(tmp_dir_name) / "database-types.json"
+        download_file(payload_url, downloaded)
+        actual_sha256 = file_sha256(downloaded)
+        if actual_sha256 != expected_sha256:
+            raise RuntimeError(
+                f"database dictionary checksum mismatch: expected {expected_sha256}, downloaded {actual_sha256}"
+            )
+        for target in targets:
+            _copy_dictionary(downloaded, target)
+
+    return {"status": "updated", "sha256": expected_sha256}
+
+
+def _copy_dictionary(source: Path, target: Path) -> None:
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Replace atomically: a half-written dictionary would break the database panel until the
+        # next sync repaired it.
+        temporary = target.with_name(f".{target.name}.tmp")
+        shutil.copyfile(source, temporary)
+        os.chmod(temporary, 0o644)
+        os.replace(temporary, target)
+    except OSError as exc:
+        verbose_log(f"[platform-assets] could not write database dictionary to {target}: {exc}")
 
 
 def publish_library_apps_index(library_root: Path, manifest_bundle: dict[str, object] | None, extra_targets: list[Path] | None = None) -> None:
@@ -1527,7 +1704,48 @@ def discover_install_profiles(app_dir: Path, skipped: Counter[str] | None = None
                 skipped["invalid-profile"] += 1
             verbose_log(f"[platform-assets] skipping profile {env_path}: {exc}")
 
+    if EXTERNAL_DATABASE_PROFILE not in profiles:
+        profile_metadata = external_database_profile(app_dir)
+        if profile_metadata is not None:
+            profiles[EXTERNAL_DATABASE_PROFILE] = profile_metadata
+
     return profiles
+
+
+def external_database_profile(app_dir: Path) -> dict[str, object] | None:
+    """Synthesise the ``external-db`` profile from a ``database[]`` declaration.
+
+    Mirrors ``apphub/src/services/external_database.py``. The library is retiring
+    ``.env.external-db`` in favour of the declaration, and the install form keeps
+    consuming the same profile shape either way.
+    """
+    try:
+        variables = json.loads((app_dir / "variables.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(variables, dict):
+        return None
+
+    for component in variables.get("database") or []:
+        if not isinstance(component, dict):
+            continue
+        providers = [item for item in component.get("providers") or [] if isinstance(item, dict)]
+        external = next((item for item in providers if item.get("type") == "external"), None)
+        if external is None:
+            continue
+        datasource = component.get("datasource")
+        if not isinstance(datasource, dict) or not datasource:
+            continue
+        drivers = [
+            item.strip().lower() for item in external.get("drivers") or [] if isinstance(item, str) and item.strip()
+        ]
+        drivers = [item for item in drivers if item in EXTERNAL_DATABASE_DRIVERS]
+        if not drivers:
+            continue
+        settings = {key: "" for key in EXTERNAL_DATABASE_SETTING_KEYS}
+        settings["W9_DB_PORT_SET"] = str(EXTERNAL_DATABASE_PORTS.get(drivers[0], ""))
+        return {"settings": settings, "is_external_database": True}
+    return None
 
 
 def load_catalog_metadata(library_root: Path) -> dict[str, dict[str, object]]:
@@ -2070,8 +2288,9 @@ def main() -> int:
                     )
                     library_delta_context = resolve_library_delta_context(
                         manifest_bundle,
-                        previous_state.get("datasetVersion"),
-                        latest_dataset_version,
+                        # ``appsDelta`` chains library dataset versions, not the root Appstore one.
+                        previous_state.get("libraryDatasetVersion") or previous_state.get("datasetVersion"),
+                        latest_library_dsv if latest_library_dsv is not None else latest_dataset_version,
                     )
         except AppStoreCompatibilityError:
             raise
@@ -2091,6 +2310,9 @@ def main() -> int:
                 for package_type, target_dir, _ in packages
                 for target in (target_dir, snapshot_root / "current" / package_type)
             ]
+            # The shared dictionary is restored together with the library: a dictionary-only
+            # release must never leave apps/ and metadata/ out of sync.
+            rollback_targets.append(library_root / "metadata")
             rollback_backups = backup_trees(rollback_targets, rollback_root)
 
         if not should_skip_package_sync:
@@ -2166,6 +2388,21 @@ def main() -> int:
             if prefetch_root is not None:
                 shutil.rmtree(prefetch_root, ignore_errors=True)
 
+        # Keep the shared database dictionary current. It ships inside the full package only, so
+        # an installation that keeps taking per-app deltas would otherwise freeze the dictionary
+        # at whatever version its last full sync carried — including dictionary-only releases
+        # where the app delta is empty. Runs even when no package was synced.
+        dictionary_report: dict[str, str] = {"status": "unavailable"}
+        try:
+            dictionary_report = sync_shared_database_dictionary(
+                manifest_bundle,
+                library_dictionary_targets(library_root, package_snapshot_paths),
+            )
+            if dictionary_report.get("status") == "updated":
+                log(f"[platform-assets] synced shared database dictionary {dictionary_report.get('sha256')}")
+        except Exception as exc:
+            log(f"[platform-assets] shared database dictionary sync failed: {exc}")
+
         # Persist the library apps index next to the active library and inside this dataset's
         # snapshots, so the manifest build and a later offline activation both see the per-app
         # update times. Publishing is best effort: a missing index only drops the field.
@@ -2202,6 +2439,9 @@ def main() -> int:
             state_payload["catalogDatasetVersion"] = latest_catalog_dsv
         if latest_library_dsv is not None:
             state_payload["libraryDatasetVersion"] = latest_library_dsv
+        dictionary_sha256 = dictionary_report.get("sha256") or previous_state.get("databaseTypesSha256")
+        if isinstance(dictionary_sha256, str) and dictionary_sha256:
+            state_payload["databaseTypesSha256"] = dictionary_sha256
         write_sync_state(sync_state_path, state_payload)
         log(f"[platform-assets] completed app store manifest build (mode={sync_mode})")
 

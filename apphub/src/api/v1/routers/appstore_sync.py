@@ -39,6 +39,21 @@ def sync_appstore_assets(
     )
 
 
+@router.post(
+    "/appstore/reload",
+    summary="Reload App Store Catalogs",
+    description="Rebuild the official and custom App Store catalogs from the assets already on disk. This never downloads; use /appstore/sync for that.",
+    responses={
+        200: {"model": dict},
+        500: {"model": ErrorResponse},
+    },
+)
+def reload_appstore_catalogs():
+    from src.services.local_app_store import reload_app_store_catalog
+
+    return reload_app_store_catalog()
+
+
 @router.get(
     "/appstore/state",
     summary="Get App Store Sync State",

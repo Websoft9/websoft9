@@ -39,6 +39,9 @@ def should_skip_api_key_auth(path: str) -> bool:
     if normalized_path == "/apps" or normalized_path.startswith("/apps/"):
         return True
 
+    if normalized_path == "/appstore" or normalized_path.startswith("/appstore/"):
+        return True
+
     if normalized_path == "/databases" or normalized_path.startswith("/databases/"):
         return True
 

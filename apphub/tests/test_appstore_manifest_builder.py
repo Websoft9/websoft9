@@ -437,6 +437,9 @@ def test_appstore_manifest_fetch_skips_component_manifests_for_active_dataset(mo
 
     monkeypatch.setattr(runtime_assets, "download_json", record_download)
     monkeypatch.delenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC", raising=False)
+    # Isolated here: a missing local dictionary intentionally triggers a repair request, which
+    # is covered by test_appstore_manifest_fetch_repairs_a_missing_dictionary below.
+    monkeypatch.setattr(runtime_assets, "_dictionary_repair_needed", lambda *args, **kwargs: False)
 
     bundle = runtime_assets.fetch_appstore_manifests(
         "https://artifact.example.test",
@@ -936,3 +939,42 @@ def test_manifest_validity_detects_stale_removed_apps_against_product_and_librar
         manifest_path.write_text(json.dumps(data), encoding="utf-8")
 
     assert runtime_assets.has_valid_published_app_store_manifests(media_root) is False
+
+
+def test_build_manifests_declares_external_profile_without_the_retired_file(tmp_path):
+    """The library drops ``.env.external-db``; ``database[]`` must still publish it."""
+    media_root = tmp_path / "media"
+    media_json = media_root / "json"
+    media_json.mkdir(parents=True)
+    _write_product(media_json / "product_zh.json")
+    _write_product(media_json / "product_en.json")
+    library_root = tmp_path / "library"
+    _write_wordpress_library(library_root)
+    wordpress = library_root / "apps" / "wordpress"
+    (wordpress / ".env.external-db").unlink()
+    (wordpress / "variables.json").write_text(
+        json.dumps(
+            {
+                "edition": [{"dist": "community", "version": "6.6"}],
+                "database": [
+                    {
+                        "id": "rds",
+                        "providers": [
+                            {"type": "internal", "service": "mysql", "driver": "mysql"},
+                            {"type": "external", "drivers": ["mysql", "mariadb"]},
+                        ],
+                        "datasource": {"WORDPRESS_DB_HOST": "${host}:${port}"},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    runtime_assets.build_and_publish_app_store_manifests(media_root, library_root)
+
+    profile = json.loads((media_json / "app-store-manifest_en.json").read_text(encoding="utf-8"))["apps"][0]["profiles"][
+        "external-db"
+    ]
+    assert profile["is_external_database"] is True
+    assert profile["settings"]["W9_DB_PORT_SET"] == "3306"
