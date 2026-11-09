@@ -13,6 +13,7 @@ export type AppDatabaseRow = {
     key: string
     componentId: string
     driver: string
+    mode: AppDatabaseComponent['mode']
     host: string | null
     port: number | null
     names: string[]
@@ -81,6 +82,7 @@ export function buildDatabaseRows(components: AppDatabaseComponent[]): AppDataba
         const base = {
             componentId: component.id,
             driver: component.driver,
+            mode: component.mode,
             host: component.host,
             port: component.port,
             names: component.names,

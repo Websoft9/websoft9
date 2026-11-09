@@ -1903,7 +1903,19 @@ export function MyAppDetailPage() {
                                                                                     <tr key={row.key}>
                                                                                         {row.groupStart ? (
                                                                                             <>
-                                                                                                <td rowSpan={row.groupSize}>{formatDatabaseTypeLabel(row.driver)}</td>
+                                                                                                <td rowSpan={row.groupSize}>
+                                                                                                    <span className="myapps-db-type">
+                                                                                                        {formatDatabaseTypeLabel(row.driver)}
+                                                                                                        {row.mode === 'external' ? (
+                                                                                                            <span
+                                                                                                                className="myapps-db-mode"
+                                                                                                                title={t('myAppsDetailPage.tabs.database.externalHint')}
+                                                                                                            >
+                                                                                                                {t('myAppsDetailPage.tabs.database.external')}
+                                                                                                            </span>
+                                                                                                        ) : null}
+                                                                                                    </span>
+                                                                                                </td>
                                                                                                 <td rowSpan={row.groupSize}>{row.host ?? <span className="myapps-db-empty">—</span>}</td>
                                                                                                 <td rowSpan={row.groupSize}>{row.port ?? <span className="myapps-db-empty">—</span>}</td>
                                                                                                 <td rowSpan={row.groupSize}>
@@ -1934,7 +1946,7 @@ export function MyAppDetailPage() {
                                                                                         <td>
                                                                                             {password ? (
                                                                                                 <div className="myapps-database-password-cell">
-                                                                                                    <span className="myapps-database-password-text">
+                                                                                                    <span className="myapps-database-password-text" title={revealed ? password : undefined}>
                                                                                                         {revealed ? password : '•'.repeat(Math.min(password.length, 16))}
                                                                                                     </span>
                                                                                                     <button

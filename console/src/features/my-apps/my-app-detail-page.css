@@ -1168,6 +1168,23 @@
     outline-offset: 1px;
 }
 
+.myapps-db-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.myapps-db-mode {
+    padding: 0 6px;
+    border: 1px solid var(--myapps-detail-accent);
+    border-radius: 10px;
+    color: var(--myapps-detail-accent);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
 .myapps-db-sub {
     display: block;
     margin-top: 2px;
@@ -1281,6 +1298,8 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+    flex-wrap: nowrap;
 }
 
 .myapps-database-table-external .myapps-database-password-cell {
@@ -1293,6 +1312,11 @@
     font-family: inherit;
     font-size: inherit;
     color: inherit;
+    min-width: 0;
+    max-width: 24ch;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .myapps-database-icon-btn {
@@ -1304,6 +1328,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex: 0 0 auto;
 }
 
 .myapps-database-icon-btn .noti-icon {

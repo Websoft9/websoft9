@@ -127,7 +127,17 @@ class EnvironmentResolver:
         if missing:
             return None
         value = value.strip()
-        return value or None
+        if not value:
+            return None
+        # Braced placeholders that still point at a known variable are
+        # unresolved references (possibly a cycle), not passwords that happen
+        # to contain a dollar sign. Unbraced ``$name`` stays literal because
+        # passwords commonly include it.
+        for match in _EXPANSION.finditer(value):
+            name = match.group(1) or match.group(4)
+            if match.group(1) is not None and name in self.merged:
+                return None
+        return value
 
 
 class ContainerProbe:
@@ -171,6 +181,12 @@ class ContainerProbe:
                 resolved = {}
         self._env[service] = resolved
         return resolved
+
+    def stack_running(self) -> bool:
+        return bool(self._stack_containers())
+
+    def has_container(self, service: str | None) -> bool:
+        return self._container_for(service) is not None
 
     def name_for(self, service: str | None) -> str | None:
         """Actual container name of a declared service, when it is running.
@@ -293,7 +309,13 @@ class AppDatabaseManager:
             return services if isinstance(services, dict) else {}
         return {}
 
-    def _compose_env(self, app_id: str, services: dict[str, Any], service: str | None) -> dict[str, str]:
+    def _compose_env(
+        self,
+        app_id: str,
+        services: dict[str, Any],
+        service: str | None,
+        project_env: dict[str, str] | None = None,
+    ) -> dict[str, str]:
         """Merge the service's ``env_file`` entries and its ``environment``."""
         if not service:
             return {}
@@ -311,16 +333,26 @@ class AppDatabaseManager:
                 continue
             env.update(parse_env_text(self._repo_file(app_id, path)))
 
+        declared_environment: dict[str, str] = {}
         environment = definition.get("environment")
         if isinstance(environment, dict):
             for key, value in environment.items():
-                env[str(key)] = "" if value is None else str(value)
+                declared_environment[str(key)] = "" if value is None else str(value)
         elif isinstance(environment, list):
             for item in environment:
                 if not isinstance(item, str):
                     continue
                 key, _, value = item.partition("=")
-                env[key.strip()] = value
+                declared_environment[key.strip()] = value
+
+        # Compose interpolates these values from the project ``.env``. A
+        # self-reference such as ``MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}``
+        # must not shadow a usable ``.env`` entry, or the panel would display the
+        # placeholder itself.
+        source = project_env or {}
+        for key, value in declared_environment.items():
+            declared_environment[key], _ = expand_value(value, source, strict=False)
+        env.update(declared_environment)
         return env
 
     # ── type dictionary ──────────────────────────────────────────────────
@@ -387,12 +419,17 @@ class AppDatabaseManager:
         if internal is None:
             # External-only component that the instance has not configured yet.
             return None
+        if _service_profiles(compose_services, service) and probe.stack_running() and not probe.has_container(service):
+            # The service belongs to an optional Compose profile that was never
+            # started (phpMyAdmin's bundled `db`). Reporting it would claim a
+            # database the installation does not actually run.
+            return None
 
         declared_type = dictionary.get(driver) if driver else None
         type_definition: dict[str, Any] = declared_type if isinstance(declared_type, dict) else {}
         resolver = EnvironmentResolver(
             project_env=project_env,
-            compose_env=self._compose_env(app_id, compose_services, service or None),
+            compose_env=self._compose_env(app_id, compose_services, service or None, project_env),
             container_env=probe.env_for(service or None),
         )
 
@@ -489,6 +526,17 @@ def _resolve_external_component(
         unknown_fields=unknown_fields,
         tools=_tools_for(driver),
     )
+
+
+def _service_profiles(services: dict[str, Any], service: str | None) -> list[str]:
+    """Optional Compose profiles declared for a service (empty when always on)."""
+    definition = services.get(service) if service else None
+    if not isinstance(definition, dict):
+        return []
+    profiles = definition.get("profiles")
+    if isinstance(profiles, str):
+        profiles = [profiles]
+    return [item.strip() for item in profiles or [] if isinstance(item, str) and item.strip()]
 
 
 def _compose_container_name(services: dict[str, Any], service: str | None, values: dict[str, str]) -> str | None:

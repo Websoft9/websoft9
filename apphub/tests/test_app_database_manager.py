@@ -396,6 +396,107 @@ def test_env_file_of_the_service_is_merged(wiring):
     assert manager.get_databases("demo").components[0].accounts[0].password == "from-env-file"
 
 
+def test_a_value_that_stays_a_self_reference_is_unknown(wiring):
+    component_decl = {
+        "id": "mariadb",
+        "providers": [{"type": "internal", "service": "db", "driver": "mariadb"}],
+        "users": [{"user": "root", "password": "${MYSQL_ROOT_PASSWORD}"}],
+    }
+    compose = """
+services:
+  db:
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+"""
+    manager = wiring(
+        {
+            "variables.json": _declaration(component_decl),
+            "docker-compose.yml": compose,
+            ".env": "MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}\n",
+        }
+    )
+
+    component = manager.get_databases("demo").components[0]
+
+    assert [(account.user, account.password) for account in component.accounts] == [("root", None)]
+    assert component.auth == "unknown"
+
+
+def test_compose_self_reference_resolves_from_the_project_env(wiring):
+    """phpMyAdmin's compose repeats ``${MYSQL_ROOT_PASSWORD}``; the project
+    ``.env`` still holds the usable value and must not be shadowed by the
+    placeholder."""
+    component_decl = {
+        "id": "mariadb",
+        "providers": [{"type": "internal", "service": "db", "driver": "mariadb"}],
+        "name": [],
+        "users": [{"user": "root", "password": "${MYSQL_ROOT_PASSWORD}", "usage": ["administration"]}],
+    }
+    compose = """
+services:
+  phpmyadmin:
+    image: phpmyadmin
+  db:
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    profiles:
+      - db
+"""
+    manager = wiring(
+        {
+            "variables.json": _declaration(component_decl),
+            "docker-compose.yml": compose,
+            ".env": "W9_POWER_PASSWORD='K!m3x'\nMYSQL_ROOT_PASSWORD=${W9_POWER_PASSWORD}\n",
+        }
+    )
+
+    component = manager.get_databases("demo").components[0]
+
+    assert component.accounts[0].password == "K!m3x"
+    assert component.auth == "password"
+
+
+def test_a_component_behind_an_unstarted_optional_profile_is_hidden(wiring):
+    """phpMyAdmin declares a bundled MariaDB behind the ``db`` profile. While
+    only the console container runs, that database does not exist and must not
+    be reported."""
+    component_decl = {
+        "id": "mariadb",
+        "providers": [{"type": "internal", "service": "db", "driver": "mariadb"}],
+        "users": [{"user": "root", "password": "${MYSQL_ROOT_PASSWORD}"}],
+    }
+    compose = """
+services:
+  phpmyadmin:
+    image: phpmyadmin
+  db:
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    profiles:
+      - db
+"""
+    portainer = FakePortainer(
+        containers=[
+            {
+                "Id": "pma",
+                "Names": ["/phpmyadmin_ab12"],
+                "Labels": {"com.docker.compose.service": "phpmyadmin"},
+            }
+        ]
+    )
+    manager = wiring(
+        {
+            "variables.json": _declaration(component_decl),
+            "docker-compose.yml": compose,
+            ".env": "MYSQL_ROOT_PASSWORD=secret\n",
+        },
+        portainer=portainer,
+    )
+
+    assert manager.get_databases("demo").components == []
+
+
 # ── helpers ──────────────────────────────────────────────────────────────
 
 
@@ -416,3 +517,9 @@ def test_resolver_keeps_unknown_nested_references_literal():
 
     assert resolver.resolve("${A}") == "p@ss$word"
     assert resolver.resolve("${NOPE}") is None
+
+
+def test_resolver_treats_a_known_braced_placeholder_inside_a_value_as_unknown():
+    resolver = EnvironmentResolver(project_env={"A": "${A}-suffix"}, compose_env={}, container_env={})
+
+    assert resolver.resolve("${A}") is None

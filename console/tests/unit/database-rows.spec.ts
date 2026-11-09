@@ -108,6 +108,16 @@ test.describe('database table rows', () => {
         expect(rows.map((row) => row.componentId)).toEqual(['postgres', 'redis'])
         expect(rows[1].names).toEqual(['0', '1'])
     })
+
+    test('external components keep their mode so the table can label them', () => {
+        const [external] = buildDatabaseRows([
+            component({ mode: 'external', host: 'mysql_w8tab', names: ['wp'], auth: 'password', accounts: [{ user: 'root', usage: [], password: 'secret' }] }),
+        ])
+        const [internal] = buildDatabaseRows([component()])
+
+        expect(external.mode).toBe('external')
+        expect(internal.mode).toBe('internal')
+    })
 })
 
 test.describe('database value formatting', () => {

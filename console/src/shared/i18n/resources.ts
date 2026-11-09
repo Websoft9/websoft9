@@ -1662,6 +1662,8 @@ const rawShellResources = {
                         description: 'Database connection information.',
                         empty: 'The current application does not expose any database connection information.',
                         custom: 'Custom',
+                        external: 'External',
+                        externalHint: 'This application connects to a database outside its own deployment.',
                         addressHint:
                             'Container name inside the Docker network. Only services on the same Compose network can resolve it; the host machine cannot reach it directly.',
                         roles: {
@@ -4457,6 +4459,8 @@ const rawShellResources = {
                         description: '数据库连接信息。',
                         empty: '当前应用没有声明数据库暴露信息。',
                         custom: '自定义',
+                        external: '外接',
+                        externalHint: '该应用连接的是自身部署之外的数据库。',
                         addressHint: '容器网络内的容器名，只有同一 Compose 网络中的服务能解析，宿主机无法直接访问。',
                         roles: {
                             application: '应用用户',
