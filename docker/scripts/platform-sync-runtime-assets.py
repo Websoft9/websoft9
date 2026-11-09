@@ -17,6 +17,7 @@ import shutil
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -27,6 +28,10 @@ from pathlib import Path
 _APPSTORE_SYNC_LOCK_FILE_DEFAULT = "/opt/websoft9/data/config/appstore_sync.lock"
 _APPSTORE_SYNC_PID_FILE_DEFAULT = "/tmp/websoft9-appstore-sync.lock"
 _APPSTORE_SYNC_LOCK_POLL_SECONDS = 0.5
+# Retries stay aligned with the 60s Cache-Control the publisher sets: retrying sooner would read
+# the same inconsistent object again.
+_APPSTORE_SYNC_RETRY_DELAY_SECONDS = float(os.getenv("WEBSOFT9_APPSTORE_SYNC_RETRY_DELAY", "60"))
+_APPSTORE_SYNC_RETRY_ATTEMPTS = max(1, int(os.getenv("WEBSOFT9_APPSTORE_SYNC_RETRY_ATTEMPTS", "2")))
 # Sentinel for "the platform cannot host a lock file"; a sync still runs, it just is not serialised.
 _APPSTORE_SYNC_LOCK_UNAVAILABLE = object()
 
@@ -64,6 +69,19 @@ _V2_APPSTORE_MANIFEST_PATH = "appstore/{channel}/manifests/appstore-manifest.jso
 
 class AppStoreCompatibilityError(RuntimeError):
     """Raised when an App Store dataset requires a newer Websoft9 runtime."""
+
+
+class AppStoreManifestNotFoundError(RuntimeError):
+    """Raised when a legacy artifact server has no root App Store manifest."""
+
+
+class AppStoreTransientError(RuntimeError):
+    """Raised for failures that another attempt may resolve.
+
+    Publishing uploads with backup and rollback and serves objects with a 60s cache, so a
+    mismatched or half-written dataset is usually a short-lived state: retrying after the cache
+    window is the correct response, not falling back or aborting permanently.
+    """
 
 
 def _parse_version(value: object, label: str) -> tuple[int, ...]:
@@ -115,6 +133,71 @@ def check_appstore_compatibility(
 
 def log(message: str) -> None:
     print(message, flush=True)
+
+
+def with_transient_retry(action, *, label: str):
+    """Run ``action`` again after a transient App Store failure.
+
+    The publisher backs up and rolls back, and every object is served with a 60 second cache, so
+    the same request can succeed a minute later. Retrying is therefore correct, but retrying
+    sooner only re-reads the same inconsistent object.
+    """
+    attempts = _APPSTORE_SYNC_RETRY_ATTEMPTS
+    for attempt in range(1, attempts + 1):
+        try:
+            return action()
+        except AppStoreTransientError as exc:
+            if attempt >= attempts:
+                raise
+            log(
+                f"[platform-assets] {label} failed ({exc}); retrying in "
+                f"{_APPSTORE_SYNC_RETRY_DELAY_SECONDS:g}s ({attempt}/{attempts - 1})"
+            )
+            time.sleep(_APPSTORE_SYNC_RETRY_DELAY_SECONDS)
+    raise AssertionError("unreachable")
+
+
+def download_verified_json(url: str, checksum_url: str | None = None) -> object:
+    """Download a manifest together with its published ``.sha256`` sibling.
+
+    Old artifacts have no checksum sibling; that is not a failure, it just means the payload
+    cannot be verified here.
+    """
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Websoft9-Product-Bootstrap/1.0",
+            "Accept": "application/json,*/*;q=0.8",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = response.read()
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        raise AppStoreTransientError(f"download failed for {url}: {exc}") from exc
+
+    try:
+        checksum_parts = download_text(checksum_url or f"{url}.sha256").split()
+    except AppStoreTransientError as exc:
+        if checksum_url is not None or not isinstance(exc.__cause__, urllib.error.HTTPError) or exc.__cause__.code != 404:
+            raise
+        expected = ""
+    else:
+        if not checksum_parts or not re.fullmatch(r"[0-9a-fA-F]{64}", checksum_parts[0]):
+            raise AppStoreTransientError(f"invalid manifest checksum for {url}")
+        expected = checksum_parts[0]
+    if expected:
+        actual = hashlib.sha256(payload).hexdigest()
+        if actual.lower() != expected.lower():
+            raise AppStoreTransientError(
+                f"manifest checksum mismatch for {url}: expected {expected}, got {actual}"
+            )
+
+    try:
+        return json.loads(payload)
+    except ValueError as exc:
+        raise AppStoreTransientError(f"invalid manifest payload: {url}: {exc}") from exc
 
 
 def verbose_log(message: str) -> None:
@@ -321,8 +404,12 @@ def download_file(url: str, destination: Path) -> None:
         },
     )
 
-    with urllib.request.urlopen(request, timeout=30) as response, destination.open("wb") as output:
-        shutil.copyfileobj(response, output)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response, destination.open("wb") as output:
+            shutil.copyfileobj(response, output)
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        # A truncated or proxied artifact is retryable; the caller re-downloads and verifies again.
+        raise AppStoreTransientError(f"download failed for {url}: {exc}") from exc
 
 
 def download_json(url: str) -> object:
@@ -334,8 +421,11 @@ def download_json(url: str) -> object:
         },
     )
 
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        raise AppStoreTransientError(f"download failed for {url}: {exc}") from exc
 
 
 def download_text(url: str) -> str:
@@ -347,8 +437,11 @@ def download_text(url: str) -> str:
         },
     )
 
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8")
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.read().decode("utf-8")
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        raise AppStoreTransientError(f"download failed for {url}: {exc}") from exc
 
 
 def resolve_json_url(base_url: str, relative_path: str) -> str:
@@ -428,7 +521,11 @@ def verify_downloaded_file_checksum(base_url: str, relative_path: str, checksum_
     expected_checksum = resolve_checksum_value(base_url, checksum_relative)
     actual_checksum = compute_sha256(file_path)
     if actual_checksum.lower() != expected_checksum:
-        raise RuntimeError(f"checksum mismatch for {relative_path}: expected {expected_checksum}, got {actual_checksum}")
+        # A half-written object is exactly what the publisher's rollback repairs; treat it as
+        # retryable instead of aborting the whole synchronization.
+        raise AppStoreTransientError(
+            f"checksum mismatch for {relative_path}: expected {expected_checksum}, got {actual_checksum}"
+        )
 
 
 def load_sync_state(state_path: Path) -> dict[str, object]:
@@ -444,7 +541,12 @@ def load_sync_state(state_path: Path) -> dict[str, object]:
 
 def write_sync_state(state_path: Path, payload: dict[str, object]) -> None:
     state_path.parent.mkdir(parents=True, exist_ok=True)
-    state_path.write_text(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n", encoding="utf-8")
+    temporary = state_path.with_name(f".{state_path.name}.tmp")
+    try:
+        temporary.write_text(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n", encoding="utf-8")
+        os.replace(temporary, state_path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _resolve_manifest_domains(appstore_manifest: dict[str, object], manifest_url: str) -> tuple[str, str]:
@@ -459,7 +561,10 @@ def _resolve_manifest_domains(appstore_manifest: dict[str, object], manifest_url
     if isinstance(catalog, dict) and isinstance(library, dict):
         catalog_rel = catalog.get("manifest")
         library_rel = library.get("manifest")
-        if isinstance(catalog_rel, str) and isinstance(library_rel, str):
+        for block in (catalog, library):
+            if "manifest" in block and (not isinstance(block["manifest"], str) or not block["manifest"].strip()):
+                raise AppStoreTransientError(f"invalid component manifest path: {manifest_url}")
+        if isinstance(catalog_rel, str) and isinstance(library_rel, str) and catalog_rel and library_rel:
             return catalog_rel, library_rel
 
     # Legacy: { "domains": { "catalog": "...", "library": "..." } }
@@ -470,7 +575,7 @@ def _resolve_manifest_domains(appstore_manifest: dict[str, object], manifest_url
         if isinstance(catalog_rel, str) and isinstance(library_rel, str):
             return catalog_rel, library_rel
 
-    raise RuntimeError(f"appstore manifest has unrecognized structure: {manifest_url}")
+    raise AppStoreTransientError(f"appstore manifest has unrecognized structure: {manifest_url}")
 
 
 def _resolve_sync_state_path() -> Path:
@@ -540,6 +645,8 @@ def _appstore_dataset_already_active(
         return False
     if not isinstance(previous_state, dict) or not previous_state:
         return False
+    if previous_state.get("partial"):
+        return False
     if not _local_runtime_trees_match_state(previous_state):
         return False
 
@@ -577,9 +684,16 @@ def fetch_appstore_manifests(
         force_refresh = is_force_refresh_enabled()
 
     appstore_manifest_url = f"{artifact_base}/{_V2_APPSTORE_MANIFEST_PATH.format(channel=channel)}"
-    appstore_manifest = download_json(appstore_manifest_url)
+    try:
+        appstore_manifest = download_json(appstore_manifest_url)
+    except AppStoreTransientError as exc:
+        if isinstance(exc.__cause__, urllib.error.HTTPError) and exc.__cause__.code == 404:
+            raise AppStoreManifestNotFoundError(appstore_manifest_url) from exc
+        raise
     if not isinstance(appstore_manifest, dict):
-        raise RuntimeError(f"invalid appstore manifest payload: {appstore_manifest_url}")
+        raise AppStoreTransientError(f"invalid appstore manifest payload: {appstore_manifest_url}")
+    if "channel" in appstore_manifest and appstore_manifest["channel"] != channel:
+        raise AppStoreTransientError(f"appstore manifest channel does not match {channel}")
 
     check_appstore_compatibility(appstore_manifest, local_schema_version)
 
@@ -602,21 +716,17 @@ def fetch_appstore_manifests(
         }
         # An unchanged dataset still has to keep its shared dictionary intact: the local file
         # can go missing or be half-written without any version changing. Only then is the
-        # library manifest requested, so the common case stays a single request.
+        # component manifests are verified, so the common case stays a single request.
         library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
         if _dictionary_repair_needed(library_root, previous_state):
-            try:
-                _, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
-                library_manifest_url = f"{artifact_base}/appstore/{channel}/{library_relative}"
-                library_manifest = download_json(library_manifest_url)
-            except Exception as exc:
-                # The fast path must never turn a repair attempt into a failed sync.
-                log(f"[platform-assets] could not fetch the library manifest to repair the dictionary: {exc}")
-                library_manifest = None
-            if isinstance(library_manifest, dict):
-                bundle["library_manifest_url"] = library_manifest_url
-                bundle["library_manifest"] = library_manifest
-                log("[platform-assets] local database dictionary needs repair; library manifest requested")
+            catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
+            for component, relative in (("catalog", catalog_relative), ("library", library_relative)):
+                url = f"{artifact_base}/appstore/{channel}/{relative}"
+                manifest = download_verified_json(url)
+                _validate_component_version(appstore_manifest, component, manifest, channel)
+                bundle[f"{component}_manifest_url"] = url
+                bundle[f"{component}_manifest"] = manifest
+            log("[platform-assets] local database dictionary needs repair; verified component manifests requested")
         return bundle
 
     catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
@@ -628,12 +738,12 @@ def fetch_appstore_manifests(
     catalog_manifest_url = f"{appstore_base}/{catalog_relative}"
     library_manifest_url = f"{appstore_base}/{library_relative}"
     with ThreadPoolExecutor(max_workers=2) as executor:
-        catalog_future = executor.submit(download_json, catalog_manifest_url)
-        library_future = executor.submit(download_json, library_manifest_url)
+        catalog_future = executor.submit(download_verified_json, catalog_manifest_url)
+        library_future = executor.submit(download_verified_json, library_manifest_url)
         catalog_manifest = catalog_future.result()
         library_manifest = library_future.result()
-    if not isinstance(catalog_manifest, dict) or not isinstance(library_manifest, dict):
-        raise RuntimeError("catalog or library manifest payload is invalid")
+    _validate_component_version(appstore_manifest, "catalog", catalog_manifest, channel)
+    _validate_component_version(appstore_manifest, "library", library_manifest, channel)
 
     return {
         "appstore_manifest_url": appstore_manifest_url,
@@ -708,8 +818,8 @@ def resolve_library_delta_context(
 
     # ── v2 spec: single appsDelta file with all change lists ─────────
     apps_delta_relative = library_manifest.get("appsDelta")
-    if isinstance(apps_delta_relative, str) and apps_delta_relative:
-        apps_delta = fetch_delta_payload(library_manifest_url, apps_delta_relative)
+    if "appsDelta" in library_manifest:
+        apps_delta = _fetch_library_json(manifest_bundle, "appsDelta")
         if delta_payload_matches_version_chain(apps_delta, previous_dataset_version, latest_dataset_version):
             return {
                 "appsDelta": apps_delta or {},
@@ -749,7 +859,6 @@ def resolve_library_apps_index(manifest_bundle: dict[str, object] | None) -> dic
         return {}
 
     library_manifest = manifest_bundle.get("library_manifest")
-    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
     if not isinstance(library_manifest, dict):
         return {}
 
@@ -760,12 +869,8 @@ def resolve_library_apps_index(manifest_bundle: dict[str, object] | None) -> dic
         if not isinstance(compatibility, dict) or compatibility.get("appLevelArtifacts") is not True:
             return {}
 
-    apps_index_relative = library_manifest.get("appsIndex")
-    if not isinstance(apps_index_relative, str) or not apps_index_relative:
-        return {}
-
-    payload = download_json(resolve_json_url(library_manifest_url, apps_index_relative))
-    if not isinstance(payload, dict):
+    payload = fetch_library_apps_index_payload(manifest_bundle)
+    if payload is None:
         return {}
 
     apps = payload.get("apps")
@@ -789,7 +894,7 @@ def resolve_library_apps_index(manifest_bundle: dict[str, object] | None) -> dic
             if "checksum" in normalized:
                 chk = normalized.get("checksum")
                 if isinstance(chk, dict) and "bundle" not in chk:
-                    chk["bundle"] = chk.get("latest")
+                    normalized["checksum"] = {**chk, "bundle": chk.get("latest")}
             app_map[key] = normalized
 
     return app_map
@@ -798,9 +903,35 @@ def resolve_library_apps_index(manifest_bundle: dict[str, object] | None) -> dic
 def _resolve_component_dataset_version(appstore_manifest: dict[str, object], component: str) -> object:
     """Extract per-component datasetVersion from v2 appstore manifest."""
     block = appstore_manifest.get(component)
+    if component in appstore_manifest and not isinstance(block, dict):
+        raise AppStoreTransientError(f"invalid {component} declaration")
     if isinstance(block, dict):
-        return block.get("datasetVersion")
+        if "datasetVersion" in block:
+            value = block["datasetVersion"]
+            if not isinstance(value, str) or not value.strip() or value != value.strip():
+                raise AppStoreTransientError(f"invalid {component} datasetVersion: {value!r}")
+            return value
     return None
+
+
+def _validate_component_version(root: dict[str, object], component: str, manifest: object, channel: str | None = None) -> None:
+    if not isinstance(manifest, dict):
+        raise AppStoreTransientError(f"invalid {component} manifest payload")
+    expected = _resolve_component_dataset_version(root, component)
+    expected_channel = channel or root.get("channel")
+    if "channel" in manifest and expected_channel is not None and manifest["channel"] != expected_channel:
+        raise AppStoreTransientError(f"{component} manifest channel does not match {expected_channel}")
+    if "datasetVersion" not in manifest:
+        if expected is not None:
+            raise AppStoreTransientError(f"missing {component} manifest datasetVersion")
+        return
+    actual = manifest["datasetVersion"]
+    if not isinstance(actual, str) or not actual.strip() or actual != actual.strip():
+        raise AppStoreTransientError(f"invalid {component} manifest datasetVersion: {actual!r}")
+    if expected is not None and actual != expected:
+        raise AppStoreTransientError(
+            f"{component} manifest datasetVersion {actual} does not match the root manifest {expected}"
+        )
 
 
 def determine_package_sync_plan(manifest_bundle: dict[str, object] | None, previous_state: dict[str, object], latest_dataset_version: object) -> dict[str, bool]:
@@ -910,23 +1041,107 @@ def fetch_library_apps_index_payload(manifest_bundle: dict[str, object] | None) 
     """Download the published apps index verbatim so it can be persisted locally."""
     if not manifest_bundle:
         return None
+    return _fetch_library_json(manifest_bundle, "appsIndex")
 
+
+def _valid_app_key(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]*", value) is not None
+
+
+def _valid_hash(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{64}", value) is not None
+
+
+def _validate_apps_index(payload: dict[str, object], *, strict: bool) -> dict[str, str]:
+    apps = payload.get("apps")
+    if not isinstance(apps, list):
+        raise AppStoreTransientError("invalid appsIndex apps")
+    hashes: dict[str, str] = {}
+    seen: set[str] = set()
+    for item in apps:
+        if not isinstance(item, dict):
+            raise AppStoreTransientError("invalid appsIndex app metadata")
+        key = item.get("app") or item.get("key")
+        if not _valid_app_key(key) or key in seen:
+            raise AppStoreTransientError(f"invalid or duplicate appsIndex app: {key!r}")
+        seen.add(key)
+        if strict or "hash" in item:
+            if not _valid_hash(item.get("hash")):
+                raise AppStoreTransientError(f"invalid appsIndex hash for {key}")
+            hashes[key] = item["hash"].lower()
+        if strict:
+            for field in ("package", "checksum"):
+                entry = item.get(field)
+                if not isinstance(entry, dict) or not isinstance(entry.get("latest"), str) or not entry["latest"].strip() or entry["latest"] != entry["latest"].strip():
+                    raise AppStoreTransientError(f"missing appsIndex {field}.latest for {key}")
+    return hashes
+
+
+def _fetch_library_json(manifest_bundle: dict[str, object], key: str) -> dict[str, object] | None:
     library_manifest = manifest_bundle.get("library_manifest")
-    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
-    if not isinstance(library_manifest, dict) or not library_manifest_url:
+    if not isinstance(library_manifest, dict) or key not in library_manifest:
         return None
-
-    apps_index_relative = library_manifest.get("appsIndex")
-    if not isinstance(apps_index_relative, str) or not apps_index_relative:
-        return None
-
-    try:
-        payload = download_json(resolve_json_url(library_manifest_url, apps_index_relative))
-    except Exception as exc:
-        verbose_log(f"[platform-assets] apps index unavailable: {exc}")
-        return None
-
-    return payload if isinstance(payload, dict) else None
+    cache = manifest_bundle.setdefault("_verified_library_json", {})
+    if key in cache:
+        return cache[key]
+    base_url = manifest_bundle.get("library_manifest_url")
+    relative = library_manifest[key]
+    if not isinstance(base_url, str) or not base_url or not isinstance(relative, str) or not relative:
+        raise AppStoreTransientError(f"invalid declared {key} path")
+    strict = "supportsPartialUpdate" in library_manifest
+    if strict and not isinstance(library_manifest["supportsPartialUpdate"], bool):
+        raise AppStoreTransientError("invalid supportsPartialUpdate declaration")
+    checksums = library_manifest.get("checksum", {})
+    if not isinstance(checksums, dict):
+        raise AppStoreTransientError("invalid library checksum declaration")
+    checksum_url = None
+    if key in checksums:
+        checksum = checksums[key]
+        if not isinstance(checksum, str) or not checksum:
+            raise AppStoreTransientError(f"invalid declared {key} checksum path")
+        checksum_url = resolve_json_url(base_url, checksum)
+    elif strict:
+        raise AppStoreTransientError(f"missing declared {key} checksum")
+    url = resolve_json_url(base_url, relative)
+    payload = with_transient_retry(
+        lambda: download_verified_json(url, checksum_url) if checksum_url is not None else download_verified_json(url),
+        label=f"library {key} fetch",
+    )
+    if not isinstance(payload, dict):
+        raise AppStoreTransientError(f"invalid {key} payload")
+    root = manifest_bundle.get("appstore_manifest") or {}
+    expected_version = library_manifest.get("datasetVersion") or _resolve_component_dataset_version(root, "library")
+    channel = root.get("channel") or library_manifest.get("channel")
+    if channel is None:
+        match = re.search(r"/appstore/(release|dev)/", base_url)
+        channel = match.group(1) if match else None
+    for field, expected in (("channel", channel), ("datasetVersion" if key == "appsIndex" else "toVersion", expected_version)):
+        if field in payload or strict:
+            actual = payload.get(field)
+            if not isinstance(actual, str) or not actual or (expected is not None and actual != expected):
+                raise AppStoreTransientError(f"invalid {key} {field}: {actual!r}; expected {expected!r}")
+    if ("schemaVersion" in payload or strict) and payload.get("schemaVersion") != "1":
+        raise AppStoreTransientError(f"invalid {key} schemaVersion")
+    if key == "appsIndex":
+        _validate_apps_index(payload, strict=strict)
+    else:
+        bootstrap = payload.get("mode") == "bootstrap" or library_manifest.get("supportsPartialUpdate") is False
+        if "fromVersion" in payload or strict:
+            from_version = payload.get("fromVersion")
+            if not (bootstrap and from_version is None) and (
+                not isinstance(from_version, str) or not from_version.strip() or from_version != from_version.strip()
+            ):
+                raise AppStoreTransientError("invalid appsDelta fromVersion")
+        seen: set[str] = set()
+        for field in ("addedApps", "changedApps", "removedApps"):
+            values = payload.get(field, [] if not strict else None)
+            if not isinstance(values, list) or any(not _valid_app_key(value) for value in values):
+                raise AppStoreTransientError(f"invalid appsDelta {field}")
+            if len(set(values)) != len(values) or seen.intersection(values):
+                raise AppStoreTransientError("duplicate appsDelta app")
+            seen.update(values)
+    cache[key] = payload
+    return payload
 
 
 def file_sha256(path: Path) -> str:
@@ -935,6 +1150,76 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def app_content_fingerprint(app_root: Path, app_key: str) -> str:
+    if not _valid_app_key(app_key) or not app_root.is_dir() or app_root.is_symlink():
+        raise AppStoreTransientError(f"invalid app tree: {app_key!r}")
+    digest = hashlib.sha256()
+    resolved_root = app_root.resolve()
+    for path in sorted(app_root.rglob("*"), key=lambda item: item.relative_to(app_root).as_posix()):
+        if path.is_symlink() and (not path.resolve().is_relative_to(resolved_root) or not path.is_file()):
+            raise AppStoreTransientError(f"unsafe app symlink: {path}")
+        if path.is_file():
+            canonical = f"apps/{app_key}/{path.relative_to(app_root).as_posix()}"
+            digest.update(canonical.encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(file_sha256(path).encode("ascii"))
+            digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _verify_apps_tree(library_root: Path, payload: dict[str, object]) -> None:
+    hashes = _validate_apps_index(payload, strict=False)
+    if not hashes:
+        if payload.get("apps"):
+            return
+    apps_root = library_root / "apps"
+    if not apps_root.is_dir() or apps_root.is_symlink():
+        raise AppStoreTransientError("missing or unsafe library apps tree")
+    expected_keys = {item.get("app") or item.get("key") for item in payload["apps"]}
+    actual_keys = {path.name for path in apps_root.iterdir()}
+    if actual_keys != expected_keys:
+        raise AppStoreTransientError("library apps tree does not match appsIndex membership")
+    for key, expected in hashes.items():
+        actual = app_content_fingerprint(apps_root / key, key)
+        if actual != expected:
+            raise AppStoreTransientError(f"app fingerprint mismatch for {key}: expected {expected}, got {actual}")
+
+
+def verify_library_source(library_root: Path, manifest_bundle: dict[str, object] | None) -> None:
+    payload = fetch_library_apps_index_payload(manifest_bundle)
+    if payload is not None:
+        _verify_apps_tree(library_root, payload)
+
+
+def resolve_library_index_delta_context(
+    manifest_bundle: dict[str, object], previous_state: dict[str, object], library_root: Path, channel: str,
+) -> dict[str, object] | None:
+    remote = fetch_library_apps_index_payload(manifest_bundle)
+    if remote is None:
+        return None
+    new_hashes = _validate_apps_index(remote, strict=False)
+    if len(new_hashes) != len(remote["apps"]):
+        return None
+    try:
+        local = json.loads((library_root / "apps-index.json").read_bytes())
+        if not isinstance(local, dict) or not previous_state.get("libraryDatasetVersion"):
+            return None
+        if local.get("datasetVersion") != previous_state["libraryDatasetVersion"] or local.get("channel") != channel:
+            return None
+        if "schemaVersion" in local and local["schemaVersion"] != "1":
+            return None
+        old_hashes = _validate_apps_index(local, strict=False)
+        if len(old_hashes) != len(local["apps"]):
+            return None
+        _verify_apps_tree(library_root, local)
+    except (OSError, ValueError, AppStoreTransientError):
+        return None
+    added = sorted(new_hashes.keys() - old_hashes.keys())
+    removed = sorted(old_hashes.keys() - new_hashes.keys())
+    changed = sorted(key for key in new_hashes.keys() & old_hashes.keys() if new_hashes[key] != old_hashes[key])
+    return {"addedApps": added, "removedApps": removed, "changedApps": changed, "updatedApps": changed, "indexReconciled": True}
 
 
 def library_dictionary_entry(manifest_bundle: dict[str, object] | None) -> dict[str, str] | None:
@@ -952,19 +1237,23 @@ def library_dictionary_entry(manifest_bundle: dict[str, object] | None) -> dict[
         return None
 
     metadata = library_manifest.get("metadata")
+    if "metadata" in library_manifest and not isinstance(metadata, dict):
+        raise AppStoreTransientError("invalid library metadata declaration")
     if not isinstance(metadata, dict):
         return None
 
     entry = metadata.get("databaseTypes")
-    if not isinstance(entry, dict):
+    if "databaseTypes" not in metadata:
         return None
+    if not isinstance(entry, dict):
+        raise AppStoreTransientError("invalid databaseTypes declaration")
 
     relative_path = entry.get("path")
     expected_sha256 = entry.get("sha256")
     if not isinstance(relative_path, str) or not relative_path.strip():
-        return None
-    if not isinstance(expected_sha256, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_sha256.strip().lower()):
-        return None
+        raise AppStoreTransientError("invalid databaseTypes path")
+    if not _valid_hash(expected_sha256):
+        raise AppStoreTransientError("invalid databaseTypes checksum")
 
     return {
         "path": relative_path.strip(),
@@ -1029,14 +1318,16 @@ def sync_shared_database_dictionary(
 
     expected_sha256 = entry["sha256"]
     primary = targets[0]
+    primary_matches = False
     if primary.is_file():
         try:
-            if file_sha256(primary) == expected_sha256:
-                for target in targets[1:]:
-                    _copy_dictionary(primary, target)
-                return {"status": "unchanged", "sha256": expected_sha256}
+            primary_matches = file_sha256(primary) == expected_sha256
         except OSError as exc:
             verbose_log(f"[platform-assets] could not read local database dictionary: {exc}")
+    if primary_matches:
+        for target in targets[1:]:
+            _copy_dictionary(primary, target)
+        return {"status": "unchanged", "sha256": expected_sha256}
 
     payload_url = resolve_json_url(entry["manifest_url"], entry["path"])
     with tempfile.TemporaryDirectory() as tmp_dir_name:
@@ -1054,35 +1345,43 @@ def sync_shared_database_dictionary(
 
 
 def _copy_dictionary(source: Path, target: Path) -> None:
+    temporary = target.with_name(f".{target.name}.tmp")
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
         # Replace atomically: a half-written dictionary would break the database panel until the
         # next sync repaired it.
-        temporary = target.with_name(f".{target.name}.tmp")
         shutil.copyfile(source, temporary)
         os.chmod(temporary, 0o644)
         os.replace(temporary, target)
-    except OSError as exc:
-        verbose_log(f"[platform-assets] could not write database dictionary to {target}: {exc}")
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
-def publish_library_apps_index(library_root: Path, manifest_bundle: dict[str, object] | None, extra_targets: list[Path] | None = None) -> None:
+def publish_library_apps_index(library_root: Path, manifest_bundle: dict[str, object] | None, extra_targets: list[Path] | None = None) -> bool:
     """Persist the apps index beside the library and inside the dataset snapshots.
 
     Keeping it next to the library lets the manifest builder pick it up, and the snapshot copies
-    keep an offline activation able to rebuild the same manifests.
+    keep an offline activation able to rebuild the same manifests. Returns whether every target
+    could be written; a partial write is reported by the caller instead of being swallowed.
     """
     payload = fetch_library_apps_index_payload(manifest_bundle)
     if payload is None:
-        return
+        return True
 
     serialized = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    written = True
     for target in [library_root / "apps-index.json", *(extra_targets or [])]:
+        temporary = target.with_name(f".{target.name}.tmp")
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(serialized, encoding="utf-8")
+            temporary.write_text(serialized, encoding="utf-8")
+            os.replace(temporary, target)
         except OSError as exc:
+            written = False
             verbose_log(f"[platform-assets] could not persist apps index at {target}: {exc}")
+        finally:
+            temporary.unlink(missing_ok=True)
+    return written
 
 
 def _resolve_domain_manifest(package_type: str, manifest_bundle: dict[str, object]) -> tuple[str, dict[str, object]] | None:
@@ -1099,12 +1398,14 @@ def _resolve_domain_manifest(package_type: str, manifest_bundle: dict[str, objec
 
 def _resolve_full_package_relative(package_type: str, manifest: dict[str, object]) -> str:
     full_pkg = manifest.get("fullPackage")
-    if isinstance(full_pkg, str) and full_pkg:
+    if isinstance(full_pkg, str) and full_pkg.strip() and full_pkg == full_pkg.strip():
         return full_pkg
     if isinstance(full_pkg, dict):
         latest = full_pkg.get("latest")
-        if isinstance(latest, str) and latest:
+        if isinstance(latest, str) and latest.strip() and latest == latest.strip():
             return latest
+    if "fullPackage" in manifest:
+        raise AppStoreTransientError(f"invalid {package_type} fullPackage declaration")
     legacy_keys = ("legacyMediaArchive", "catalogArchive") if package_type == "media" else ("libraryPackage",)
     for key in legacy_keys:
         value = manifest.get(key)
@@ -1128,8 +1429,14 @@ def resolve_package_artifact(
             if relative:
                 checksum = manifest.get("checksum")
                 checksum_relative = ""
+                if "checksum" in manifest and not isinstance(checksum, dict):
+                    raise AppStoreTransientError(f"invalid {package_type} checksum declaration")
                 if isinstance(checksum, dict):
-                    checksum_relative = str(checksum.get("fullPackage") or "").strip()
+                    if "fullPackage" in checksum:
+                        value = checksum["fullPackage"]
+                        if not isinstance(value, str) or not value.strip() or value != value.strip():
+                            raise AppStoreTransientError(f"invalid {package_type} fullPackage checksum path")
+                        checksum_relative = value
                 return resolve_json_url(manifest_url, relative), manifest_url, checksum_relative or None
 
     # Ultimate fallback: legacy flat URL structure
@@ -1196,6 +1503,7 @@ def promote_existing_package_snapshot(
 
 
 def sync_library_delta_target(source_root: Path, target_dir: Path, changed_apps: list[str], removed_apps: list[str], marker_path: Path) -> None:
+    _validate_delta_app_keys(changed_apps, removed_apps)
     source_apps_dir = source_root / "apps"
 
     if not target_dir.exists() or not marker_exists(marker_path, "library"):
@@ -1209,10 +1517,15 @@ def sync_library_delta_target(source_root: Path, target_dir: Path, changed_apps:
             continue
         destination = target_dir / item.name
         if item.is_dir():
-            shutil.copytree(item, destination, dirs_exist_ok=True)
+            replace_tree(item, destination)
         else:
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(item, destination)
+            temporary = destination.with_name(f".{destination.name}.tmp")
+            try:
+                shutil.copy2(item, temporary)
+                os.replace(temporary, destination)
+            finally:
+                temporary.unlink(missing_ok=True)
 
     target_apps_dir = target_dir / "apps"
     target_apps_dir.mkdir(parents=True, exist_ok=True)
@@ -1250,8 +1563,10 @@ def sync_library_package_delta(
 ) -> dict[str, str]:
     changed_apps = sorted(set(delta_context.get("changedApps", [])) | set(delta_context.get("addedApps", [])) | set(delta_context.get("updatedApps", [])))
     removed_apps = sorted(set(delta_context.get("removedApps", [])))
+    _validate_delta_app_keys(changed_apps, removed_apps)
 
     if not changed_apps and not removed_apps:
+        verify_library_source(reusable_source, manifest_bundle)
         return promote_existing_package_snapshot(reusable_source, target_dir, marker_path, snapshot_root, dataset_version, "library")
 
     package_url, package_base_url, package_checksum_relative = resolve_package_artifact("library", channel, artifact_base, manifest_bundle)
@@ -1272,6 +1587,7 @@ def sync_library_package_delta(
         extract_zip_with_permissions(zip_path, extract_dir)
 
         source_root = extract_sync_root(extract_dir, "library")
+        verify_library_source(source_root, manifest_bundle)
         staged_root = temp_dir / "staged-library"
         replace_tree_linked(reusable_source, staged_root)
 
@@ -1298,6 +1614,7 @@ def sync_library_package_delta(
                     destination.unlink()
             shutil.copytree(source_app_path, destination)
 
+        verify_library_source(staged_root, manifest_bundle)
         snapshot_paths = stage_snapshot(staged_root, snapshot_root, dataset_version, "library")
         sync_library_delta_target(snapshot_paths["current"], target_dir, changed_apps, removed_apps, marker_path)
 
@@ -1309,6 +1626,8 @@ def sync_library_package_delta(
 
 
 def extract_app_bundle(bundle_path: Path, apps_root: Path, app_key: str) -> None:
+    if not _valid_app_key(app_key):
+        raise AppStoreTransientError(f"invalid app key: {app_key!r}")
     extract_dir = bundle_path.parent / f"extract-{app_key}"
     extract_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1353,6 +1672,11 @@ def hydrate_app_sidecar(
     os.replace(local_path, app_root / local_name)
 
 
+def _validate_delta_app_keys(changed: list[str], removed: list[str]) -> None:
+    if any(not _valid_app_key(key) for key in [*changed, *removed]):
+        raise AppStoreTransientError("unsafe library delta app key")
+
+
 def sync_library_app_artifacts_delta(
     reusable_source: Path,
     target_dir: Path,
@@ -1364,8 +1688,10 @@ def sync_library_app_artifacts_delta(
 ) -> dict[str, str]:
     changed_apps = sorted(set(delta_context.get("changedApps", [])) | set(delta_context.get("addedApps", [])) | set(delta_context.get("updatedApps", [])))
     removed_apps = sorted(set(delta_context.get("removedApps", [])))
+    _validate_delta_app_keys(changed_apps, removed_apps)
 
     if not changed_apps and not removed_apps:
+        verify_library_source(reusable_source, manifest_bundle)
         return promote_existing_package_snapshot(reusable_source, target_dir, marker_path, snapshot_root, dataset_version, "library")
 
     apps_index = resolve_library_apps_index(manifest_bundle)
@@ -1412,6 +1738,9 @@ def sync_library_app_artifacts_delta(
             extract_app_bundle(bundle_path, staged_apps_dir, app_key)
 
             app_root = staged_apps_dir / app_key
+            expected_hash = app_metadata.get("hash")
+            if expected_hash is not None and app_content_fingerprint(app_root, app_key) != expected_hash.lower():
+                raise AppStoreTransientError(f"app fingerprint mismatch for {app_key}")
             hydrate_app_sidecar(
                 library_manifest_url,
                 app_key,
@@ -1440,6 +1769,7 @@ def sync_library_app_artifacts_delta(
                 for future in futures:
                     future.result()
 
+        verify_library_source(staged_root, manifest_bundle)
         snapshot_paths = stage_snapshot(staged_root, snapshot_root, dataset_version, "library")
         sync_library_delta_target(snapshot_paths["current"], target_dir, changed_apps, removed_apps, marker_path)
 
@@ -1488,6 +1818,8 @@ def prepare_package_source(
     extract_zip_with_permissions(zip_path, extract_dir)
 
     source_root = extract_sync_root(extract_dir, package_type)
+    if package_type == "library":
+        verify_library_source(source_root, manifest_bundle)
 
     # v2 catalog zip ships JSON files flat; the runtime layout expects
     # them under a json/ subdirectory (matching the legacy media.zip shape).
@@ -1557,26 +1889,30 @@ def prefetch_pending_packages(
 
     prefetch_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-prefetch-"))
     prefetched: dict[str, Path] = {}
-    with ThreadPoolExecutor(max_workers=len(pending)) as executor:
-        futures = {}
-        for package_type, _target_dir, _marker_path in pending:
-            package_temp_dir = prefetch_root / package_type
-            package_temp_dir.mkdir(parents=True, exist_ok=True)
-            futures[
-                executor.submit(
-                    prepare_package_source,
-                    package_type,
-                    channel,
-                    artifact_base,
-                    manifest_bundle,
-                    package_temp_dir,
-                )
-            ] = package_type
-        for future, package_type in futures.items():
-            try:
-                prefetched[package_type] = future.result()
-            except Exception as exc:
-                log(f"[platform-assets] {package_type} prefetch failed; downloading it serially instead: {exc}")
+    try:
+        with ThreadPoolExecutor(max_workers=len(pending)) as executor:
+            futures = {}
+            for package_type, _target_dir, _marker_path in pending:
+                package_temp_dir = prefetch_root / package_type
+                package_temp_dir.mkdir(parents=True, exist_ok=True)
+                futures[
+                    executor.submit(
+                        prepare_package_source,
+                        package_type,
+                        channel,
+                        artifact_base,
+                        manifest_bundle,
+                        package_temp_dir,
+                    )
+                ] = package_type
+            for future, package_type in futures.items():
+                try:
+                    prefetched[package_type] = future.result()
+                except Exception as exc:
+                    log(f"[platform-assets] {package_type} prefetch failed; downloading it serially instead: {exc}")
+    except BaseException:
+        shutil.rmtree(prefetch_root, ignore_errors=True)
+        raise
     return prefetched, prefetch_root
 
 
@@ -2230,13 +2566,16 @@ def main() -> int:
 
     rollback_backups: dict[Path, Path | None] = {}
     rollback_root: Path | None = None
+    prefetch_root: Path | None = None
     previous_state: dict[str, object] = {}
     try:
         previous_state = load_sync_state(sync_state_path)
-        if previous_state and not _local_runtime_trees_match_state(previous_state):
+        baseline_untrusted = bool(previous_state.get("partial")) or bool(
+            previous_state and not _local_runtime_trees_match_state(previous_state)
+        )
+        if baseline_untrusted:
             log("[platform-assets] local runtime assets do not match recorded sync state; forcing full synchronization")
-            previous_state = {}
-        force_refresh = is_force_refresh_enabled()
+        force_refresh = is_force_refresh_enabled() or baseline_untrusted
         manifest_bundle = None
         latest_dataset_version = None
         latest_generated_at = None
@@ -2263,7 +2602,10 @@ def main() -> int:
                 "active appstore schemaVersion is unavailable. Please upgrade your Websoft9 platform before updating Appstore."
             )
         try:
-            manifest_bundle = fetch_appstore_manifests(artifact_base, channel, local_schema_version)
+            manifest_bundle = with_transient_retry(
+                lambda: fetch_appstore_manifests(artifact_base, channel, local_schema_version),
+                label="appstore manifest fetch",
+            )
             appstore_manifest = manifest_bundle["appstore_manifest"]
             if isinstance(appstore_manifest, dict):
                 latest_schema_version = appstore_manifest.get("schemaVersion")
@@ -2292,10 +2634,33 @@ def main() -> int:
                         previous_state.get("libraryDatasetVersion") or previous_state.get("datasetVersion"),
                         latest_library_dsv if latest_library_dsv is not None else latest_dataset_version,
                     )
+                    if not force_refresh and fetch_library_apps_index_payload(manifest_bundle) is not None:
+                        reconciled = resolve_library_index_delta_context(
+                            manifest_bundle, previous_state,
+                            Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library")), channel,
+                        )
+                        if reconciled is None:
+                            library_delta_context = None
+                            package_sync_plan["library"] = True
+                        else:
+                            if library_delta_context is None or any(
+                                library_delta_context.get(key, []) != reconciled[key]
+                                for key in ("addedApps", "changedApps", "removedApps", "updatedApps")
+                            ):
+                                library_delta_context = reconciled
+                            else:
+                                library_delta_context["indexReconciled"] = True
+                            package_sync_plan["library"] = any(
+                                reconciled[key] for key in ("addedApps", "changedApps", "removedApps")
+                            )
         except AppStoreCompatibilityError:
             raise
-        except Exception as exc:
-            log(f"[platform-assets] appstore manifests unavailable, falling back to legacy package resolution: {exc}")
+        except AppStoreManifestNotFoundError as exc:
+            log(f"[platform-assets] appstore manifest absent; falling back to legacy package resolution: {exc}")
+        except AppStoreTransientError:
+            # Exhausted the retries: fail with the dataset untouched instead of silently falling
+            # back to legacy package resolution, which would install unrelated artifacts.
+            raise
 
         applied_dataset_version = latest_dataset_version or previous_state.get("datasetVersion") or datetime.datetime.utcnow().strftime("%Y.%m.%d.%H%M%S")
         library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
@@ -2303,21 +2668,35 @@ def main() -> int:
             should_skip_package_sync and has_valid_published_app_store_manifests(media_root)
         )
 
-        if not should_skip_package_sync or should_rebuild_manifests:
+        if should_skip_package_sync and isinstance(previous_state.get("snapshots"), dict):
+            package_snapshot_paths = dict(previous_state["snapshots"])
+        library_manifest = (manifest_bundle or {}).get("library_manifest")
+        repair_metadata = isinstance(library_manifest, dict) and (
+            "metadata" in library_manifest or "appsIndex" in library_manifest
+        )
+        if not should_skip_package_sync or should_rebuild_manifests or repair_metadata:
             rollback_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-sync-rollback-"))
             rollback_targets = [
                 target
                 for package_type, target_dir, _ in packages
                 for target in (target_dir, snapshot_root / "current" / package_type)
             ]
-            # The shared dictionary is restored together with the library: a dictionary-only
-            # release must never leave apps/ and metadata/ out of sync.
-            rollback_targets.append(library_root / "metadata")
+            for package_type, _, _ in packages:
+                for area in ("staging", "releases"):
+                    rollback_targets.append(snapshot_root / area / str(applied_dataset_version) / package_type)
+                old_paths = (previous_state.get("snapshots") or {}).get(package_type, {})
+                if isinstance(old_paths, dict):
+                    rollback_targets.extend(Path(value) for value in old_paths.values() if isinstance(value, str) and value)
+            rollback_targets = list({target.resolve(): target for target in rollback_targets}.values())
             rollback_backups = backup_trees(rollback_targets, rollback_root)
 
         if not should_skip_package_sync:
+            prefetch_packages = [
+                package for package in packages
+                if not (package[0] == "library" and not force_refresh and library_delta_context is not None)
+            ]
             prefetched_sources, prefetch_root = prefetch_pending_packages(
-                packages,
+                prefetch_packages,
                 package_sync_plan,
                 force_refresh,
                 channel,
@@ -2326,8 +2705,12 @@ def main() -> int:
             )
             for package_type, target_dir, marker_path in packages:
                 reusable_source = resolve_reusable_package_source(previous_state, package_type, target_dir, marker_path)
+                if package_type == "library" and isinstance(library_delta_context, dict) and library_delta_context.get("indexReconciled"):
+                    reusable_source = library_root
                 if not force_refresh and not package_sync_plan.get(package_type, True):
                     if reusable_source is not None:
+                        if package_type == "library":
+                            verify_library_source(reusable_source, manifest_bundle)
                         log(f"[platform-assets] skipping {package_type} package sync because manifest deltas report no changes; reusing {reusable_source}")
                         package_snapshot_paths[package_type] = promote_existing_package_snapshot(
                             reusable_source,
@@ -2347,40 +2730,51 @@ def main() -> int:
                     and isinstance(library_delta_context, dict)
                 ):
                     try:
-                        package_snapshot_paths[package_type] = sync_library_app_artifacts_delta(
-                            reusable_source,
-                            target_dir,
-                            marker_path,
-                            manifest_bundle,
-                            snapshot_root,
-                            str(applied_dataset_version),
-                            library_delta_context,
+                        package_snapshot_paths[package_type] = with_transient_retry(
+                            lambda: sync_library_app_artifacts_delta(
+                                reusable_source,
+                                target_dir,
+                                marker_path,
+                                manifest_bundle,
+                                snapshot_root,
+                                str(applied_dataset_version),
+                                library_delta_context,
+                            ),
+                            label="library app artifacts delta",
                         )
+                    except AppStoreTransientError:
+                        raise
                     except Exception as exc:
                         log(f"[platform-assets] app-level library delta unavailable, falling back to library package delta: {exc}")
-                        package_snapshot_paths[package_type] = sync_library_package_delta(
-                            reusable_source,
-                            target_dir,
-                            marker_path,
-                            channel,
-                            artifact_base,
-                            manifest_bundle,
-                            snapshot_root,
-                            str(applied_dataset_version),
-                            library_delta_context,
+                        package_snapshot_paths[package_type] = with_transient_retry(
+                            lambda: sync_library_package_delta(
+                                reusable_source,
+                                target_dir,
+                                marker_path,
+                                channel,
+                                artifact_base,
+                                manifest_bundle,
+                                snapshot_root,
+                                str(applied_dataset_version),
+                                library_delta_context,
+                            ),
+                            label="library package delta",
                         )
                     continue
-                snapshot_paths = sync_package(
-                    package_type,
-                    target_dir,
-                    marker_path,
-                    channel,
-                    artifact_base,
-                    manifest_bundle,
-                    snapshot_root,
-                    str(applied_dataset_version),
-                    force_sync=package_sync_plan.get(package_type, True),
-                    prefetched_source=prefetched_sources.get(package_type),
+                snapshot_paths = with_transient_retry(
+                    lambda: sync_package(
+                        package_type,
+                        target_dir,
+                        marker_path,
+                        channel,
+                        artifact_base,
+                        manifest_bundle,
+                        snapshot_root,
+                        str(applied_dataset_version),
+                        force_sync=force_refresh or package_sync_plan.get(package_type, True),
+                        prefetched_source=prefetched_sources.get(package_type),
+                    ),
+                    label=f"{package_type} package sync",
                 )
                 if snapshot_paths:
                     package_snapshot_paths[package_type] = snapshot_paths
@@ -2393,19 +2787,21 @@ def main() -> int:
         # at whatever version its last full sync carried — including dictionary-only releases
         # where the app delta is empty. Runs even when no package was synced.
         dictionary_report: dict[str, str] = {"status": "unavailable"}
-        try:
-            dictionary_report = sync_shared_database_dictionary(
+        if should_skip_package_sync:
+            verify_library_source(library_root, manifest_bundle)
+        dictionary_report = with_transient_retry(
+            lambda: sync_shared_database_dictionary(
                 manifest_bundle,
                 library_dictionary_targets(library_root, package_snapshot_paths),
-            )
-            if dictionary_report.get("status") == "updated":
-                log(f"[platform-assets] synced shared database dictionary {dictionary_report.get('sha256')}")
-        except Exception as exc:
-            log(f"[platform-assets] shared database dictionary sync failed: {exc}")
+            ),
+            label="database dictionary sync",
+        )
+        if dictionary_report.get("status") == "updated":
+            log(f"[platform-assets] synced shared database dictionary {dictionary_report.get('sha256')}")
 
         # Persist the library apps index next to the active library and inside this dataset's
         # snapshots, so the manifest build and a later offline activation both see the per-app
-        # update times. Publishing is best effort: a missing index only drops the field.
+        # update times. A declared index must be verified and published before state advances.
         library_snapshot_paths = package_snapshot_paths.get("library")
         apps_index_targets: list[Path] = []
         if isinstance(library_snapshot_paths, dict):
@@ -2413,7 +2809,9 @@ def main() -> int:
                 snapshot_value = library_snapshot_paths.get(snapshot_key)
                 if isinstance(snapshot_value, str) and snapshot_value:
                     apps_index_targets.append(Path(snapshot_value) / "apps-index.json")
-        publish_library_apps_index(library_root, manifest_bundle, apps_index_targets)
+        apps_index_written = publish_library_apps_index(library_root, manifest_bundle, apps_index_targets)
+        if not apps_index_written:
+            raise RuntimeError("apps index: not every target could be written")
 
         if not should_rebuild_manifests:
             log(f"[platform-assets] skipping manifest rebuild for unchanged dataset {applied_dataset_version}")
@@ -2445,12 +2843,15 @@ def main() -> int:
         write_sync_state(sync_state_path, state_payload)
         log(f"[platform-assets] completed app store manifest build (mode={sync_mode})")
 
-        removed_datasets = prune_stale_appstore_datasets(
-            snapshot_root,
-            str(applied_dataset_version) if applied_dataset_version else None,
-        )
-        if removed_datasets:
-            log(f"[platform-assets] removed stale App Store datasets: {', '.join(sorted(removed_datasets))}")
+        try:
+            removed_datasets = prune_stale_appstore_datasets(
+                snapshot_root,
+                str(applied_dataset_version) if applied_dataset_version else None,
+            )
+            if removed_datasets:
+                log(f"[platform-assets] removed stale App Store datasets: {', '.join(sorted(removed_datasets))}")
+        except OSError as exc:
+            log(f"[platform-assets] dataset committed; stale dataset cleanup failed: {exc}")
     except AppStoreCompatibilityError as exc:
         if rollback_backups:
             try:
@@ -2479,6 +2880,8 @@ def main() -> int:
         log(f"[platform-assets] asset sync failed (mode={sync_mode}): {exc}")
         return 1
     finally:
+        if prefetch_root is not None:
+            shutil.rmtree(prefetch_root, ignore_errors=True)
         if rollback_root is not None:
             shutil.rmtree(rollback_root, ignore_errors=True)
 

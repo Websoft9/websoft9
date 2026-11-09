@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 import os
@@ -436,6 +437,7 @@ def test_appstore_manifest_fetch_skips_component_manifests_for_active_dataset(mo
         }
 
     monkeypatch.setattr(runtime_assets, "download_json", record_download)
+    monkeypatch.setattr(runtime_assets, "download_verified_json", record_download)
     monkeypatch.delenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC", raising=False)
     # Isolated here: a missing local dictionary intentionally triggers a repair request, which
     # is covered by test_appstore_manifest_fetch_repairs_a_missing_dictionary below.
@@ -464,6 +466,12 @@ def test_appstore_manifest_fetch_downloads_component_manifests_when_dataset_chan
 
     def record_download(url):
         requested_urls.append(url)
+        if url.endswith("library/manifest.json"):
+            # The library manifest must agree with the root manifest, otherwise the fetch is
+            # treated as a torn publication.
+            return {"datasetVersion": "library-2", "supportsPartialUpdate": True}
+        if url.endswith("catalog/manifest.json"):
+            return {"datasetVersion": "catalog-2"}
         return {
             "schemaVersion": "1",
             "datasetVersion": "2026.09.11.130000",
@@ -472,6 +480,7 @@ def test_appstore_manifest_fetch_downloads_component_manifests_when_dataset_chan
         }
 
     monkeypatch.setattr(runtime_assets, "download_json", record_download)
+    monkeypatch.setattr(runtime_assets, "download_verified_json", record_download)
     monkeypatch.delenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC", raising=False)
 
     runtime_assets.fetch_appstore_manifests(
@@ -511,6 +520,7 @@ def test_fetch_appstore_manifests_downloads_root_manifest_once(monkeypatch):
         return payloads[url]
 
     monkeypatch.setattr(runtime_assets, "download_json", download_json)
+    monkeypatch.setattr(runtime_assets, "download_verified_json", download_json)
 
     runtime_assets.fetch_appstore_manifests(artifact_base, "dev", "1")
 
@@ -542,6 +552,7 @@ def test_fetch_appstore_manifests_downloads_component_manifests_concurrently(mon
         return {}
 
     monkeypatch.setattr(runtime_assets, "download_json", download_json)
+    monkeypatch.setattr(runtime_assets, "download_verified_json", download_json)
 
     worker = threading.Thread(
         target=runtime_assets.fetch_appstore_manifests,
@@ -978,3 +989,110 @@ def test_build_manifests_declares_external_profile_without_the_retired_file(tmp_
     ]
     assert profile["is_external_database"] is True
     assert profile["settings"]["W9_DB_PORT_SET"] == "3306"
+
+
+@pytest.mark.parametrize("failure", ["dictionary", "index", "build", "state"])
+@pytest.mark.parametrize("repair_only", [False, True])
+def test_main_restores_actual_trees_and_state_on_poststep_failure(tmp_path, monkeypatch, failure, repair_only):
+    media = tmp_path / "media"
+    library = tmp_path / "library"
+    snapshots = tmp_path / "appstore"
+    (media / "json").mkdir(parents=True)
+    _write_wordpress_library(library)
+    for locale in ("en", "zh"):
+        _write_product(media / "json" / f"product_{locale}.json")
+    runtime_assets.build_and_publish_app_store_manifests(media, library)
+    dictionary = library / "metadata" / "database-types.json"
+    dictionary.parent.mkdir(exist_ok=True)
+    dictionary.write_bytes(b"old dictionary")
+    (library / "apps-index.json").write_text('{"datasetVersion":"lib-old","apps":[]}', encoding="utf-8")
+    paths = {
+        kind: {key: str(value) for key, value in runtime_assets.stage_snapshot(root, snapshots, "old", kind).items()}
+        for kind, root in (("media", media), ("library", library))
+    }
+    state = tmp_path / "state.json"
+    state.write_text(
+        json.dumps({"schemaVersion": "1", "datasetVersion": "old", "libraryDatasetVersion": "lib-old", "snapshots": paths}),
+        encoding="utf-8",
+    )
+    original_state = state.read_bytes()
+    original_trees = {
+        str(path.relative_to(tmp_path)): path.read_bytes()
+        for root in (media, library, snapshots)
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+    for name, value in {
+        "WEBSOFT9_MEDIA_ROOT": media,
+        "WEBSOFT9_LIBRARY_ROOT": library,
+        "WEBSOFT9_MEDIA_MARKER": media / "json" / "product_en.json",
+        "WEBSOFT9_LIBRARY_MARKER": library / "apps",
+        "WEBSOFT9_APP_STORE_SNAPSHOT_ROOT": snapshots,
+        "WEBSOFT9_APP_STORE_SYNC_STATE": state,
+    }.items():
+        monkeypatch.setenv(name, str(value))
+    new_dictionary = b'{"new":true}'
+    bundle = {
+        "appstore_manifest": {"schemaVersion": "1", "datasetVersion": "old" if repair_only else "new"},
+        "library_manifest_url": "https://example.test/library/manifest.json",
+        "library_manifest": {
+            "metadata": {"databaseTypes": {"path": "dictionary.json", "sha256": hashlib.sha256(new_dictionary).hexdigest()}}
+        },
+        "catalog_manifest": {},
+    }
+    monkeypatch.setattr(runtime_assets, "fetch_appstore_manifests", lambda *args: bundle)
+    app_hash = runtime_assets.app_content_fingerprint(library / "apps" / "wordpress", "wordpress")
+    monkeypatch.setattr(
+        runtime_assets,
+        "fetch_library_apps_index_payload",
+        lambda bundle: {"apps": [{"app": "wordpress", "hash": app_hash}], "datasetVersion": "new"},
+    )
+    monkeypatch.setattr(runtime_assets, "download_file", lambda url, target: target.write_bytes(new_dictionary))
+    monkeypatch.setattr(runtime_assets, "has_valid_published_app_store_manifests", lambda root: failure != "build")
+    prefetch_dirs = []
+
+    def fake_prefetch(*args):
+        root = tmp_path / "prefetch"
+        root.mkdir()
+        prefetch_dirs.append(root)
+        return {}, root
+
+    monkeypatch.setattr(runtime_assets, "prefetch_pending_packages", fake_prefetch)
+
+    def fake_sync(kind, target, marker, channel, base, bundle, snapshot_root, version, **kwargs):
+        source = tmp_path / f"new-{kind}"
+        runtime_assets.replace_tree(target, source)
+        (source / "publication.txt").write_text("new", encoding="utf-8")
+        return runtime_assets.apply_package_source(kind, target, marker, source, snapshot_root, version)
+
+    monkeypatch.setattr(runtime_assets, "sync_package", fake_sync)
+    real_replace = runtime_assets.os.replace
+
+    def fail_replace(source, target):
+        target = Path(target)
+        if (
+            (failure == "dictionary" and target == snapshots / "current" / "library" / "metadata" / "database-types.json")
+            or (failure == "index" and target == snapshots / "current" / "library" / "apps-index.json")
+            or (failure == "state" and target == state)
+        ):
+            raise OSError("injected disk failure")
+        return real_replace(source, target)
+
+    monkeypatch.setattr(runtime_assets.os, "replace", fail_replace)
+    if failure == "build":
+
+        def fail_build(*args):
+            raise RuntimeError("injected manifest build failure")
+
+        monkeypatch.setattr(runtime_assets, "build_and_publish_app_store_manifests", fail_build)
+
+    assert runtime_assets.main() == 1
+    assert state.read_bytes() == original_state
+    assert all(not root.exists() for root in prefetch_dirs)
+    restored = {
+        str(path.relative_to(tmp_path)): path.read_bytes()
+        for root in (media, library, snapshots)
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+    assert restored == original_trees
