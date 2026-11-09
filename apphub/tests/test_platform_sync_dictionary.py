@@ -688,6 +688,25 @@ def test_app_fingerprint_uses_canonical_sorted_paths_and_ignores_root_metadata(t
     assert runtime_assets.app_content_fingerprint(root / "apps" / "wordpress", "wordpress") == digest.hexdigest()
 
 
+def test_app_fingerprint_sorts_paths_by_parts_like_the_publisher(tmp_path):
+    """``src/hrms/`` sorts before ``src/hrms.png`` because the publisher hashes
+    ``sorted(Path)``; plain string order would put the dot first and change the
+    digest (erpnext publishes 1536 files this way)."""
+    app = tmp_path / "apps" / "erpnext"
+    (app / "src" / "hrms").mkdir(parents=True)
+    (app / "src" / "hrms" / "__init__.py").write_bytes(b"code")
+    (app / "src" / "hrms.png").write_bytes(b"image")
+
+    digest = hashlib.sha256()
+    for name in ("src/hrms/__init__.py", "src/hrms.png"):
+        digest.update(f"apps/erpnext/{name}".encode())
+        digest.update(b"\0")
+        digest.update(hashlib.sha256((app / name).read_bytes()).hexdigest().encode("ascii"))
+        digest.update(b"\0")
+
+    assert runtime_assets.app_content_fingerprint(app, "erpnext") == digest.hexdigest()
+
+
 @pytest.mark.parametrize("link", ["escape", "directory", "internal"])
 def test_app_fingerprint_handles_symlinks_without_escaping(tmp_path, link):
     app = tmp_path / "app"

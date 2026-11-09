@@ -1157,7 +1157,10 @@ def app_content_fingerprint(app_root: Path, app_key: str) -> str:
         raise AppStoreTransientError(f"invalid app tree: {app_key!r}")
     digest = hashlib.sha256()
     resolved_root = app_root.resolve()
-    for path in sorted(app_root.rglob("*"), key=lambda item: item.relative_to(app_root).as_posix()):
+    # Sort the path objects, not their relative strings: the publisher hashes
+    # ``sorted(Path)``, which compares path parts. String order differs once a
+    # directory and a file share a prefix (``hrms/`` vs ``hrms.png``).
+    for path in sorted(app_root.rglob("*")):
         if path.is_symlink() and (not path.resolve().is_relative_to(resolved_root) or not path.is_file()):
             raise AppStoreTransientError(f"unsafe app symlink: {path}")
         if path.is_file():
