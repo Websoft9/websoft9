@@ -5,6 +5,29 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.5] - 2026-11-09
+
+### Added
+- **Application Database Details** — Show the database connections an application actually uses in My Apps → Data, resolved from the `database[]` declaration in `variables.json` against the container environment, Compose environment, referenced `env_file` and project `.env`. One row per account, roles only when declared, external connections labelled, and unknown values shown as `—` instead of a guess.
+- **Database API** — Add `GET /api/apps/{id}/databases` with the resolved components, connections and accounts, plus the shared database type dictionary for engine defaults.
+- **External Databases Without Profile Files** — Derive the external database profile from the application declaration when `.env.external-db` is no longer shipped, using `providers[].external.drivers`, `providers[].internal.service` and `datasource`; existing profile files still take precedence.
+- **App Store Reload** — Add `POST /appstore/reload` and `websoft9 appstore reload [--json]` to rebuild the App Store catalogs from local assets; the previous refresh endpoint and CLI command remain as deprecated aliases.
+
+### Changed
+- **App Store Synchronization** — Align runtime synchronization with the published contract: per-app deltas now chain library dataset versions, the shared database dictionary is repaired even when versions match, and dictionary-only releases are applied.
+- **App Store Integrity** — Verify manifests, indexes and delta files against their declared checksums and expected dataset versions and channels, validate downloaded application content against the published fingerprint, and reconcile local and remote indexes so installations that skipped published versions download only changed applications.
+- **App Store Recovery** — Restore the previous assets and recorded dataset when a required dictionary, index or manifest step fails, keep partially completed synchronizations visibly incomplete until repaired, and retry transient download failures.
+- **Console Layout** — Keep dialogs scoped to the content area when the window is resized or the sidebar collapses, and make scheduled tasks, settings forms and the My Apps detail layout responsive.
+- **Access Panel Localization** — Format the certificate expiry date with `Intl.DateTimeFormat` and a translated label.
+
+### Fixed
+- **Installation Without Web Ports** — Apps that publish neither `W9_HTTP_PORT` nor `W9_HTTPS_PORT` now return a readable `400` and roll back the repository and stack instead of raising `UnboundLocalError`.
+- **Prewarm History** — Resolve the task name and retry-blocked state per run instead of labelling every row with the last task in the list.
+- **Platform Settings** — Re-read the existing configuration before writing so unrelated sections survive an update, and detect self-signed platform certificates by comparing subject and issuer fields.
+- **Container Operations** — Return `404` for a missing container, tolerate `304`/`404` when restarting, preserve the original error details when removing stacks and volumes, and keep one broken stack from failing the whole Compose list.
+- **SSH Configuration** — Write the SFTP `sshd` configuration idempotently so repeated setup does not stack duplicate directives.
+- **Application Databases** — Preserve legacy rendering for installations without a `database[]` declaration and report an unknown authentication state instead of claiming no authentication is required.
+
 ## [2.4.4] - 2026-10-27
 
 ### Added
