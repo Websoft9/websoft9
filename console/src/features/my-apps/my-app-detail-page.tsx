@@ -11,8 +11,8 @@ import {
     Typography,
 } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useBlocker, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useAppColorMode } from '../../app/providers/color-mode'
@@ -714,6 +714,8 @@ export function MyAppDetailPage() {
     const [redeployPullImage, setRedeployPullImage] = useState(false)
     const [redeployLogs, setRedeployLogs] = useState<RedeployLogEntry[]>([])
     const [uninstallDialogOpen, setUninstallDialogOpen] = useState(false)
+    const [composeDirty, setComposeDirty] = useState(false)
+    const [pendingComposeLeave, setPendingComposeLeave] = useState<{ run: () => void } | null>(null)
     const [purgeData, setPurgeData] = useState(false)
     const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
     const [volumeBackups, setVolumeBackups] = useState<VolumeBackupRow[]>([])
@@ -1026,6 +1028,38 @@ export function MyAppDetailPage() {
 
         rememberMyAppsDetailRoute(`/myapps/${encodeURIComponent(appId)}?tab=${encodeURIComponent(selectedTab)}`)
     }, [appId, selectedTab])
+
+    // A pending orchestration draft must survive an accidental navigation. The
+    // editor reports it up here because tab switches and menu navigation happen
+    // in this component, not inside the workspace.
+    useEffect(() => {
+        if (!composeDirty) return
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault()
+        }
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    }, [composeDirty])
+
+    const leaveBlocker = useBlocker(
+        useCallback(
+            ({ currentLocation, nextLocation }) =>
+                composeDirty && currentLocation.pathname !== nextLocation.pathname,
+            [composeDirty],
+        ),
+    )
+
+    const requestTabChange = useCallback(
+        (next: DetailTabKey) => {
+            if (next === selectedTab) return
+            if (composeDirty) {
+                setPendingComposeLeave({ run: () => setSelectedTab(next) })
+                return
+            }
+            setSelectedTab(next)
+        },
+        [composeDirty, selectedTab],
+    )
 
     useEffect(() => {
         if (!deleteBackupTarget) {
@@ -1457,7 +1491,7 @@ export function MyAppDetailPage() {
                                             <button
                                                 key={tabKey}
                                                 className={`nav-link${selectedTab === tabKey ? ' active' : ''}`}
-                                                onClick={() => setSelectedTab(tabKey)}
+                                                onClick={() => requestTabChange(tabKey)}
                                             >
                                                 {tabLabels[tabKey]}
                                             </button>
@@ -2238,6 +2272,7 @@ export function MyAppDetailPage() {
                                                 setRedeployDialogOpen(true)
                                             }}
                                             onFeedback={(nextFeedback) => setFeedback(nextFeedback)}
+                                            onDirtyChange={setComposeDirty}
                                         />
                                     ) : null}
 
@@ -2295,6 +2330,114 @@ export function MyAppDetailPage() {
                     setSearchParams(next, { replace: true })
                 }
             }} /> : null}
+
+            {/* ── Unsaved compose draft: tab switch ── */}
+            <SurfaceDialog
+                open={pendingComposeLeave !== null}
+                onClose={() => setPendingComposeLeave(null)}
+                maxWidth="sm"
+                scope="content"
+                scopeRect={contentScopeRect}
+                contentStrategy="viewport-fixed"
+                darkMode={isDarkMode}
+                sx={[
+                    contentScopedDialogPlacementSx,
+                    {
+                        zIndex: 1506,
+                        '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay },
+                    },
+                ]}
+                paperSx={{
+                    width: { xs: 'min(100%, 480px)', md: 'min(480px, calc(100% - 20px))' },
+                    maxWidth: '480px',
+                    borderRadius: 0,
+                    backgroundColor: dialogPalette.panel,
+                    color: dialogPalette.text,
+                    border: `1px solid ${dialogPalette.border}`,
+                    boxShadow: isDarkMode ? '0 24px 64px rgba(2, 6, 23, 0.56)' : '0 16px 40px rgba(15, 23, 42, 0.16)',
+                }}
+            >
+                <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>
+                        {t('myAppsDetailPage.dialogs.discardComposeTitle')}
+                    </Typography>
+                </Box>
+                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                    <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>
+                        {t('myAppsDetailPage.dialogs.discardComposeBody')}
+                    </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
+                    <Button onClick={() => setPendingComposeLeave(null)} sx={dialogCancelButtonSx}>
+                        {t('myAppsDetailPage.dialogs.discardComposeKeep')}
+                    </Button>
+                    <Button
+                        sx={dialogWarningButtonSx}
+                        variant="contained"
+                        onClick={() => {
+                            const next = pendingComposeLeave
+                            setPendingComposeLeave(null)
+                            setComposeDirty(false)
+                            next?.run()
+                        }}
+                    >
+                        {t('myAppsDetailPage.dialogs.discardComposeConfirm')}
+                    </Button>
+                </Box>
+            </SurfaceDialog>
+
+            {/* ── Unsaved compose draft: navigation ── */}
+            <SurfaceDialog
+                open={leaveBlocker.state === 'blocked'}
+                onClose={() => leaveBlocker.reset?.()}
+                maxWidth="sm"
+                scope="content"
+                scopeRect={contentScopeRect}
+                contentStrategy="viewport-fixed"
+                darkMode={isDarkMode}
+                sx={[
+                    contentScopedDialogPlacementSx,
+                    {
+                        zIndex: 1506,
+                        '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay },
+                    },
+                ]}
+                paperSx={{
+                    width: { xs: 'min(100%, 480px)', md: 'min(480px, calc(100% - 20px))' },
+                    maxWidth: '480px',
+                    borderRadius: 0,
+                    backgroundColor: dialogPalette.panel,
+                    color: dialogPalette.text,
+                    border: `1px solid ${dialogPalette.border}`,
+                    boxShadow: isDarkMode ? '0 24px 64px rgba(2, 6, 23, 0.56)' : '0 16px 40px rgba(15, 23, 42, 0.16)',
+                }}
+            >
+                <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>
+                        {t('myAppsDetailPage.dialogs.discardComposeTitle')}
+                    </Typography>
+                </Box>
+                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                    <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>
+                        {t('myAppsDetailPage.dialogs.discardComposeBody')}
+                    </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
+                    <Button onClick={() => leaveBlocker.reset?.()} sx={dialogCancelButtonSx}>
+                        {t('myAppsDetailPage.dialogs.discardComposeKeep')}
+                    </Button>
+                    <Button
+                        sx={dialogWarningButtonSx}
+                        variant="contained"
+                        onClick={() => {
+                            setComposeDirty(false)
+                            leaveBlocker.proceed?.()
+                        }}
+                    >
+                        {t('myAppsDetailPage.dialogs.discardComposeConfirm')}
+                    </Button>
+                </Box>
+            </SurfaceDialog>
 
             {/* ── Redeploy dialog ── */}
             <SurfaceDialog

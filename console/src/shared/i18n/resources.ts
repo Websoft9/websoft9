@@ -1352,6 +1352,10 @@ const rawShellResources = {
                     uninstallBody: 'This will immediately uninstall the app, If the data is preserved, the app can be redeploy.',
                     uninstallPurge: 'Do you want to purge the data:',
                     externalDatabaseNotice: 'The external database and its data are user-managed and will not be deleted. Purging application data removes the platform-stored connection configuration.',
+                    discardComposeTitle: 'Unsaved changes',
+                    discardComposeBody: 'The orchestration editor has unsaved changes. Continuing will discard them.',
+                    discardComposeConfirm: 'Discard changes',
+                    discardComposeKeep: 'Keep editing',
                 },
                 feedback: {
                     genericError: 'The lifecycle action failed.',
@@ -1741,6 +1745,10 @@ const rawShellResources = {
                             saveFailed: 'Failed to save file to repository.',
                             conflictError: 'This file was modified in Gitea or by another user while you were editing. Click "Reload Latest" to load the newest version before saving.',
                             saveSuccess: '{{file}} saved to Git repository.',
+                            discardTitle: 'Unsaved changes',
+                            discardNotice: 'Unsaved changes in {{file}} will be lost. Continue?',
+                            discardConfirm: 'Discard changes',
+                            discardKeepEditing: 'Keep editing',
                             columns: {
                                 name: 'Name',
                                 size: 'Size',
@@ -4149,6 +4157,10 @@ const rawShellResources = {
                     uninstallBody: '该操作会立即卸载应用，如果保留数据，应用还可以重新部署。',
                     uninstallPurge: '是否清理数据：',
                     externalDatabaseNotice: '外部数据库及其数据由用户自行管理，平台不会删除。清理应用数据会删除平台保存的连接配置。',
+                    discardComposeTitle: '未保存的修改',
+                    discardComposeBody: '编排编辑器中有未保存的修改，继续将丢失这些修改。',
+                    discardComposeConfirm: '放弃修改',
+                    discardComposeKeep: '继续编辑',
                 },
                 feedback: {
                     genericError: '生命周期动作执行失败。',
@@ -4536,6 +4548,10 @@ const rawShellResources = {
                             saveFailed: '保存文件到仓库失败。',
                             conflictError: '该文件已被其他用户或在 Gitea 中修改，请点击「加载最新版本」同步后再保存。',
                             saveSuccess: '{{file}} 已保存到 Git 仓库。',
+                            discardTitle: '未保存的修改',
+                            discardNotice: '{{file}} 有未保存的修改，继续将丢失这些修改。',
+                            discardConfirm: '放弃修改',
+                            discardKeepEditing: '继续编辑',
                             columns: {
                                 name: '名称',
                                 size: '大小',
