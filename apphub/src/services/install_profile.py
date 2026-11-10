@@ -11,6 +11,7 @@ from src.services.external_database import (
     EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS,
     EXTERNAL_DATABASE_PROFILE,
     apply_datasource,
+    external_database_allowed,
     external_database_declaration,
 )
 
@@ -73,6 +74,8 @@ def get_profile_template(app_directory: str | Path, profile: str) -> tuple[Path,
 
 def is_external_database_profile(app_directory: str | Path | None, profile: str | None) -> bool:
     if app_directory is None or profile is None:
+        return False
+    if profile == EXTERNAL_DATABASE_PROFILE and not external_database_allowed(app_directory):
         return False
 
     env_path = Path(app_directory) / f".env.{profile}"
@@ -188,6 +191,12 @@ def _remove_external_services(compose_path: Path, excluded_services: set[str]) -
 def validate_profile_settings(app_directory: str | Path, profile: str | None, settings: dict | None) -> None:
     if profile is None:
         return
+    if profile == EXTERNAL_DATABASE_PROFILE and not external_database_allowed(app_directory):
+        raise CustomException(
+            400,
+            "Invalid Request",
+            "The selected installation profile is not available for this application.",
+        )
 
     app_path = Path(app_directory)
     expected_keys = _load_template_settings(app_path / ".env")

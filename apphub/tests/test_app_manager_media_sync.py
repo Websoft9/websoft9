@@ -194,6 +194,51 @@ def test_get_available_apps_reads_manifest_filters_and_invalidates_by_signature(
     assert manager.get_available_apps('en') == []
 
 
+def test_get_available_apps_hides_external_profiles_for_unverified_apps(monkeypatch, tmp_path):
+    media_path = tmp_path / 'media' / 'json'
+    media_path.mkdir(parents=True)
+    manifest_path = media_path / 'app-store-manifest_en.json'
+    manifest_path.write_text(
+        json.dumps(
+            {
+                'schemaVersion': '1',
+                'locale': 'en',
+                'apps': [
+                    {
+                        'key': 'wordpress',
+                        'title': 'WordPress',
+                        'distribution': [{'key': 'community', 'value': ['6.6']}],
+                        'settings': {},
+                        'is_web_app': True,
+                        'profiles': {'external-db': {'is_external_database': True}, 'other': {}},
+                    },
+                    {
+                        'key': 'canvas',
+                        'title': 'Canvas',
+                        'distribution': [{'key': 'community', 'value': ['1.0']}],
+                        'settings': {},
+                        'is_web_app': True,
+                        'profiles': {'external-db': {'is_external_database': True}},
+                    },
+                ],
+            }
+        ),
+        encoding='utf-8',
+    )
+    _ConfigManager.values = {
+        ('config.ini', 'initial_apps', 'keys'): '',
+        ('system.ini', 'app_media', 'path'): str(media_path),
+    }
+    monkeypatch.setattr(app_manager_module, 'ConfigManager', _ConfigManager)
+    monkeypatch.setattr(AppManger, '_normalize_available_app_media', staticmethod(lambda app, locale: app))
+    AppManger.clear_cache()
+
+    apps = {app['key']: app for app in AppManger().get_available_apps('en')}
+
+    assert 'external-db' in apps['wordpress']['profiles']
+    assert 'external-db' not in apps['canvas'].get('profiles', {})
+
+
 def test_get_available_apps_returns_503_for_missing_manifest(monkeypatch, tmp_path):
     _ConfigManager.values = {
         ('config.ini', 'initial_apps', 'keys'): '',

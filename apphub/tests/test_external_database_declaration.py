@@ -17,6 +17,7 @@ from src.services.external_database import (
     apply_datasource,
     external_database_declaration,
     external_database_profile_settings,
+    filter_external_database_profiles,
     read_datasource,
 )
 from src.services.install_profile import (
@@ -222,3 +223,19 @@ def test_connection_values_are_written_into_the_declared_variables(tmp_path):
         "WORDPRESS_DB_USER": "wp",
         "WORDPRESS_DB_PASSWORD": "pw",
     }
+
+
+def test_only_verified_applications_keep_the_external_profile_when_served():
+    apps = [
+        {"key": "wordpress", "profiles": {"external-db": {"is_external_database": True}}},
+        {"key": "canvas", "profiles": {"external-db": {"is_external_database": True}, "high-availability": {}}},
+        {"key": "django", "profiles": {"external-db": {"is_external_database": True}}},
+    ]
+
+    filtered = filter_external_database_profiles(apps)
+
+    assert "external-db" in filtered[0]["profiles"]
+    assert list(filtered[1]["profiles"]) == ["high-availability"]
+    assert "profiles" not in filtered[2]
+    # The catalog itself keeps the capability declaration; only the served copy is filtered.
+    assert "external-db" in apps[1]["profiles"]

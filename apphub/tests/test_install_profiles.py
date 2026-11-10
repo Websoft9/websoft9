@@ -1,3 +1,4 @@
+import json
 import re
 import sys
 from pathlib import Path
@@ -81,6 +82,36 @@ def test_external_profile_validation_accepts_base_template_install_settings(tmp_
     _profile_template(app_dir)
 
     validate_profile_settings(app_dir, "external-db", PROFILE_SETTINGS)
+
+
+@pytest.mark.parametrize("file_profile", [False, True])
+def test_external_profile_is_rejected_outside_the_allowlist(tmp_path, file_profile):
+    app_dir = tmp_path / "canvas"
+    app_dir.mkdir()
+    (app_dir / ".env").write_text("W9_HTTP_PORT_SET=9001\nW9_DB_EXPOSE=mysql\n", encoding="utf-8")
+    (app_dir / "variables.json").write_text(
+        json.dumps(
+            {
+                "database": [
+                    {
+                        "providers": [
+                            {"type": "internal", "service": "mysql", "driver": "mysql"},
+                            {"type": "external", "drivers": ["mysql"]},
+                        ],
+                        "datasource": {"DATABASE_URL": "${host}:${port}"},
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    if file_profile:
+        (app_dir / ".env.external-db").write_text("W9_DATABASE_MODE=external\n", encoding="utf-8")
+
+    assert is_external_database_profile(app_dir, "external-db") is False
+    with pytest.raises(CustomException) as exc_info:
+        validate_profile_settings(app_dir, "external-db", PROFILE_SETTINGS)
+    assert exc_info.value.status_code == 400
 
 
 def test_external_database_connection_settings_are_excluded_from_port_checks(tmp_path):

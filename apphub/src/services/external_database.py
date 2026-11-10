@@ -23,6 +23,10 @@ from pathlib import Path
 from typing import Any
 
 EXTERNAL_DATABASE_PROFILE = "external-db"
+# Only applications whose external database installation has been verified end
+# to end may publish the profile. Adding a key here requires validating its
+# ``datasource`` mapping and bundled-service removal first.
+EXTERNAL_DATABASE_ALLOWED_APPS = frozenset({"wordpress", "odoo"})
 EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS = (
     "W9_DB_HOST_SET",
     "W9_DB_PORT_SET",
@@ -54,6 +58,42 @@ def _read_variables(app_directory: str | Path) -> dict[str, Any] | None:
     except (OSError, ValueError):
         return None
     return variables if isinstance(variables, dict) else None
+
+
+def external_database_allowed(app_directory: str | Path | None) -> bool:
+    """Whether this application may offer an external database installation."""
+    if app_directory is None:
+        return False
+    return Path(app_directory).name.strip().lower() in EXTERNAL_DATABASE_ALLOWED_APPS
+
+
+def filter_external_database_profiles(apps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove ``external-db`` from unverified applications before they reach the console.
+
+    The catalog keeps the capability declaration for every application; this
+    policy is applied only when the platform serves it. Copying the entries
+    keeps a cached catalog reusable across requests.
+    """
+    filtered: list[dict[str, Any]] = []
+    for app in apps:
+        key = app.get("key")
+        profiles = app.get("profiles")
+        if (
+            (isinstance(key, str) and key.strip().lower() in EXTERNAL_DATABASE_ALLOWED_APPS)
+            or not isinstance(profiles, dict)
+            or EXTERNAL_DATABASE_PROFILE not in profiles
+        ):
+            filtered.append(app)
+            continue
+
+        remaining = {name: value for name, value in profiles.items() if name != EXTERNAL_DATABASE_PROFILE}
+        copy = dict(app)
+        if remaining:
+            copy["profiles"] = remaining
+        else:
+            copy.pop("profiles", None)
+        filtered.append(copy)
+    return filtered
 
 
 def external_database_declaration(app_directory: str | Path) -> dict[str, Any] | None:

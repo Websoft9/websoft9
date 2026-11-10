@@ -51,6 +51,7 @@ from src.services.compose_install import (
     prepare_compose_install_tracking,
     validate_compose_installation,
 )
+from src.services.external_database import filter_external_database_profiles
 from src.services.gitea_manager import GiteaManager
 from src.services.image_prewarm import ImagePrewarmService
 from src.services.install_profile import (
@@ -135,7 +136,7 @@ def get_available_apps(
 @router.get("/apps/local/available", summary="List Local App Store Apps")
 def get_local_available_apps():
     try:
-        return get_local_app_store_apps()
+        return filter_external_database_profiles(get_local_app_store_apps())
     except ValueError as exc:
         raise CustomException(503, "Service Unavailable", str(exc)) from exc
 

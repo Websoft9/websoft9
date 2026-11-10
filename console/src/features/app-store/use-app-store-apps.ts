@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { resolveAppCatalogLocale } from '../../shared/i18n/i18n'
+import { withoutExternalDatabaseProfiles } from './external-database-profiles'
 import type { AppStoreApp } from './app-store-model'
 
 type AppStoreError = Error & {
@@ -36,7 +37,7 @@ async function fetchAppStoreAppsFromStaticAssets(apiLocale: string) {
     if (!Array.isArray(manifest.apps)) {
         throw new Error('Static app store manifest has no apps array')
     }
-    return manifest.apps
+    return withoutExternalDatabaseProfiles(manifest.apps)
 }
 
 async function fetchAppStoreAppsFromApi(apiLocale: string) {

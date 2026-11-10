@@ -47,6 +47,7 @@ from src.services.app_status import (
     start_app_installation,
 )
 from src.services.common_check import check_endpointId
+from src.services.external_database import filter_external_database_profiles
 from src.services.git_manager import GitManager
 from src.services.gitea_manager import GiteaManager
 from src.services.image_pull import (
@@ -704,6 +705,7 @@ class AppManger:
             if app_keys_filter:
                 data = [item for item in data if item.get("key") in app_keys_filter]
             data = [self._normalize_available_app_media(item, normalized_locale) for item in data if isinstance(item, dict)]
+            data = filter_external_database_profiles(data)
             self._cache[cache_key] = data
             self._cache_timestamps[cache_key] = manifest_signature
             return data
