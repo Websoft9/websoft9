@@ -97,15 +97,22 @@ def filter_external_database_profiles(apps: list[dict[str, Any]]) -> list[dict[s
 
 
 def external_database_declaration(app_directory: str | Path) -> dict[str, Any] | None:
+    """Return the declaration found in an application directory."""
+    return external_database_declaration_from_variables(_read_variables(app_directory))
+
+
+def external_database_declaration_from_variables(variables: dict[str, Any] | None) -> dict[str, Any] | None:
     """Return the first component that declares a writable external provider.
 
     A component only counts when it also declares ``datasource``: the contract
     marks that field required for external support, and without it the platform
     has nowhere to write the connection. Components that merely list
     ``external.drivers`` (optional runtime scaffolds) are therefore ignored.
+
+    Parsed ``variables.json`` payloads are accepted directly so callers holding
+    a repository document do not need a working tree.
     """
-    variables = _read_variables(app_directory)
-    if variables is None:
+    if not isinstance(variables, dict):
         return None
 
     for component in variables.get("database") or []:

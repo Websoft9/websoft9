@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -136,6 +137,28 @@ def _merge_env_profile(base_env_path: Path, profile_env_path: Path) -> None:
             merged_lines.append(f"{key}={value}")
 
     base_env_path.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
+
+
+def remove_env_keys(env_path: str | Path, keys: Iterable[str]) -> None:
+    """Drop ``keys`` from an environment file, keeping every other line verbatim.
+
+    Installation-form settings that a template never declared are inputs, not
+    configuration: writing them would duplicate the connection the declaration
+    already carries into variables the application does not read.
+    """
+    removal = {key for key in keys if key}
+    if not removal:
+        return
+
+    path = Path(env_path)
+    kept: list[str] = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if "=" in raw_line and not raw_line.lstrip().startswith("#"):
+            key = raw_line.split("=", 1)[0].strip()
+            if key in removal:
+                continue
+        kept.append(raw_line)
+    path.write_text("\n".join(kept) + "\n", encoding="utf-8")
 
 
 def _service_named_volumes(service: dict, declared_volumes: set[str]) -> set[str]:

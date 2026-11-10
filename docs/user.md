@@ -145,6 +145,8 @@ websoft9 app install wordpress \
 
 Do not omit `W9_HTTP_PORT_SET`, even though the database is external. Do not pass `W9_DATABASE_MODE`, `W9_DB_EXPOSE`, or `WORDPRESS_DB_*`: Websoft9 derives them from the selected profile and validated database connection.
 
+These settings are installation inputs. Websoft9 writes the connection into the variables the application template declares (for WordPress, `WORDPRESS_DB_HOST` and the related `WORDPRESS_DB_*` variables) and keeps `W9_DATABASE_MODE` / `W9_DB_EXPOSE` in the instance configuration as status markers. The `W9_DB_*_SET` settings are not persisted when the template does not declare them.
+
 Passwords passed through `--set` may be retained in shell history or exposed in process listings. For production credentials, use the JSON-file workflow below and restrict the file permissions.
 
 Install without a proxy host for direct access through the server IP:

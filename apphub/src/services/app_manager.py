@@ -47,7 +47,12 @@ from src.services.app_status import (
     start_app_installation,
 )
 from src.services.common_check import check_endpointId
-from src.services.external_database import filter_external_database_profiles
+from src.services.external_database import (
+    EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS,
+    external_database_declaration_from_variables,
+    filter_external_database_profiles,
+    read_datasource,
+)
 from src.services.git_manager import GitManager
 from src.services.gitea_manager import GiteaManager
 from src.services.image_pull import (
@@ -60,11 +65,13 @@ from src.services.image_pull import (
     validate_image_reference,
 )
 from src.services.install_profile import (
+    external_database_datasource_values,
     external_database_mapping,
     get_external_database_type,
     get_port_check_settings,
     is_external_database_profile,
     materialize_profile_template,
+    remove_env_keys,
     validate_external_database_connection,
 )
 from src.services.install_secrets import forget_install_secrets, initialize_install_secrets
@@ -172,8 +179,8 @@ class AppManger:
             return None
         return None
 
-    def _read_safe_app_env_from_gitea(self, app_id: str) -> dict[str, str]:
-        allowed_keys = {
+    _SAFE_ENV_KEYS = frozenset(
+        {
             "W9_APP_NAME",
             "W9_DATABASE_MODE",
             "W9_DB_EXPOSE",
@@ -187,20 +194,67 @@ class AppManger:
             "WORDPRESS_DB_USER",
             "WORDPRESS_DB_PASSWORD",
         }
+    )
+
+    def _declared_datasource(self, app_id: str) -> dict[str, str]:
+        """Connection variables the instance template declares in ``database[]``."""
+        try:
+            raw = GiteaManager().get_file_raw_from_repo(app_id, "variables.json")
+            variables = json.loads(raw) if raw else None
+        except Exception:
+            return {}
+        declaration = external_database_declaration_from_variables(variables)
+        datasource = declaration["datasource"] if declaration else {}
+        return datasource if isinstance(datasource, dict) else {}
+
+    @staticmethod
+    def _external_connection(env: dict[str, str], datasource: dict[str, str] | None) -> dict[str, str]:
+        """Read the connection an external installation actually uses.
+
+        The declaration owns the variable names, so the values are reversed out
+        of them first. Instances installed before the declaration stored the same
+        connection under platform-owned keys, which stay as a fallback.
+        """
+        mapped = read_datasource(datasource, env) if isinstance(datasource, dict) and datasource else {}
+
+        def value(semantic: str, legacy_key: str) -> str:
+            return (mapped.get(semantic) or env.get(legacy_key) or "").strip()
+
+        host = value("host", "W9_DB_HOST_SET")
+        port = value("port", "W9_DB_PORT_SET")
+        if not port:
+            # ``${host}:${port}`` targets (such as WordPress) keep the port in
+            # the host value instead of a variable of their own.
+            head, _, tail = host.rpartition(":")
+            if head and tail.isdigit():
+                host, port = head, tail
+        return {
+            "host": host,
+            "port": port,
+            "name": value("name", "W9_DB_NAME_SET"),
+            "user": value("user", "W9_DB_USER_SET"),
+            "password": mapped.get("password") or env.get("W9_DB_PASSWORD_SET") or "",
+        }
+
+    def _read_safe_app_env_from_gitea(self, app_id: str) -> dict[str, str]:
         try:
             env_content = GiteaManager().get_file_raw_from_repo(app_id, ".env")
             if not env_content:
                 return {}
-            environment: dict[str, str] = {}
+            entries: dict[str, str] = {}
             for line in env_content.splitlines():
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
                 key, value = line.split("=", 1)
-                key = key.strip()
-                if key in allowed_keys:
-                    environment[key] = value.strip().strip("'\"")
-            return environment
+                entries[key.strip()] = value.strip().strip("'\"")
+            allowed_keys = set(self._SAFE_ENV_KEYS)
+            if entries.get("W9_DATABASE_MODE") == "external":
+                # Declaration-only templates name the connection variables
+                # themselves (``HOST``/``PORT`` for Odoo), so the allow list is
+                # extended from the repository instead of hard-coding keys.
+                allowed_keys |= set(self._declared_datasource(app_id))
+            return {key: value for key, value in entries.items() if key in allowed_keys}
         except Exception:
             return {}
 
@@ -1279,13 +1333,14 @@ class AppManger:
             if env.get("W9_DATABASE_MODE") != "external":
                 continue
 
+            connection = self._external_connection(env, self._declared_datasource(app.app_id))
             db_expose = (env.get("W9_DB_EXPOSE") or "").strip()
             db_type = db_expose.split(",")[0].strip() if db_expose else "mysql"
-            db_host = env.get("W9_DB_HOST_SET") or env.get("WORDPRESS_DB_HOST") or ""
-            db_port = env.get("W9_DB_PORT_SET") or ""
-            db_name = env.get("W9_DB_NAME_SET") or env.get("WORDPRESS_DB_NAME") or ""
-            db_user = env.get("W9_DB_USER_SET") or env.get("WORDPRESS_DB_USER") or ""
-            db_password = env.get("W9_DB_PASSWORD_SET") or env.get("WORDPRESS_DB_PASSWORD") or ""
+            db_host = connection["host"]
+            db_port = connection["port"]
+            db_name = connection["name"]
+            db_user = connection["user"]
+            db_password = connection["password"]
 
             address = f"{db_host}:{db_port}" if db_host and db_port else db_host or "-"
             group_key = (db_type, address, db_name, db_user, db_password)
@@ -1469,6 +1524,12 @@ class AppManger:
             envHelper.set_value("W9_DIST", "community")
             envHelper.set_value("W9_VERSION", app_version)
 
+            # Connection keys the template itself declares stay in ``.env``. The
+            # install form keys of a declaration-only template are inputs only.
+            template_connection_keys = {
+                key for key in EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS if key in (envHelper.get_all_values() or {})
+            }
+
             initialize_install_secrets(app_tmp_dir_path, app_id, app_name, settings)
 
             # Set the settings to env file
@@ -1482,33 +1543,33 @@ class AppManger:
                 add_installing_logs(
                     app_uuid, "Initializing installation", f"Validating external {external_database_type} database connection"
                 )
+                # The form owns the values, so they are read from it instead of
+                # from the file that is still being assembled.
+                connection_values = external_database_datasource_values(settings)
                 connection = validate_external_database_connection(
                     external_database_type,
-                    envHelper.get_value("W9_DB_HOST_SET") or "",
-                    envHelper.get_value("W9_DB_PORT_SET") or "",
-                    envHelper.get_value("W9_DB_NAME_SET"),
-                    envHelper.get_value("W9_DB_USER_SET") or "",
-                    envHelper.get_value("W9_DB_PASSWORD_SET") or "",
+                    connection_values["host"],
+                    connection_values["port"],
+                    connection_values["name"] or None,
+                    connection_values["user"],
+                    connection_values["password"],
                 )
                 envHelper.set_value("W9_DB_EXPOSE", connection.database_type)
-                # Compatibility marker: existing readers (detail view, external
-                # checks) still rely on it, and instances installed through the
-                # retired profile template carry the same value.
+                # Compatibility marker: the database panel, the external database
+                # list and the detail view still rely on it, and instances
+                # installed through the retired profile template carry the value.
                 envHelper.set_value("W9_DATABASE_MODE", "external")
                 # The declaration owns where the connection goes: applications
                 # that provide ``datasource`` get their native variables written
                 # here, which is what the runtime actually reads.
                 for key, value in external_database_mapping(app_tmp_dir_path, settings).items():
                     envHelper.set_value(key, value)
-                # Compatibility marker: readers (detail view, external check)
-                # still rely on it, and instances installed through the retired
-                # profile template carry the same value.
-                envHelper.set_value("W9_DATABASE_MODE", "external")
-                # The declaration owns where the connection goes: applications
-                # that provide ``datasource`` get their native variables written
-                # here, which is what the runtime actually reads.
-                for key, value in external_database_mapping(app_tmp_dir_path, settings).items():
-                    envHelper.set_value(key, value)
+                # Declarations replaced the profile template, so the platform's
+                # form keys no longer belong in the instance configuration.
+                remove_env_keys(
+                    env_file_path,
+                    [key for key in EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS if key not in template_connection_keys],
+                )
 
             # Verify the app is web app
             is_web_app = envHelper.get_value("W9_URL")

@@ -13,6 +13,7 @@ actually happens), while every outbound client is replaced.
 import glob
 import json
 import shutil
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -214,6 +215,28 @@ def _install(install, payload=None, **kwargs):
     return install.manager._install_app(payload or _payload(), **kwargs)
 
 
+def _external_settings():
+    return {
+        'W9_DB_HOST_SET': 'db.example.com',
+        'W9_DB_PORT_SET': '3306',
+        'W9_DB_NAME_SET': 'shop',
+        'W9_DB_USER_SET': 'wp',
+        'W9_DB_PASSWORD_SET': 'secret',
+    }
+
+
+def _capture_env_at_push(install, monkeypatch):
+    """The workspace is removed after the push, so read ``.env`` on the way out."""
+    captured = {}
+
+    def push(path, url):
+        install.state.pushed.append((path, url))
+        captured['env'] = (Path(path) / '.env').read_text(encoding='utf-8')
+
+    monkeypatch.setattr(install.manager, '_init_local_repo_and_push_to_remote', push)
+    return captured
+
+
 def _stages(install):
     return [entry[1] for entry in install.state.logs]
 
@@ -406,7 +429,7 @@ def test_an_external_database_without_a_type_is_rejected(install, monkeypatch):
     assert install.gitea.removed == [APP_ID]
 
 
-def test_an_external_database_is_validated_from_the_environment(install, monkeypatch):
+def test_an_external_database_is_validated_from_the_form_values(install, monkeypatch):
     validated = []
 
     def validate(database_type, host, port, name, user, password):
@@ -414,15 +437,49 @@ def test_an_external_database_is_validated_from_the_environment(install, monkeyp
         return SimpleNamespace(database_type=database_type)
 
     monkeypatch.setattr(app_module, 'validate_external_database_connection', validate)
-    (install.app_dir / '.env').write_text(
-        'W9_URL=\nW9_DB_HOST_SET=db.example.com\nW9_DB_PORT_SET=3306\n'
-        'W9_DB_NAME_SET=shop\nW9_DB_USER_SET=wp\nW9_DB_PASSWORD_SET=secret\n'
-    )
 
-    _install(install, payload=_payload(profile='external-db'), tracked_app_id=APP_ID, endpointId=42)
+    _install(
+        install,
+        payload=_payload(profile='external-db', settings=_external_settings()),
+        tracked_app_id=APP_ID,
+        endpointId=42,
+    )
 
     assert validated == [('mysql', 'db.example.com', '3306', 'shop', 'wp', 'secret')]
     assert install.state.completed == ['tracking-1']
+
+
+def test_form_only_connection_keys_are_not_written_to_the_instance(install, monkeypatch):
+    """The declaration owns the runtime variables; form keys stay inputs."""
+    captured = _capture_env_at_push(install, monkeypatch)
+
+    _install(
+        install,
+        payload=_payload(profile='external-db', settings=_external_settings()),
+        tracked_app_id=APP_ID,
+        endpointId=42,
+    )
+
+    for key in ('W9_DB_HOST_SET', 'W9_DB_PORT_SET', 'W9_DB_NAME_SET', 'W9_DB_USER_SET', 'W9_DB_PASSWORD_SET'):
+        assert f'{key}=' not in captured['env']
+    assert 'W9_DB_EXPOSE' in captured['env']
+    assert 'W9_DATABASE_MODE' in captured['env']
+
+
+def test_connection_keys_the_template_declares_are_kept(install, monkeypatch):
+    """Instances installed through the retired profile keep their keys."""
+    env_path = install.app_dir / '.env'
+    env_path.write_text(env_path.read_text(encoding='utf-8') + 'W9_DB_HOST_SET=\n', encoding='utf-8')
+    captured = _capture_env_at_push(install, monkeypatch)
+
+    _install(
+        install,
+        payload=_payload(profile='external-db', settings=_external_settings()),
+        tracked_app_id=APP_ID,
+        endpointId=42,
+    )
+
+    assert 'W9_DB_HOST_SET' in captured['env']
 
 
 def test_an_image_pull_failure_reports_the_reason_and_rolls_back(install):
