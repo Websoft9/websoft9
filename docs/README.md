@@ -13,6 +13,7 @@ Welcome to the Websoft9 documentation. Websoft9 is a web-based PaaS/Linux Panel 
 | [Developer Guide](developer.md) | Development environment setup, coding standards, and contribution workflow |
 | [Platform Upgrade Testing](upgrade-testing.md) | 模拟平台升级成功 / 失败与回滚的测试手册 |
 | [Custom Application Development](local-app-store.md) | Build and publish local Docker Compose applications in the App Store |
+| [应用安装密钥](app-secrets.md) | `env.secrets` 声明形态、`base64`/`fernet`/`jwt` 规则与共享字典同步 |
 | [API Reference](api-reference.md) | AppHub REST API endpoints and usage |
 | [Deployment](deployment.md) | Production deployment, cloud marketplace, and operations |
 | [项目漏洞治理机制](vulnerability-management.md) | 漏洞来源分类、扫描原理与盲区、阻断策略、落地路线 |

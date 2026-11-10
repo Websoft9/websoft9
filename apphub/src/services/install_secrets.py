@@ -14,6 +14,7 @@ from pathlib import Path
 from dotenv import dotenv_values, set_key
 
 from src.core.exception import CustomException
+from src.services.secret_rules import generate_rule_secret, load_secret_rules, matches_rule, parse_secret_rule
 from src.utils.password_generator import PasswordGenerator
 
 _REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
@@ -61,6 +62,18 @@ def _parts(field: str, value: str) -> tuple[str, list[tuple[str, str]]]:
 
 
 def _matches(field: str, template: str, value: str) -> bool:
+    if "," in template:
+        # Comma-separated declarations (for example Strapi ``APP_KEYS``) regenerate each item
+        # independently, so validation has to compare item by item.
+        expected = template.split(",")
+        segments = value.split(",")
+        return len(expected) == len(segments) and all(
+            _matches_item(field, original, segment) for original, segment in zip(expected, segments, strict=False)
+        )
+    return _matches_item(field, template, value)
+
+
+def _matches_item(field: str, template: str, value: str) -> bool:
     prefix, parts = _parts(field, template)
     if not value.startswith(prefix):
         return False
@@ -72,6 +85,15 @@ def _matches(field: str, template: str, value: str) -> bool:
 
 
 def generate_secret(field: str, template: str) -> str:
+    if "," in template:
+        items = template.split(",")
+        if any(not item.strip() for item in items):
+            raise _invalid(field, "unsupported format")
+        return ",".join(generate_secret_item(field, item) for item in items)
+    return generate_secret_item(field, template)
+
+
+def generate_secret_item(field: str, template: str) -> str:
     prefix, parts = _parts(field, template)
     for _ in range(128):
         segments = []
@@ -106,18 +128,39 @@ def _validate_references(values: dict, fields: list[str]) -> None:
         resolve(field, set())
 
 
-def _secret_fields(directory: Path) -> list[str]:
+def _secret_declarations(directory: Path) -> dict[str, str]:
+    """Map every declared key to its rule, using ``""`` for shape-based generation.
+
+    ``env.secrets`` accepts plain variable names and single-key objects naming a
+    published rule (``base64``, ``fernet``, ``jwt:<SIGNING_KEY>``).
+    """
     metadata_path = directory / "variables.json"
     if not metadata_path.is_file():
-        return []
+        return {}
     try:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        fields = metadata.get("env", {}).get("secrets", [])
+        items = metadata.get("env", {}).get("secrets", [])
     except (ValueError, AttributeError, OSError):
         raise _invalid("env.secrets", "invalid template declaration") from None
-    if not isinstance(fields, list) or any(not isinstance(field, str) or not _VARIABLE.fullmatch(field) for field in fields):
-        raise _invalid("env.secrets", "expected a list of variable names")
-    return list(dict.fromkeys(fields))
+    if not isinstance(items, list):
+        raise _invalid("env.secrets", "expected a list of declarations")
+
+    declarations: dict[str, str] = {}
+    for item in items:
+        if isinstance(item, str):
+            key, rule = item, ""
+        elif isinstance(item, dict) and len(item) == 1:
+            key, rule = next(iter(item.items()))
+            if not isinstance(rule, str):
+                raise _invalid("env.secrets", "expected a rule name")
+            # Validates the profile and its argument shape before anything is generated.
+            parse_secret_rule(rule)
+        else:
+            raise _invalid("env.secrets", "expected variable names or single-key rule objects")
+        if not isinstance(key, str) or not _VARIABLE.fullmatch(key):
+            raise _invalid("env.secrets", "expected a list of variable names")
+        declarations.setdefault(key, rule)
+    return declarations
 
 
 def _atomic_json(path: Path, payload: dict) -> None:
@@ -157,18 +200,28 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
     directory = Path(directory)
     settings = settings or {}
     env_path = directory / ".env"
-    fields = _secret_fields(directory)
+    declarations = _secret_declarations(directory)
     # dotenv returns `str | None` for keys without a value; treat those as empty so the format
     # checks below never index or search a None.
     templates: dict[str, str] = {key: value or "" for key, value in dotenv_values(env_path, interpolate=False).items()}
-    for field in fields:
+    for field in declarations:
         if field not in templates:
             raise _invalid(field, "missing from template")
         if not templates[field] and field not in _PLATFORM_FIELDS:
             raise _invalid(field, "empty template value")
-    targets = list(dict.fromkeys(fields + [field for field in _PLATFORM_FIELDS if field in templates]))
+    targets = list(dict.fromkeys([*declarations, *(field for field in _PLATFORM_FIELDS if field in templates)]))
     if not targets:
         return
+    # The published dictionary is loaded once and only when a rule declaration exists: a
+    # missing or invalid dictionary must fail instead of falling back to a built-in copy.
+    profiles: dict[str, dict[str, object]] | None = None
+
+    def secret_profiles() -> dict[str, dict[str, object]]:
+        nonlocal profiles
+        if profiles is None:
+            profiles = load_secret_rules()
+        return profiles
+
     data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
     storage = Path(data_root) / "config/apphub/install-secrets"
     temporary = None
@@ -185,6 +238,7 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             cached: dict[str, str] = {}
             cached_templates: dict[str, str] = {}
+            cached_rules: dict[str, str] = {}
             if cache_path.exists():
                 descriptor = os.open(cache_path, os.O_RDONLY | os.O_NOFOLLOW)
                 with os.fdopen(descriptor) as handle:
@@ -196,30 +250,61 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
                 cached_templates = dict(payload.get("templates") or {})
                 if not isinstance(cached_templates, dict):
                     raise _invalid("env.secrets", "invalid stored template format")
+                cached_rules = dict(payload.get("rules") or {})
+                if not isinstance(cached_rules, dict):
+                    raise _invalid("env.secrets", "invalid stored rule format")
             final: dict[str, str] = {**templates, **settings}
             updates: dict[str, str] = {}
-            for field in targets:
+
+            def resolve(name: str) -> str:
+                value = final.get(name)
+                return value if isinstance(value, str) else ""
+
+            def decide(field: str) -> str | None:
+                """Value for ``field``; ``None`` means the template only references another key."""
+                rule = declarations.get(field, "")
                 template = templates[field]
                 if field in settings:
-                    value = settings[field]
-                elif (
+                    supplied = settings[field]
+                    return supplied if isinstance(supplied, str) else ""
+                if (
                     field not in _PLATFORM_FIELDS
                     and _REFERENCE.search(template)
                     and (field not in cached or cached_templates.get(field) != template)
                 ):
                     cached.pop(field, None)
+                    return None
+                if field in cached and cached_rules.get(field, "") == rule:
+                    return cached[field]
+                if field == "W9_POWER_PASSWORD":
+                    return str(PasswordGenerator.generate_strong_password())
+                if field == "W9_RCODE":
+                    return str(PasswordGenerator.generate_random_string_with_rules(12))
+                if rule:
+                    return generate_rule_secret(field, rule, template, secret_profiles(), resolve)
+                return generate_secret(field, template)
+
+            # JWT declarations depend on their signing key, which may itself be generated, so they
+            # are produced once every other value is known instead of relying on declaration order.
+            ordered = [field for field in targets if not declarations.get(field, "").startswith("jwt")]
+            ordered += [field for field in targets if declarations.get(field, "").startswith("jwt")]
+            for field in ordered:
+                value = decide(field)
+                if value is None:
                     continue
-                elif field in cached:
-                    value = cached[field]
-                elif field == "W9_POWER_PASSWORD":
-                    value = PasswordGenerator.generate_strong_password()
-                elif field == "W9_RCODE":
-                    value = PasswordGenerator.generate_random_string_with_rules(12)
-                else:
-                    value = generate_secret(field, template)
+                rule = declarations.get(field, "")
+                template = templates[field]
                 if not isinstance(value, str) or not value or any(character in value for character in "\r\n\x00"):
                     raise _invalid(field, "invalid supplied or stored value")
-                if field not in _PLATFORM_FIELDS and not _REFERENCE.search(template) and not _matches(field, template, value):
+                if field not in settings and any(character in value for character in "$ \t#"):
+                    # Generated values must survive Compose interpolation and .env parsing verbatim.
+                    raise _invalid(field, "generated value is not safe for the environment file")
+                if field in _PLATFORM_FIELDS or _REFERENCE.search(template):
+                    pass
+                elif rule:
+                    if not matches_rule(field, rule, value, secret_profiles(), resolve):
+                        raise _invalid(field, "supplied or stored value does not match the declared rule")
+                elif not _matches(field, template, value):
                     raise _invalid(field, "supplied or stored value does not match template format")
                 updates[field] = value
                 final[field] = value
@@ -230,15 +315,16 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
                     "app_name": app_name,
                     "values": {**cached, **updates},
                     "templates": {field: templates[field] for field in targets},
+                    "rules": {field: declarations.get(field, "") for field in targets},
                 },
             )
-            with tempfile.NamedTemporaryFile(dir=directory, delete=False) as handle:
-                temporary = Path(handle.name)
+            with tempfile.NamedTemporaryFile(dir=directory, delete=False) as scratch:
+                temporary = Path(scratch.name)
             shutil.copyfile(env_path, temporary)
             for field, value in updates.items():
                 set_key(str(temporary), field, value)
-            with temporary.open("rb") as handle:
-                os.fsync(handle.fileno())
+            with temporary.open("rb") as staged:
+                os.fsync(staged.fileno())
             temporary.chmod(0o600)
             os.replace(temporary, env_path)
     except CustomException:

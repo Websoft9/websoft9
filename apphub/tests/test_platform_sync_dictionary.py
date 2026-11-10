@@ -166,6 +166,95 @@ def test_snapshot_targets_cover_the_live_library_and_every_snapshot(tmp_path):
     assert len(targets) == 4
 
 
+# ── shared secret rules dictionary ──────────────────────────────────
+
+SECRET_RULES = json.dumps({"base64": {"generator": "random_bytes", "encoding": "base64"}}).encode("utf-8")
+SECRET_RULES_SHA256 = hashlib.sha256(SECRET_RULES).hexdigest()
+
+
+def _secret_bundle(sha256: str = SECRET_RULES_SHA256) -> dict[str, object]:
+    return {
+        "library_manifest_url": "https://artifact.example/appstore/dev/library/manifest.json",
+        "library_manifest": {
+            "metadata": {
+                "secretRules": {
+                    "path": f"metadata/secret-rules-{sha256}.json",
+                    "sha256": sha256,
+                }
+            }
+        },
+    }
+
+
+def test_the_manifest_names_the_secret_rules_dictionary_by_content():
+    entry = runtime_assets.library_dictionary_entry(_secret_bundle(), "secretRules")
+
+    assert entry == {
+        "path": f"metadata/secret-rules-{SECRET_RULES_SHA256}.json",
+        "sha256": SECRET_RULES_SHA256,
+        "manifest_url": "https://artifact.example/appstore/dev/library/manifest.json",
+    }
+
+
+def test_a_legacy_manifest_without_secret_rules_is_unavailable(tmp_path):
+    local = tmp_path / "library" / "metadata" / "secret-rules.json"
+
+    report = runtime_assets.sync_shared_dictionary(_bundle(), [local], entry_key="secretRules", filename="secret-rules.json")
+
+    assert report == {"status": "unavailable"}
+    assert not local.exists()
+
+
+def test_secret_rules_are_downloaded_verified_and_written(tmp_path, monkeypatch):
+    local = tmp_path / "library" / "metadata" / "secret-rules.json"
+    snapshot = tmp_path / "releases" / "dsv" / "library" / "metadata" / "secret-rules.json"
+    downloaded: list[str] = []
+
+    def fake_download(url, destination):
+        downloaded.append(url)
+        Path(destination).write_bytes(SECRET_RULES)
+
+    monkeypatch.setattr(runtime_assets, "download_file", fake_download)
+
+    report = runtime_assets.sync_shared_dictionary(
+        _secret_bundle(), [local, snapshot], entry_key="secretRules", filename="secret-rules.json"
+    )
+
+    assert report == {"status": "updated", "sha256": SECRET_RULES_SHA256}
+    assert downloaded == [f"https://artifact.example/appstore/dev/library/metadata/secret-rules-{SECRET_RULES_SHA256}.json"]
+    assert local.read_bytes() == SECRET_RULES
+    assert snapshot.read_bytes() == SECRET_RULES
+
+
+def test_a_missing_optional_dictionary_is_not_treated_as_damage(tmp_path):
+    library_root = tmp_path / "library"
+
+    # Nothing recorded yet: an older artifact simply has not published it.
+    assert not runtime_assets._dictionary_repair_needed(library_root, {}, "secretRules", "secret-rules.json", known_only=True)
+    # Recorded before: a missing file is damage and has to be repaired.
+    assert runtime_assets._dictionary_repair_needed(
+        library_root,
+        {"secretRulesSha256": SECRET_RULES_SHA256},
+        "secretRules",
+        "secret-rules.json",
+        known_only=True,
+    )
+
+
+def test_a_changed_recorded_dictionary_is_repaired(tmp_path):
+    library_root = tmp_path / "library"
+    local = library_root / "metadata" / "secret-rules.json"
+    local.parent.mkdir(parents=True)
+    local.write_bytes(SECRET_RULES)
+
+    assert not runtime_assets._dictionary_repair_needed(
+        library_root, {"secretRulesSha256": SECRET_RULES_SHA256}, "secretRules", "secret-rules.json", known_only=True
+    )
+    assert runtime_assets._dictionary_repair_needed(
+        library_root, {"secretRulesSha256": "0" * 64}, "secretRules", "secret-rules.json", known_only=True
+    )
+
+
 # ── library delta version chain ─────────────────────────────────────
 
 
