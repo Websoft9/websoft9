@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>我的应用 · 访问 · 连接信息 — UI 设计预览</title>
+    <style>
+        :root {
+            --surface: #ffffff;
+            --surface-soft: #f8f9fc;
+            --surface-muted: #edf2f7;
+            --border: #eef2f7;
+            --border-strong: #ced4da;
+            --text: #364a63;
+            --text-strong: #212529;
+            --muted: #6c757d;
+            --subtle: #98a6ad;
+            --accent: #1767d1;
+            --accent-soft: rgba(23, 103, 209, 0.1);
+            --chip-bg: #eff6ff;
+            --chip-border: #bfdbfe;
+            --success: #059669;
+            --warn-bg: #fffbeb;
+            --warn-border: #fde68a;
+            --warn-text: #92400e;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 32px 24px 64px;
+            background: #f4f6fa;
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .wrap { max-width: 1120px; margin: 0 auto; }
+        h1 { margin: 0 0 6px; font-size: 22px; color: var(--text-strong); }
+        .lead { margin: 0 0 28px; color: var(--muted); }
+        h2 { margin: 34px 0 8px; font-size: 16px; color: var(--text-strong); }
+
+        /* ── 应用详情外壳 ── */
+        .detail {
+            background: var(--surface);
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+        }
+
+        .detail-head {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            width: 52px; height: 52px;
+            border-radius: 6px;
+            background: #eef4ff;
+            border: 1px solid var(--chip-border);
+            display: grid; place-items: center;
+            font-size: 11px; font-weight: 700; color: var(--accent);
+            letter-spacing: 0.3px; text-align: center; line-height: 1.2;
+        }
+
+        .title-block { flex: 1; min-width: 0; }
+        .app-title { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; color: var(--text-strong); }
+        .app-title .copy { color: var(--subtle); }
+        .state { font-size: 13px; color: var(--muted); }
+        .state b { color: var(--success); font-weight: 600; }
+
+        .head-actions { display: flex; gap: 8px; }
+        .icon-btn {
+            width: 34px; height: 34px; border-radius: 4px; border: 1px solid var(--border-strong);
+            background: var(--surface); color: var(--muted); display: grid; place-items: center;
+            font-size: 14px;
+        }
+        .icon-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+        .detail-body { display: flex; align-items: stretch; min-height: 520px; }
+
+        .nav {
+            width: 118px; flex: 0 0 118px;
+            border-right: 1px solid var(--border);
+            padding: 14px 0;
+            background: var(--surface);
+        }
+        .nav-item { padding: 9px 18px; font-size: 13.5px; color: var(--text); }
+        .nav-item.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+        .content { flex: 1; padding: 18px 20px 24px; min-width: 0; }
+
+        /* ── 区块 ── */
+        .section { border: 1px solid var(--border); border-radius: 4px; margin-bottom: 18px; }
+        .section-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+        .section-head::before { content: ""; width: 3px; height: 14px; background: var(--accent); border-radius: 1px; }
+        .section-head strong { font-size: 14px; color: var(--text-strong); }
+        .section-desc { padding: 8px 14px 0; color: var(--muted); font-size: 12.5px; }
+        .section-body { padding: 12px 14px 14px; }
+
+        .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media (max-width: 960px) { .cards { grid-template-columns: 1fr; } }
+
+        .card { border: 1px solid var(--border); border-radius: 4px; background: var(--surface-soft); }
+        .card-head {
+            display: flex; align-items: center; gap: 8px;
+            padding: 9px 12px; border-bottom: 1px solid var(--border);
+            font-size: 13px; font-weight: 600; color: var(--text-strong);
+        }
+        .tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; }
+        .tag.external { background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--accent); }
+        .tag.internal { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; }
+
+        .card-body { padding: 4px 12px 12px; background: var(--surface); }
+
+        .row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+        .row:last-child { border-bottom: none; }
+        .row-label { width: 88px; flex: 0 0 88px; color: var(--muted); font-size: 13px; }
+        .row-value { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px; color: var(--text-strong);
+            background: var(--surface-muted); border: 1px solid var(--border);
+            padding: 3px 8px; border-radius: 3px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .mono.strong { font-weight: 600; }
+        .copy { color: var(--subtle); cursor: default; }
+        .arrow { color: var(--subtle); font-size: 12px; }
+
+        .hint { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+
+        .note {
+            display: flex; gap: 8px; align-items: flex-start;
+            margin-top: 10px; padding: 8px 10px; border-radius: 3px; font-size: 12.5px;
+        }
+        .note.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
+        .note.info { background: var(--chip-bg); border: 1px solid var(--chip-border); color: #1d4ed8; }
+
+        /* ── 凭证 ── */
+        .credential { display: flex; align-items: center; gap: 10px; }
+        .credential .icon-badge {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: #fef3c7; color: #b45309; display: grid; place-items: center; font-size: 13px;
+        }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .chip {
+            font-size: 12px; color: var(--text); background: var(--surface-muted);
+            border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px;
+        }
+        .chip b { color: var(--text-strong); font-weight: 600; }
+
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 12.5px; color: var(--text); background: var(--surface);
+            border: 1px solid var(--border-strong); border-radius: 3px; padding: 4px 10px;
+        }
+        .btn.accent { color: #fff; background: var(--accent); border-color: var(--accent); }
+
+        /* ── 复制菜单展开态 ── */
+        .menu-wrap { position: relative; display: inline-block; }
+        .menu {
+            position: absolute; right: 0; top: 30px; z-index: 3;
+            width: 268px; background: var(--surface); border: 1px solid var(--border-strong);
+            border-radius: 4px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14); padding: 4px;
+        }
+        .menu-item { padding: 7px 9px; border-radius: 3px; font-size: 12.5px; }
+        .menu-item:first-child { background: var(--accent-soft); color: var(--accent); }
+        .menu-item code {
+            display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted);
+            font-family: ui-monospace, Menlo, Consolas, monospace;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* ── 说明区 ── */
+        .notes { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; padding: 18px 22px; }
+        .notes ol { margin: 8px 0 0; padding-left: 20px; }
+        .notes li { margin-bottom: 8px; }
+        .notes code { background: var(--surface-muted); padding: 1px 5px; border-radius: 3px; font-size: 12.5px; }
+        .cmp { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        .cmp th, .cmp td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; }
+        .cmp th { background: var(--surface-soft); color: var(--text-strong); font-weight: 600; }
+        .cmp td.old { color: var(--muted); }
+        .cmp td.new { color: var(--text-strong); }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>我的应用 · 访问 · 连接信息（数据库类应用）</h1>
+        <p class="lead">目标：让用户一眼分辨「外部客户端连哪个地址」「平台内应用连哪个地址」，并消除与「数据」页签的口径差异。</p>
+
+        <div class="detail">
+            <div class="detail-head">
+                <div class="logo">MySQL</div>
+                <div class="title-block">
+                    <div class="app-title">mysql_w8tab <span class="copy">⧉</span></div>
+                    <div class="state">Active : <b>running(1)</b></div>
+                </div>
+                <div class="head-actions">
+                    <div class="icon-btn">▶</div>
+                    <div class="icon-btn primary">⏹</div>
+                    <div class="icon-btn">⟳</div>
+                    <div class="icon-btn">✖</div>
+                </div>
+            </div>
+
+            <div class="detail-body">
+                <div class="nav">
+                    <div class="nav-item">概览</div>
+                    <div class="nav-item active">访问</div>
+                    <div class="nav-item">容器</div>
+                    <div class="nav-item">数据</div>
+                    <div class="nav-item">编排</div>
+                    <div class="nav-item">卸载</div>
+                </div>
+
+                <div class="content">
+                    <!-- 连接信息 -->
+                    <div class="section">
+                        <div class="section-head"><strong>连接信息</strong></div>
+                        <div class="section-desc">同一地址有两种用途：外部客户端走宿主机端口，平台内应用走容器网络地址。</div>
+                        <div class="section-body">
+                            <div class="cards">
+                                <!-- 外部访问 -->
+                                <div class="card">
+                                    <div class="card-head">
+                                        外部访问 <span class="tag external">宿主机</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="row-label">连接地址</div>
+                                            <div class="row-value">
+                                                <span class="mono strong">47.120.56.232:9001</span>
+                                                <span class="copy">⧉</span>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="row-label">端口映射</div>
+                                            <div class="row-value">
+                                                <span class="mono">9001</span>
+                                                <span class="arrow">→</span>
+                                                <span class="mono">3306</span>
+                                                <span class="hint">宿主机端口 → 容器端口</span>
+                                            </div>
+                                        </div>
+                                        <div class="note warn">
+                                            <span>⚠</span>
+                                            <span>该端口已在宿主机监听，对公网可达；仅需外部连接时建议限制来源 IP。</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 平台内访问 -->
+                                <div class="card">
+                                    <div class="card-head">
+                                        平台内访问 <span class="tag internal">容器网络</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="row-label">连接地址</div>
+                                            <div class="row-value">
+                                                <span class="mono strong">mysql_w8tab:3306</span>
+                                                <span class="copy">⧉</span>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="row-label">网络</div>
+                                            <div class="row-value">
+                                                <span class="mono">websoft9</span>
+                                                <span class="hint">调用方需加入同一网络</span>
+                                            </div>
+                                        </div>
+                                        <div class="note info">
+                                            <span>ℹ</span>
+                                            <span>容器重建、IP 变化都不影响该地址，平台内应用优先使用它。</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 复制连接串 -->
+                            <div style="display:flex; align-items:center; gap:10px; margin-top:14px;">
+                                <div class="menu-wrap">
+                                    <span class="btn accent">复制连接串 ▾</span>
+                                    <div class="menu">
+                                        <div class="menu-item">
+                                            连接 URI
+                                            <code>mysql://root:••••@47.120.56.232:9001/mysql</code>
+                                        </div>
+                                        <div class="menu-item">
+                                            JDBC
+                                            <code>jdbc:mysql://mysql_w8tab:3306/mysql</code>
+                                        </div>
+                                        <div class="menu-item">
+                                            命令行
+                                            <code>mysql -h 47.120.56.232 -P 9001 -u root -p</code>
+                                        </div>
+                                        <div class="menu-item">
+                                            .env 片段
+                                            <code>MYSQL_HOST=mysql_w8tab MYSQL_PORT=3306</code>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span class="hint">URI / JDBC 自动套用当前所选地址（外部或平台内）。</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 凭证 -->
+                    <div class="section">
+                        <div class="section-head"><strong>应用初始化凭证</strong></div>
+                        <div class="section-body">
+                            <div class="credential" style="margin-bottom:4px;">
+                                <span class="icon-badge">⚿</span>
+                                <strong style="font-size:13.5px; color:var(--text-strong);">登录凭证</strong>
+                            </div>
+                            <div class="row">
+                                <div class="row-label">用户名</div>
+                                <div class="row-value">
+                                    <span class="mono strong">root</span>
+                                    <span class="copy">⧉</span>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="row-label">密码</div>
+                                <div class="row-value">
+                                    <span class="mono strong">••••••••••••</span>
+                                    <span class="copy">👁</span>
+                                    <span class="copy">⧉</span>
+                                </div>
+                            </div>
+                            <div class="chips">
+                                <span class="chip">默认库 <b>mysql</b></span>
+                                <span class="chip">驱动 <b>MySQL 8.4</b></span>
+                                <span class="chip">字符集 <b>utf8mb4</b></span>
+                                <span class="chip">仅初始化时生成</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2>与当前页面的差异</h2>
+        <div class="notes">
+            <table class="cmp">
+                <tr>
+                    <th style="width:22%">项目</th>
+                    <th style="width:39%">当前</th>
+                    <th style="width:39%">调整后</th>
+                </tr>
+                <tr>
+                    <td>地址口径</td>
+                    <td class="old">只有 `IP:9001`</td>
+                    <td class="new">外部 `IP:9001` + 平台内 `mysql_w8tab:3306` 并列</td>
+                </tr>
+                <tr>
+                    <td>主机 / 端口</td>
+                    <td class="old">两行重复上一行内容</td>
+                    <td class="new">合并为「端口映射 9001 → 3306」，说明语义</td>
+                </tr>
+                <tr>
+                    <td>网络</td>
+                    <td class="old">不展示</td>
+                    <td class="new">展示 `websoft9`，提示调用方需入网</td>
+                </tr>
+                <tr>
+                    <td>连接串</td>
+                    <td class="old">无</td>
+                    <td class="new">一键复制 URI / JDBC / CLI / .env</td>
+                </tr>
+                <tr>
+                    <td>库与驱动</td>
+                    <td class="old">不展示</td>
+                    <td class="new">默认库、驱动版本、字符集</td>
+                </tr>
+                <tr>
+                    <td>安全提示</td>
+                    <td class="old">无</td>
+                    <td class="new">提示端口对公网可达</td>
+                </tr>
+            </table>
+
+            <h2 style="margin-top:24px;">设计说明</h2>
+            <ol>
+                <li><b>两种地址必须同时出现</b>：数据库应用的「访问」页签目前只回答「外部怎么连」，而平台内应用（如 WordPress 连外部 MySQL）需要容器网络地址，这也是两个页签口径不一致的根源。</li>
+                <li><b>端口要标注映射关系</b>：`9001` 是宿主机映射端口，容器内监听 `3306`；不写清楚会让用户把 9001 当成 MySQL 端口。</li>
+                <li><b>数据来源复用现有接口</b>：平台内地址/端口/库名/账号来自 `GET /api/apps/{app_id}/databases`（类型字典 + 容器名 + 停机回退 compose），外部地址沿用现有 `*_PORT_SET` 逻辑，无需新增后端能力。</li>
+                <li><b>凭证不重复、只增强</b>：现有用户名/密码/复制/显隐保留，新增默认库、驱动、字符集与 `.env` 片段复制；密码仍默认掩码。</li>
+                <li><b>停机可用</b>：应用停止时容器环境读不到，地址回退到 compose 的 `container_name`，两栏仍可展示（与「数据」页签一致）。</li>
+            </ol>
+        </div>
+    </div>
+</body>
+
+</html>

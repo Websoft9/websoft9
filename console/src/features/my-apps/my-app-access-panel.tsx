@@ -1,6 +1,6 @@
 import { Alert, Box, Button, CircularProgress, IconButton, Snackbar, Switch, Typography } from '@mui/material'
 import { Info, KeyRound } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SurfaceDialog } from '../../shared/design-system/standard-surfaces'
@@ -8,6 +8,7 @@ import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
 import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { useMyAppAccess } from './use-my-app-access'
+import { formatDatabaseEndpoint, resolveEndpointFromCandidates } from './database-endpoint'
 import { MyAppCredentials } from './my-app-credentials'
 import { IconCopy, IconEye, IconEyeOff } from './my-app-credential-icons'
 
@@ -456,6 +457,31 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
                 }
             })
     }, [configuredRootDomain, currentDomains, env, hostName, isComposeApp, serviceAccessCards.length, t])
+    // The host port in ``env`` is what an external client connects to; other containers use the
+    // container name and its private port. The pairing comes from the container port list, which
+    // is the only source that also works for applications that *are* the database and therefore
+    // never declare ``database[]``.
+    const databaseEndpoint = useMemo(() => {
+        if (nonWebConnections.length === 0) return null
+        return resolveEndpointFromCandidates(
+            data?.candidates,
+            nonWebConnections.map((connection) => connection.port),
+        )
+    }, [data?.candidates, nonWebConnections])
+    const databaseEndpointAddress = useMemo(() => formatDatabaseEndpoint(databaseEndpoint), [databaseEndpoint])
+    const containerNetwork = (env?.W9_NETWORK ?? '').trim()
+    // Until the access payload arrives the container ports are unknown; rendering the legacy rows
+    // first would flash a different design before the final layout settles.
+    const connectionsReady = !isLoading || Boolean(data)
+
+    async function copyConnectionValue(value: string) {
+        try {
+            await copyTextWithFallback(value)
+            setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.copySuccess') })
+        } catch {
+            setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.copyFailed') })
+        }
+    }
     const showRootUrlCard = showRootUrlUi
     const combinedSectionTitle = accountEntries.length > 0
         ? (serviceAccessCards.length > 0
@@ -1069,7 +1095,7 @@ ${customCertIntermediate.trim()}`
                 </div>
             ) : null}
 
-            {nonWebConnections.length > 0 ? (
+            {nonWebConnections.length > 0 && connectionsReady ? (
                 <div className="myapps-access-section myapps-service-connection-section">
                     <div className="myapps-access-section-head">
                         <div className="myapps-section-label-stack">
@@ -1080,25 +1106,55 @@ ${customCertIntermediate.trim()}`
                             <p className="myapps-section-label-desc">{t('myAppsDetailPage.accessPanel.serviceConnectionDescription')}</p>
                         </div>
                     </div>
-                    <div className={`myapps-service-connection-grid ${nonWebConnections.length === 1 ? 'is-single' : ''}`}>
-                        {nonWebConnections.map((connection) => (
-                            <div className="myapps-service-connection-card" key={connection.key}>
-                                <div className="myapps-service-connection-title">{connection.title}</div>
+                    {databaseEndpoint && databaseEndpointAddress ? (
+                        <div className="myapps-service-connection-grid">
+                            <div className="myapps-service-connection-card">
+                                <div className="myapps-service-connection-title">
+                                    {t('myAppsDetailPage.accessPanel.connectionExternalTitle')}
+                                </div>
+                                <div className="myapps-service-connection-body">
+                                    {nonWebConnections.map((connection) => (
+                                        <Fragment key={connection.key}>
+                                            <div className="myapps-service-connection-row">
+                                                <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionAddressLabel')}</span>
+                                                <span className="myapps-service-connection-value">
+                                                    <span className="myapps-service-connection-value-text">{connection.address}</span>
+                                                    <button
+                                                        className="myapps-creds-copy-btn"
+                                                        onClick={() => void copyConnectionValue(connection.address)}
+                                                        title={t('myAppsDetailPage.accessPanel.copySuccess')}
+                                                        type="button"
+                                                    >
+                                                        <IconCopy />
+                                                    </button>
+                                                </span>
+                                            </div>
+                                            {connection.port !== String(databaseEndpoint.port) ? (
+                                                <div className="myapps-service-connection-row">
+                                                    <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionPortMappingLabel')}</span>
+                                                    <span className="myapps-service-connection-value">
+                                                        <span className="myapps-service-connection-value-text">
+                                                            {connection.port} → {databaseEndpoint.port}
+                                                        </span>
+                                                    </span>
+                                                </div>
+                                            ) : null}
+                                        </Fragment>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="myapps-service-connection-card">
+                                <div className="myapps-service-connection-title">
+                                    {t('myAppsDetailPage.accessPanel.connectionInternalTitle')}
+                                </div>
                                 <div className="myapps-service-connection-body">
                                     <div className="myapps-service-connection-row">
                                         <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionAddressLabel')}</span>
                                         <span className="myapps-service-connection-value">
-                                            <span className="myapps-service-connection-value-text">{connection.address}</span>
+                                            <span className="myapps-service-connection-value-text">{databaseEndpointAddress}</span>
                                             <button
                                                 className="myapps-creds-copy-btn"
-                                                onClick={async () => {
-                                                    try {
-                                                        await copyTextWithFallback(connection.address)
-                                                        setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.copySuccess') })
-                                                    } catch {
-                                                        setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.copyFailed') })
-                                                    }
-                                                }}
+                                                onClick={() => void copyConnectionValue(databaseEndpointAddress)}
                                                 title={t('myAppsDetailPage.accessPanel.copySuccess')}
                                                 type="button"
                                             >
@@ -1107,21 +1163,53 @@ ${customCertIntermediate.trim()}`
                                         </span>
                                     </div>
                                     <div className="myapps-service-connection-row">
-                                        <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionHostLabel')}</span>
+                                        <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionNetworkLabel')}</span>
                                         <span className="myapps-service-connection-value">
-                                            <span className="myapps-service-connection-value-text">{connection.host}</span>
-                                        </span>
-                                    </div>
-                                    <div className="myapps-service-connection-row">
-                                        <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionPortLabel')}</span>
-                                        <span className="myapps-service-connection-value">
-                                            <span className="myapps-service-connection-value-text">{connection.port}</span>
+                                            <span className="myapps-service-connection-value-text">
+                                                {containerNetwork || t('myAppsDetailPage.accessPanel.connectionNetworkUnknown')}
+                                            </span>
                                         </span>
                                     </div>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    ) : (
+                        <div className={`myapps-service-connection-grid ${nonWebConnections.length === 1 ? 'is-single' : ''}`}>
+                            {nonWebConnections.map((connection) => (
+                                <div className="myapps-service-connection-card" key={connection.key}>
+                                    <div className="myapps-service-connection-title">{connection.title}</div>
+                                    <div className="myapps-service-connection-body">
+                                        <div className="myapps-service-connection-row">
+                                            <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionAddressLabel')}</span>
+                                            <span className="myapps-service-connection-value">
+                                                <span className="myapps-service-connection-value-text">{connection.address}</span>
+                                                <button
+                                                    className="myapps-creds-copy-btn"
+                                                    onClick={() => void copyConnectionValue(connection.address)}
+                                                    title={t('myAppsDetailPage.accessPanel.copySuccess')}
+                                                    type="button"
+                                                >
+                                                    <IconCopy />
+                                                </button>
+                                            </span>
+                                        </div>
+                                        <div className="myapps-service-connection-row">
+                                            <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionHostLabel')}</span>
+                                            <span className="myapps-service-connection-value">
+                                                <span className="myapps-service-connection-value-text">{connection.host}</span>
+                                            </span>
+                                        </div>
+                                        <div className="myapps-service-connection-row">
+                                            <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionPortLabel')}</span>
+                                            <span className="myapps-service-connection-value">
+                                                <span className="myapps-service-connection-value-text">{connection.port}</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             ) : null}
 

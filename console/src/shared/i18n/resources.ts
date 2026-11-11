@@ -1230,6 +1230,11 @@ const rawShellResources = {
                     connectionAddressLabel: 'Connection Address',
                     connectionHostLabel: 'Host',
                     connectionPortLabel: 'Port',
+                    connectionExternalTitle: 'External access',
+                    connectionInternalTitle: 'Container access',
+                    connectionPortMappingLabel: 'Port mapping',
+                    connectionNetworkLabel: 'Network',
+                    connectionNetworkUnknown: 'Not reported',
                     credentialsOnlyTitle: 'Application Initial Credentials',
                     loginCredentialsTitle: 'Login Credentials',
                     runtimeCredentials: {
@@ -4036,6 +4041,11 @@ const rawShellResources = {
                     connectionAddressLabel: '连接地址',
                     connectionHostLabel: '主机',
                     connectionPortLabel: '端口',
+                    connectionExternalTitle: '外部访问',
+                    connectionInternalTitle: '容器访问',
+                    connectionPortMappingLabel: '端口映射',
+                    connectionNetworkLabel: '网络',
+                    connectionNetworkUnknown: '未获取',
                     credentialsOnlyTitle: '应用初始化凭证',
                     loginCredentialsTitle: '登录凭证',
                     runtimeCredentials: {

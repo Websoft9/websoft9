@@ -189,6 +189,7 @@ class AppManger:
             "W9_DB_NAME_SET",
             "W9_DB_USER_SET",
             "W9_DB_PASSWORD_SET",
+            "W9_NETWORK",
             "WORDPRESS_DB_HOST",
             "WORDPRESS_DB_NAME",
             "WORDPRESS_DB_USER",
