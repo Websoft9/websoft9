@@ -192,6 +192,7 @@ ARG WEBSOFT9_CACHE_BUSTER
 # fails; runtime sync is only an update mechanism, not initialization.
 RUN WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build \
     WEBSOFT9_RUNTIME_ASSET_CHANNEL="${WEBSOFT9_APPSTORE_CHANNEL}" \
+    WEBSOFT9_APP_STORE_SYNC_STATE=/websoft9/appstore/image-state.json \
     python3 /websoft9/script/platform-sync-runtime-assets.py
 
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisord "$@"' > /usr/local/bin/supervisord && \

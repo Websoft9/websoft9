@@ -1,3 +1,60 @@
+export function getAppStoreSyncFeedback(status: string | undefined, requestFailed = false): {
+    severity: 'success' | 'error'
+    messageKey: string
+} {
+    if (!requestFailed && status === 'ready') {
+        return { severity: 'success', messageKey: 'appStorePage.feedback.refreshComplete' }
+    }
+    return {
+        severity: 'error',
+        messageKey: !requestFailed && status === 'incompatible'
+            ? 'appStorePage.feedback.upgradeRequired'
+            : 'appStorePage.feedback.refreshFailed',
+    }
+}
+
+export type AppStoreNoticeDescriptor = {
+    severity: 'warning' | 'error'
+    titleKey: string
+    detailKind: 'incompatible' | 'assetsUnavailable' | 'refreshFailed'
+}
+
+export function resolveAppStoreNotice(
+    syncStatus: string | undefined,
+    assetsStatus: string | undefined,
+): AppStoreNoticeDescriptor | null {
+    const unavailable = assetsStatus === 'unavailable' || assetsStatus === 'updating'
+    if (syncStatus === 'incompatible') {
+        return {
+            severity: unavailable ? 'error' : 'warning',
+            titleKey: 'appStorePage.incompatibility.title',
+            detailKind: 'incompatible',
+        }
+    }
+    if (syncStatus === 'failed') {
+        return {
+            severity: 'error',
+            titleKey: 'appStorePage.incompatibility.lastSyncTitle',
+            detailKind: unavailable ? 'assetsUnavailable' : 'refreshFailed',
+        }
+    }
+    if (assetsStatus === 'updating') {
+        return {
+            severity: 'warning',
+            titleKey: 'appStorePage.incompatibility.assetsUpdatingTitle',
+            detailKind: 'assetsUnavailable',
+        }
+    }
+    if (assetsStatus === 'unavailable') {
+        return {
+            severity: 'error',
+            titleKey: 'appStorePage.incompatibility.assetsUnavailableTitle',
+            detailKind: 'assetsUnavailable',
+        }
+    }
+    return null
+}
+
 export type AppStoreCatalogItem = {
     key?: string
     title?: string

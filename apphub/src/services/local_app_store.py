@@ -203,16 +203,10 @@ def _refresh_official_app_store() -> dict[str, Any]:
 
     builder_module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(builder_module)
-    media_root = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
-    library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
-    builder_module.build_and_publish_app_store_manifests(media_root, library_root)
-
-    loaded: dict[str, int] = {}
-    for locale in ("zh", "en"):
-        manifest_path = media_root / "json" / f"app-store-manifest_{locale}.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        loaded[locale] = len(manifest.get("apps", [])) if isinstance(manifest, dict) else 0
-    return {"loaded": loaded, "errors": []}
+    report = builder_module.reload_runtime_app_store_manifests()
+    if not isinstance(report, dict):
+        raise RuntimeError("official app store refresh returned an invalid report")
+    return dict(report)
 
 
 def reload_app_store_catalog(root: Path | None = None) -> dict[str, Any]:

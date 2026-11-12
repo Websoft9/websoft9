@@ -9,6 +9,7 @@ from typing import Callable, Optional
 
 import requests
 
+from src.services.appstore_availability import get_appstore_assets_state
 from src.services.marketplace_bootstrap import MarketplaceBootstrapService
 
 READINESS_PROBE_TIMEOUT_SECONDS = 2.0
@@ -56,6 +57,8 @@ def _appstore_manifest_paths() -> list[Path]:
 
 
 def _has_valid_appstore_manifests() -> bool:
+    if get_appstore_assets_state()["status"] != "ready":
+        return False
     try:
         for locale, manifest_path in zip(("zh", "en"), _appstore_manifest_paths(), strict=False):
             with manifest_path.open(encoding="utf-8") as handle:

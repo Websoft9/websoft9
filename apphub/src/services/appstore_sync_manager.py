@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from src.core.exception import CustomException
+from src.services.appstore_availability import get_appstore_assets_state
 
 _SYNC_LOCK_FILE = "/tmp/websoft9-appstore-sync.lock"
 
@@ -59,9 +60,18 @@ class AppStoreSyncManager:
     def get_state(self) -> dict:
         """Return the current sync state for consumer inspection."""
         state = self._load_sync_state()
+        availability = get_appstore_assets_state()
         return {
+            "assetsStatus": availability["status"],
+            "assetsMessage": availability.get("message"),
+            "assetsDatasetVersion": availability.get("datasetVersion"),
+            "recovery": state.get("recovery"),
             "syncStatus": state.get("syncStatus", "ready"),
             "incompatibility": state.get("incompatibility"),
+            "lastSyncError": state.get("lastSyncError"),
+            "lastSyncAttemptAt": state.get("lastSyncAttemptAt"),
+            "catalogSchemaVersion": state.get("catalogSchemaVersion"),
+            "librarySchemaVersion": state.get("librarySchemaVersion"),
             "channel": state.get("channel"),
             "datasetVersion": state.get("datasetVersion"),
             "catalogDatasetVersion": state.get("catalogDatasetVersion"),

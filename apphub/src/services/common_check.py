@@ -9,6 +9,7 @@ from src.core.exception import CustomException
 from src.core.logger import logger
 from src.schemas.appInstall import appInstall
 from src.services.app_status import appInstalling, appInstallingError
+from src.services.appstore_availability import require_appstore_assets
 from src.services.gitea_manager import GiteaManager
 from src.services.install_profile import (
     get_external_database_type,
@@ -262,6 +263,8 @@ def install_validate(appInstall: appInstall, endpointId: int, library_path: str 
     Raises:
         CustomException: If the appInstall is not valid
     """
+    if not library_path:
+        require_appstore_assets()
     try:
         portainerManager = PortainerManager()
         giteaManager = GiteaManager()

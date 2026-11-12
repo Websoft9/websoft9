@@ -32,9 +32,6 @@ _APPSTORE_SYNC_LOCK_POLL_SECONDS = 0.5
 # the same inconsistent object again.
 _APPSTORE_SYNC_RETRY_DELAY_SECONDS = float(os.getenv("WEBSOFT9_APPSTORE_SYNC_RETRY_DELAY", "60"))
 _APPSTORE_SYNC_RETRY_ATTEMPTS = max(1, int(os.getenv("WEBSOFT9_APPSTORE_SYNC_RETRY_ATTEMPTS", "2")))
-# Sentinel for "the platform cannot host a lock file"; a sync still runs, it just is not serialised.
-_APPSTORE_SYNC_LOCK_UNAVAILABLE = object()
-
 try:
     from dotenv import dotenv_values
 except Exception:  # pragma: no cover - bootstrap fallback
@@ -70,10 +67,20 @@ EXTERNAL_DATABASE_PORTS = {"mysql": 3306, "mariadb": 3306, "postgresql": 5432}
 
 # ── v2 manifest URL templates ──────────────────────────────────────────
 _V2_APPSTORE_MANIFEST_PATH = "appstore/{channel}/manifests/appstore-manifest.json"
+SUPPORTED_APPSTORE_SCHEMAS = {
+    "root": frozenset({"1", "2"}),
+    "catalog": frozenset({"1"}),
+    "library": frozenset({"1", "2"}),
+}
+LOCAL_MANIFEST_SCHEMA = "1"
 
 
 class AppStoreCompatibilityError(RuntimeError):
-    """Raised when an App Store dataset requires a newer Websoft9 runtime."""
+    """Raised when an App Store contract is not implemented by this runtime."""
+
+    def __init__(self, message: str, *, upgrade_required: bool = False) -> None:
+        super().__init__(message)
+        self.upgrade_required = upgrade_required
 
 
 class AppStoreManifestNotFoundError(RuntimeError):
@@ -113,16 +120,30 @@ def get_websoft9_version() -> str:
 
 def check_appstore_compatibility(
     appstore_manifest: dict[str, object],
-    local_schema_version: str | None,
+    local_schema_version: str | None = None,
     websoft9_version: str | None = None,
 ) -> None:
-    schema_version = appstore_manifest.get("schemaVersion")
-    if local_schema_version is not None and schema_version != local_schema_version:
-        raise AppStoreCompatibilityError(
-            f"appstore schemaVersion {schema_version!r} does not match the active local schemaVersion "
-            f"{local_schema_version!r}. "
-            "Please upgrade your Websoft9 platform."
-        )
+    check_schema_version(appstore_manifest.get("schemaVersion"), "root")
+    if appstore_manifest["schemaVersion"] == "2":
+        if "minWebsoft9Version" in appstore_manifest:
+            raise AppStoreTransientError("root protocol 2 must not declare minWebsoft9Version")
+        if appstore_manifest.get("channel") not in {"dev", "rc", "release"}:
+            raise AppStoreTransientError("invalid root manifest channel")
+        if not isinstance(appstore_manifest.get("datasetVersion"), str) or not re.fullmatch(
+            r"[a-f0-9]{16}", appstore_manifest["datasetVersion"]
+        ):
+            raise AppStoreTransientError("invalid root manifest datasetVersion")
+        for component in ("catalog", "library"):
+            reference = appstore_manifest.get(component)
+            if not isinstance(reference, dict):
+                raise AppStoreTransientError(f"missing {component} declaration")
+            check_schema_version(reference.get("schemaVersion"), component)
+            if reference.get("manifest") != f"{component}/manifest.json":
+                raise AppStoreTransientError(f"invalid {component} manifest path")
+            version = reference.get("datasetVersion")
+            if not isinstance(version, str) or not re.fullmatch(r"[a-f0-9]{16}", version):
+                raise AppStoreTransientError(f"invalid {component} datasetVersion")
+        return
 
     minimum_version = appstore_manifest.get("minWebsoft9Version")
     if minimum_version is None:
@@ -132,7 +153,19 @@ def check_appstore_compatibility(
     if _parse_version(current_version, "Websoft9 version") < _parse_version(minimum_version, "minWebsoft9Version"):
         raise AppStoreCompatibilityError(
             f"appstore requires Websoft9 >= {minimum_version}; current version is {current_version}. "
-            "Please upgrade your Websoft9 platform."
+            "Please upgrade your Websoft9 platform.",
+            upgrade_required=True,
+        )
+
+
+def check_schema_version(value: object, component: str) -> None:
+    if not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]*", value):
+        raise AppStoreTransientError(f"invalid {component} schemaVersion: {value!r}")
+    if value not in SUPPORTED_APPSTORE_SCHEMAS[component]:
+        raise AppStoreCompatibilityError(
+            f"unsupported {component} schemaVersion {value!r}; supported: "
+            f"{', '.join(sorted(SUPPORTED_APPSTORE_SCHEMAS[component]))}. "
+            "The update was not applied. Check the Websoft9 compatibility and release notes."
         )
 
 
@@ -200,9 +233,12 @@ def download_verified_json(url: str, checksum_url: str | None = None) -> object:
             )
 
     try:
-        return json.loads(payload)
+        result = json.loads(payload)
     except ValueError as exc:
         raise AppStoreTransientError(f"invalid manifest payload: {url}: {exc}") from exc
+    if not expected and isinstance(result, dict) and result.get("schemaVersion") == "2":
+        raise AppStoreTransientError(f"missing required manifest checksum for {url}")
+    return result
 
 
 def verbose_log(message: str) -> None:
@@ -252,9 +288,31 @@ def marker_exists(marker_path: Path, package_type: str) -> bool:
     return marker_path.exists()
 
 
-def sync_tree(source: Path, target: Path) -> None:
+_UPLOADED_MEDIA_FILENAME_RE = re.compile(r"[0-9a-f]{32}(?:\.[A-Za-z0-9_-]{1,16})?")
+
+
+def _is_uploaded_media_file(path: Path, root: Path) -> bool:
+    """Report whether ``path`` is an operator-uploaded file inside a shared media root."""
+    return (
+        path.parent == root
+        and not path.is_symlink()
+        and path.is_file()
+        and _UPLOADED_MEDIA_FILENAME_RE.fullmatch(path.name) is not None
+    )
+
+
+def _reset_directory(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def sync_tree(source: Path, target: Path, *, exclude_uploaded_media: bool = False) -> None:
     target.mkdir(parents=True, exist_ok=True)
     for item in source.iterdir():
+        if exclude_uploaded_media and _is_uploaded_media_file(item, source):
+            continue
         destination = target / item.name
         if item.is_dir():
             shutil.copytree(item, destination, dirs_exist_ok=True)
@@ -278,6 +336,20 @@ def preserve_generated_manifests(root: Path) -> dict[str, bytes]:
     return preserved
 
 
+def preserve_uploaded_media_files(root: Path) -> dict[str, bytes]:
+    preserved: dict[str, bytes] = {}
+    if not root.is_dir():
+        return preserved
+    for item in root.iterdir():
+        if not _is_uploaded_media_file(item, root):
+            continue
+        try:
+            preserved[item.name] = item.read_bytes()
+        except OSError:
+            continue
+    return preserved
+
+
 def restore_generated_manifests(root: Path, preserved: dict[str, bytes]) -> None:
     if not preserved:
         return
@@ -292,6 +364,19 @@ def restore_generated_manifests(root: Path, preserved: dict[str, bytes]) -> None
         os.replace(temporary_path, target)
 
 
+def restore_uploaded_media_files(root: Path, preserved: dict[str, bytes]) -> None:
+    if not preserved:
+        return
+    root.mkdir(parents=True, exist_ok=True)
+    for name, payload in preserved.items():
+        target = root / name
+        if target.exists():
+            continue
+        temporary_path = root / f".{name}.tmp"
+        temporary_path.write_bytes(payload)
+        os.replace(temporary_path, target)
+
+
 def replace_tree_preserving_generated_manifests(source: Path, target: Path) -> None:
     """Replace a runtime tree without ever exposing a missing published manifest.
 
@@ -301,12 +386,15 @@ def replace_tree_preserving_generated_manifests(source: Path, target: Path) -> N
     """
     target_dir = target.resolve() if target.is_symlink() else target
     preserved = preserve_generated_manifests(source) or preserve_generated_manifests(target_dir)
+    is_media_tree = (source / "json").is_dir() or (target_dir / "json").is_dir()
+    uploaded = preserve_uploaded_media_files(target_dir) if is_media_tree else {}
 
     if target_dir.exists():
         shutil.rmtree(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     restore_generated_manifests(target_dir, preserved)
+    restore_uploaded_media_files(target_dir, uploaded)
     sync_tree(source, target_dir)
 
 
@@ -319,7 +407,7 @@ def _hardlink_or_copy_file(source: str, destination: str, *, follow_symlinks: bo
         return shutil.copy2(source, destination, follow_symlinks=follow_symlinks)
 
 
-def link_or_copy_tree(source: Path, target: Path) -> None:
+def link_or_copy_tree(source: Path, target: Path, *, exclude_uploaded_media: bool = False) -> None:
     """Materialise a tree with hard links where possible.
 
     Snapshot copies inside the App Store root share file contents instead of duplicating
@@ -328,6 +416,8 @@ def link_or_copy_tree(source: Path, target: Path) -> None:
     """
     target.mkdir(parents=True, exist_ok=True)
     for item in source.iterdir():
+        if exclude_uploaded_media and _is_uploaded_media_file(item, source):
+            continue
         destination = target / item.name
         if item.is_dir():
             shutil.copytree(item, destination, dirs_exist_ok=True, copy_function=_hardlink_or_copy_file)
@@ -335,12 +425,12 @@ def link_or_copy_tree(source: Path, target: Path) -> None:
             _hardlink_or_copy_file(str(item), str(destination))
 
 
-def replace_tree_linked(source: Path, target: Path) -> None:
+def replace_tree_linked(source: Path, target: Path, *, exclude_uploaded_media: bool = False) -> None:
     """Replace a tree, linking file contents instead of copying them when possible."""
     target_dir = target.resolve() if target.is_symlink() else target
     if target_dir.exists():
         shutil.rmtree(target_dir)
-    link_or_copy_tree(source, target_dir)
+    link_or_copy_tree(source, target_dir, exclude_uploaded_media=exclude_uploaded_media)
 
 
 def replace_tree(source: Path, target: Path) -> None:
@@ -349,6 +439,13 @@ def replace_tree(source: Path, target: Path) -> None:
         shutil.rmtree(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
     sync_tree(source, target_dir)
+
+
+def replace_media_tree(source: Path, target: Path) -> None:
+    target_dir = target.resolve() if target.is_symlink() else target
+    uploaded = preserve_uploaded_media_files(target_dir)
+    replace_tree(source, target)
+    restore_uploaded_media_files(target_dir, uploaded)
 
 
 def backup_trees(targets: list[Path], backup_root: Path) -> dict[Path, Path | None]:
@@ -461,7 +558,7 @@ def resolve_json_url(base_url: str, relative_path: str) -> str:
 def acquire_appstore_sync_lock(data_root: Path):
     """Take the cross-process Appstore sync lock.
 
-    The process that owns the returned handle keeps the lock until it exits, so two syncs can
+    The caller keeps the returned handle open until its transaction finishes, so two syncs can
     never rewrite the same media/library trees at the same time.  ``None`` means another sync
     holds the lock (the caller should skip this round instead of queueing behind it).
     """
@@ -534,14 +631,17 @@ def verify_downloaded_file_checksum(base_url: str, relative_path: str, checksum_
 
 
 def load_sync_state(state_path: Path) -> dict[str, object]:
-    if not state_path.exists():
-        return {}
-
     try:
         payload = json.loads(state_path.read_text(encoding="utf-8"))
-        return payload if isinstance(payload, dict) else {}
-    except Exception:
+    except FileNotFoundError:
         return {}
+    except (OSError, ValueError) as exc:
+        log(f"[platform-assets] cannot read sync state {state_path}: {exc}")
+        return {}
+    if not isinstance(payload, dict):
+        log(f"[platform-assets] sync state is not an object: {state_path}")
+        return {}
+    return payload
 
 
 def write_sync_state(state_path: Path, payload: dict[str, object]) -> None:
@@ -592,12 +692,23 @@ def _local_runtime_trees_match_state(previous_state: dict[str, object] | None) -
     """Verify that the container's runtime trees still match the persisted sync state.
 
     The sync state file lives on the persistent host volume (/opt/websoft9/data), while
-    /websoft9/library and /websoft9/appstore live inside the container rootfs.  When a
+    /websoft9/library lives inside the container rootfs. When a
     container is recreated or upgraded from an image, the container rootfs reverts to the
     image build-time baseline even though the host sync state still records a newer dataset.
     """
     if not isinstance(previous_state, dict) or not previous_state:
         return False
+    if "assetDigests" in previous_state:
+        digests = previous_state["assetDigests"]
+        if not isinstance(digests, dict):
+            return False
+        try:
+            for kind in ("media", "library"):
+                root = Path(os.getenv(f"WEBSOFT9_{kind.upper()}_ROOT", f"/websoft9/{kind}"))
+                if tree_content_fingerprint(root) != digests.get(kind):
+                    return False
+        except (OSError, ValueError, RuntimeError):
+            return False
 
     snapshots = previous_state.get("snapshots")
     if isinstance(snapshots, dict) and snapshots:
@@ -640,6 +751,7 @@ def _appstore_dataset_already_active(
     appstore_manifest: dict[str, object],
     previous_state: dict[str, object] | None,
     force_refresh: bool,
+    component_manifests: dict[str, object] | None = None,
 ) -> bool:
     """Report whether the remote dataset is already active locally.
 
@@ -666,6 +778,23 @@ def _appstore_dataset_already_active(
 
     latest_catalog_dsv = _resolve_component_dataset_version(appstore_manifest, "catalog")
     latest_library_dsv = _resolve_component_dataset_version(appstore_manifest, "library")
+    cached_manifests = previous_state.get("manifests", {})
+    for component in ("catalog", "library"):
+        reference = appstore_manifest.get(component, {})
+        schema = reference.get("schemaVersion") if isinstance(reference, dict) else None
+        if schema is None:
+            manifest = (component_manifests or {}).get(f"{component}_manifest")
+            if not isinstance(manifest, dict):
+                return False
+            schema = manifest.get("schemaVersion")
+        previous_schema = previous_state.get(f"{component}SchemaVersion")
+        if schema != previous_schema:
+            return False
+        if not isinstance(cached_manifests, dict) or not isinstance(cached_manifests.get(component), dict):
+            return False
+        _validate_component_version(
+            appstore_manifest, component, cached_manifests[component], appstore_manifest.get("channel")
+        )
     catalog_unchanged = (not latest_catalog_dsv) or latest_catalog_dsv == previous_state.get("catalogDatasetVersion")
     library_unchanged = (not latest_library_dsv) or latest_library_dsv == previous_state.get("libraryDatasetVersion")
     return bool(catalog_unchanged and library_unchanged)
@@ -690,9 +819,13 @@ def fetch_appstore_manifests(
 
     appstore_manifest_url = f"{artifact_base}/{_V2_APPSTORE_MANIFEST_PATH.format(channel=channel)}"
     try:
-        appstore_manifest = download_json(appstore_manifest_url)
+        appstore_manifest = download_verified_json(appstore_manifest_url)
     except AppStoreTransientError as exc:
-        if isinstance(exc.__cause__, urllib.error.HTTPError) and exc.__cause__.code == 404:
+        if (
+            isinstance(exc.__cause__, urllib.error.HTTPError)
+            and exc.__cause__.code == 404
+            and exc.__cause__.geturl() == appstore_manifest_url
+        ):
             raise AppStoreManifestNotFoundError(appstore_manifest_url) from exc
         raise
     if not isinstance(appstore_manifest, dict):
@@ -705,23 +838,25 @@ def fetch_appstore_manifests(
     # Fast path: when the dataset is already active, the component manifests (and the apps
     # index that only feeds the manifest builder) carry no new information.  Each of those
     # requests costs a full round trip to the artifact server, which dominates start-up time.
-    if _appstore_dataset_already_active(appstore_manifest, previous_state, force_refresh):
+    if _appstore_dataset_already_active(appstore_manifest, previous_state, force_refresh) and isinstance(
+        previous_state["manifests"].get("appsIndex"), dict
+    ):
         log(
             "[platform-assets] appstore dataset "
             f"{appstore_manifest.get('datasetVersion')} already active; component manifests not requested"
         )
+        catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
         bundle: dict[str, object] = {
             "appstore_manifest_url": appstore_manifest_url,
-            "catalog_manifest_url": None,
-            "library_manifest_url": None,
+            "catalog_manifest_url": f"{artifact_base}/appstore/{channel}/{catalog_relative}",
+            "library_manifest_url": f"{artifact_base}/appstore/{channel}/{library_relative}",
             "appstore_manifest": appstore_manifest,
-            "catalog_manifest": None,
-            "library_manifest": None,
+            "catalog_manifest": previous_state["manifests"]["catalog"],
+            "library_manifest": previous_state["manifests"]["library"],
             "componentManifestsSkipped": True,
         }
-        # An unchanged dataset still has to keep its shared dictionary intact: the local file
-        # can go missing or be half-written without any version changing. Only then is the
-        # component manifests are verified, so the common case stays a single request.
+        bundle["_verified_library_json"] = {"appsIndex": previous_state["manifests"]["appsIndex"]}
+        # An unchanged dataset can still need dictionary repair.
         library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
         if _dictionary_repair_needed(library_root, previous_state) or _dictionary_repair_needed(
             library_root, previous_state, "secretRules", "secret-rules.json", known_only=True
@@ -729,7 +864,7 @@ def fetch_appstore_manifests(
             catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
             for component, relative in (("catalog", catalog_relative), ("library", library_relative)):
                 url = f"{artifact_base}/appstore/{channel}/{relative}"
-                manifest = download_verified_json(url)
+                manifest = download_verified_json(url, f"{url}.sha256") if appstore_manifest["schemaVersion"] == "2" else download_verified_json(url)
                 _validate_component_version(appstore_manifest, component, manifest, channel)
                 bundle[f"{component}_manifest_url"] = url
                 bundle[f"{component}_manifest"] = manifest
@@ -745,14 +880,19 @@ def fetch_appstore_manifests(
     catalog_manifest_url = f"{appstore_base}/{catalog_relative}"
     library_manifest_url = f"{appstore_base}/{library_relative}"
     with ThreadPoolExecutor(max_workers=2) as executor:
-        catalog_future = executor.submit(download_verified_json, catalog_manifest_url)
-        library_future = executor.submit(download_verified_json, library_manifest_url)
+        def fetch_component(url: str) -> object:
+            if appstore_manifest["schemaVersion"] == "2":
+                return download_verified_json(url, f"{url}.sha256")
+            return download_verified_json(url)
+
+        catalog_future = executor.submit(fetch_component, catalog_manifest_url)
+        library_future = executor.submit(fetch_component, library_manifest_url)
         catalog_manifest = catalog_future.result()
         library_manifest = library_future.result()
     _validate_component_version(appstore_manifest, "catalog", catalog_manifest, channel)
     _validate_component_version(appstore_manifest, "library", library_manifest, channel)
 
-    return {
+    bundle = {
         "appstore_manifest_url": appstore_manifest_url,
         "catalog_manifest_url": catalog_manifest_url,
         "library_manifest_url": library_manifest_url,
@@ -760,6 +900,11 @@ def fetch_appstore_manifests(
         "catalog_manifest": catalog_manifest,
         "library_manifest": library_manifest,
     }
+    if appstore_manifest["schemaVersion"] == "2":
+        for entry_key, _ in SHARED_DICTIONARIES:
+            if library_dictionary_entry(bundle, entry_key) is None:
+                raise AppStoreTransientError(f"missing required {entry_key} declaration")
+    return bundle
 
 
 def fetch_delta_payload(base_manifest_url: str, relative_path: str | None) -> dict[str, object] | None:
@@ -924,6 +1069,19 @@ def _resolve_component_dataset_version(appstore_manifest: dict[str, object], com
 def _validate_component_version(root: dict[str, object], component: str, manifest: object, channel: str | None = None) -> None:
     if not isinstance(manifest, dict):
         raise AppStoreTransientError(f"invalid {component} manifest payload")
+    if root.get("schemaVersion") == "2":
+        reference = root.get(component, {})
+        if manifest.get("schemaVersion") != reference.get("schemaVersion"):
+            raise AppStoreTransientError(f"{component} manifest schemaVersion does not match the root declaration")
+        for key in ("fullPackage", "appsIndex", "appsDelta") if component == "library" else ("fullPackage",):
+            if not isinstance(manifest.get(key), str) or not manifest[key]:
+                raise AppStoreTransientError(f"missing {component} {key}")
+            checksums = manifest.get("checksum")
+            if not isinstance(checksums, dict) or not isinstance(checksums.get(key), str) or not checksums[key].strip():
+                raise AppStoreTransientError(f"missing {component} {key} checksum")
+        if component == "library" and not isinstance(manifest.get("supportsPartialUpdate"), bool):
+            raise AppStoreTransientError("missing library supportsPartialUpdate")
+    check_schema_version(manifest.get("schemaVersion"), component)
     expected = _resolve_component_dataset_version(root, component)
     expected_channel = channel or root.get("channel")
     if "channel" in manifest and expected_channel is not None and manifest["channel"] != expected_channel:
@@ -1017,6 +1175,26 @@ def determine_package_sync_plan(manifest_bundle: dict[str, object] | None, previ
     return plan
 
 
+def library_requires_full_sync(
+    manifest_bundle: dict[str, object], previous_state: dict[str, object], library_root: Path
+) -> bool:
+    manifest = manifest_bundle.get("library_manifest", {})
+    if not isinstance(manifest, dict):
+        return True
+    if manifest.get("supportsPartialUpdate") is False:
+        return True
+    previous_schema = previous_state.get("librarySchemaVersion")
+    if previous_schema is None:
+        try:
+            index = json.loads((library_root / "apps-index.json").read_bytes())
+        except (OSError, ValueError):
+            return True
+        if not isinstance(index, dict) or index.get("datasetVersion") != previous_state.get("libraryDatasetVersion"):
+            return True
+        previous_schema = index.get("schemaVersion")
+    return previous_schema != manifest.get("schemaVersion")
+
+
 def load_library_apps_index(library_root: Path) -> dict[str, str]:
     """Map each app key to the update time published in the library apps index.
 
@@ -1089,8 +1267,6 @@ def _fetch_library_json(manifest_bundle: dict[str, object], key: str) -> dict[st
     if not isinstance(library_manifest, dict) or key not in library_manifest:
         return None
     cache = manifest_bundle.setdefault("_verified_library_json", {})
-    if key in cache:
-        return cache[key]
     base_url = manifest_bundle.get("library_manifest_url")
     relative = library_manifest[key]
     if not isinstance(base_url, str) or not base_url or not isinstance(relative, str) or not relative:
@@ -1110,10 +1286,12 @@ def _fetch_library_json(manifest_bundle: dict[str, object], key: str) -> dict[st
     elif strict:
         raise AppStoreTransientError(f"missing declared {key} checksum")
     url = resolve_json_url(base_url, relative)
-    payload = with_transient_retry(
-        lambda: download_verified_json(url, checksum_url) if checksum_url is not None else download_verified_json(url),
-        label=f"library {key} fetch",
-    )
+    payload = cache.get(key)
+    if key not in cache:
+        payload = with_transient_retry(
+            lambda: download_verified_json(url, checksum_url) if checksum_url is not None else download_verified_json(url),
+            label=f"library {key} fetch",
+        )
     if not isinstance(payload, dict):
         raise AppStoreTransientError(f"invalid {key} payload")
     root = manifest_bundle.get("appstore_manifest") or {}
@@ -1127,8 +1305,16 @@ def _fetch_library_json(manifest_bundle: dict[str, object], key: str) -> dict[st
             actual = payload.get(field)
             if not isinstance(actual, str) or not actual or (expected is not None and actual != expected):
                 raise AppStoreTransientError(f"invalid {key} {field}: {actual!r}; expected {expected!r}")
-    if ("schemaVersion" in payload or strict) and payload.get("schemaVersion") != "1":
-        raise AppStoreTransientError(f"invalid {key} schemaVersion")
+    if "schemaVersion" in payload or strict:
+        if payload.get("schemaVersion") != library_manifest.get("schemaVersion"):
+            raise AppStoreTransientError(f"invalid {key} schemaVersion")
+        check_schema_version(payload.get("schemaVersion"), "library")
+    if (
+        key == "appsIndex"
+        and library_manifest.get("schemaVersion") == "2"
+        and payload.get("metadata") != library_manifest.get("metadata")
+    ):
+        raise AppStoreTransientError("appsIndex metadata does not match the library manifest")
     if key == "appsIndex":
         _validate_apps_index(payload, strict=strict)
     else:
@@ -1162,8 +1348,15 @@ def file_sha256(path: Path) -> str:
 def app_content_fingerprint(app_root: Path, app_key: str) -> str:
     if not _valid_app_key(app_key) or not app_root.is_dir() or app_root.is_symlink():
         raise AppStoreTransientError(f"invalid app tree: {app_key!r}")
+    return tree_content_fingerprint(app_root, f"apps/{app_key}/")
+
+
+def tree_content_fingerprint(app_root: Path, prefix: str = "") -> str:
+    if not app_root.is_dir():
+        raise AppStoreTransientError(f"missing or unsafe asset tree: {app_root}")
     digest = hashlib.sha256()
     resolved_root = app_root.resolve()
+    is_media_root = not prefix and (app_root / "json").is_dir()
     # Sort the path objects, not their relative strings: the publisher hashes
     # ``sorted(Path)``, which compares path parts. String order differs once a
     # directory and a file share a prefix (``hrms/`` vs ``hrms.png``).
@@ -1171,7 +1364,9 @@ def app_content_fingerprint(app_root: Path, app_key: str) -> str:
         if path.is_symlink() and (not path.resolve().is_relative_to(resolved_root) or not path.is_file()):
             raise AppStoreTransientError(f"unsafe app symlink: {path}")
         if path.is_file():
-            canonical = f"apps/{app_key}/{path.relative_to(app_root).as_posix()}"
+            if is_media_root and _is_uploaded_media_file(path, app_root):
+                continue
+            canonical = f"{prefix}{path.relative_to(app_root).as_posix()}"
             digest.update(canonical.encode("utf-8"))
             digest.update(b"\0")
             digest.update(file_sha256(path).encode("ascii"))
@@ -1197,10 +1392,45 @@ def _verify_apps_tree(library_root: Path, payload: dict[str, object]) -> None:
             raise AppStoreTransientError(f"app fingerprint mismatch for {key}: expected {expected}, got {actual}")
 
 
-def verify_library_source(library_root: Path, manifest_bundle: dict[str, object] | None) -> None:
+def verify_library_source(
+    library_root: Path, manifest_bundle: dict[str, object] | None, *, full_package: bool = False
+) -> None:
     payload = fetch_library_apps_index_payload(manifest_bundle)
     if payload is not None:
         _verify_apps_tree(library_root, payload)
+    manifest = (manifest_bundle or {}).get("library_manifest", {})
+    strict_metadata = (
+        isinstance(manifest, dict) and manifest.get("schemaVersion") == "2"
+    ) or ((manifest_bundle or {}).get("appstore_manifest") or {}).get("schemaVersion") == "2"
+    metadata_path = library_root / "library.json"
+    if isinstance(manifest, dict) and (strict_metadata or metadata_path.is_file()):
+        try:
+            metadata = json.loads(metadata_path.read_bytes())
+        except (OSError, ValueError) as exc:
+            raise AppStoreTransientError(f"invalid embedded library metadata: {exc}") from exc
+        if not isinstance(metadata, dict) or (
+            (strict_metadata or "schemaVersion" in metadata) and metadata.get("schemaVersion") != manifest.get("schemaVersion")
+        ):
+            raise AppStoreTransientError("embedded library schemaVersion does not match its manifest")
+        if full_package and strict_metadata:
+            for entry_key, file_name in SHARED_DICTIONARIES:
+                entry = library_dictionary_entry(manifest_bundle, entry_key)
+                dictionary = library_root / "metadata" / file_name
+                if entry is None or not dictionary.is_file() or file_sha256(dictionary) != entry["sha256"]:
+                    raise AppStoreTransientError(f"embedded {entry_key} does not match the library manifest")
+
+
+def verify_catalog_source(media_root: Path, manifest_bundle: dict[str, object] | None) -> None:
+    if not manifest_bundle or manifest_bundle["appstore_manifest"].get("schemaVersion") != "2":
+        return
+    names = ("catalog_en.json", "catalog_zh.json", "product_en.json", "product_zh.json")
+    try:
+        content = ",".join(f"{name}={file_sha256(media_root / 'json' / name)}" for name in names)
+    except OSError as exc:
+        raise AppStoreTransientError(f"incomplete catalog package: {exc}") from exc
+    actual = hashlib.sha256(content.encode("utf-8") + b"\0").hexdigest()[:16]
+    if actual != manifest_bundle["catalog_manifest"]["datasetVersion"]:
+        raise AppStoreTransientError("catalog package fingerprint does not match its manifest")
 
 
 def resolve_library_index_delta_context(
@@ -1208,6 +1438,9 @@ def resolve_library_index_delta_context(
 ) -> dict[str, object] | None:
     remote = fetch_library_apps_index_payload(manifest_bundle)
     if remote is None:
+        return None
+    manifest = manifest_bundle.get("library_manifest", {})
+    if manifest.get("supportsPartialUpdate") is False:
         return None
     new_hashes = _validate_apps_index(remote, strict=False)
     if len(new_hashes) != len(remote["apps"]):
@@ -1218,7 +1451,7 @@ def resolve_library_index_delta_context(
             return None
         if local.get("datasetVersion") != previous_state["libraryDatasetVersion"] or local.get("channel") != channel:
             return None
-        if "schemaVersion" in local and local["schemaVersion"] != "1":
+        if local.get("schemaVersion") != remote.get("schemaVersion"):
             return None
         old_hashes = _validate_apps_index(local, strict=False)
         if len(old_hashes) != len(local["apps"]):
@@ -1337,6 +1570,7 @@ def sync_shared_dictionary(
     *,
     entry_key: str = "databaseTypes",
     filename: str = "database-types.json",
+    prefetched_source: Path | None = None,
 ) -> dict[str, str]:
     """Keep a shared dictionary identical to the published one.
 
@@ -1361,6 +1595,13 @@ def sync_shared_dictionary(
         for target in targets[1:]:
             _copy_dictionary(primary, target)
         return {"status": "unchanged", "sha256": expected_sha256}
+
+    if prefetched_source is not None:
+        if file_sha256(prefetched_source) != expected_sha256:
+            raise RuntimeError(f"{entry_key} prefetched dictionary checksum mismatch")
+        for target in targets:
+            _copy_dictionary(prefetched_source, target)
+        return {"status": "updated", "sha256": expected_sha256}
 
     payload_url = resolve_json_url(entry["manifest_url"], entry["path"])
     with tempfile.TemporaryDirectory() as tmp_dir_name:
@@ -1496,7 +1737,7 @@ def stage_snapshot(source_root: Path, snapshot_root: Path, dataset_version: str,
 
     # All three copies live inside the same App Store root, so they reuse the same file
     # contents through hard links instead of copying the payload three times.
-    replace_tree_linked(source_root, staging_dir)
+    replace_tree_linked(source_root, staging_dir, exclude_uploaded_media=(package_type == "media"))
     replace_tree_linked(staging_dir, release_dir)
     replace_tree_linked(staging_dir, current_dir)
 
@@ -1628,7 +1869,7 @@ def sync_library_package_delta(
         extract_zip_with_permissions(zip_path, extract_dir)
 
         source_root = extract_sync_root(extract_dir, "library")
-        verify_library_source(source_root, manifest_bundle)
+        verify_library_source(source_root, manifest_bundle, full_package=True)
         staged_root = temp_dir / "staged-library"
         replace_tree_linked(reusable_source, staged_root)
 
@@ -1670,6 +1911,7 @@ def extract_app_bundle(bundle_path: Path, apps_root: Path, app_key: str) -> None
     if not _valid_app_key(app_key):
         raise AppStoreTransientError(f"invalid app key: {app_key!r}")
     extract_dir = bundle_path.parent / f"extract-{app_key}"
+    _reset_directory(extract_dir)
     extract_dir.mkdir(parents=True, exist_ok=True)
 
     extract_zip_with_permissions(bundle_path, extract_dir)
@@ -1718,6 +1960,81 @@ def _validate_delta_app_keys(changed: list[str], removed: list[str]) -> None:
         raise AppStoreTransientError("unsafe library delta app key")
 
 
+def prepare_library_app_artifacts_source(
+    reusable_source: Path,
+    manifest_bundle: dict[str, object],
+    delta_context: dict[str, object],
+    temp_dir: Path,
+) -> Path:
+    changed_apps = sorted(set(delta_context.get("changedApps", [])) | set(delta_context.get("addedApps", [])) | set(delta_context.get("updatedApps", [])))
+    removed_apps = sorted(set(delta_context.get("removedApps", [])))
+    _validate_delta_app_keys(changed_apps, removed_apps)
+
+    if not changed_apps and not removed_apps:
+        verify_library_source(reusable_source, manifest_bundle)
+        return reusable_source
+
+    apps_index = resolve_library_apps_index(manifest_bundle)
+    if not apps_index:
+        raise RuntimeError("library manifest does not expose app-level artifacts")
+
+    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
+    staged_root = temp_dir / "staged-library"
+    # Hard links let unchanged apps share bytes without writing through to the active tree.
+    replace_tree_linked(reusable_source, staged_root)
+    staged_apps_dir = staged_root / "apps"
+    staged_apps_dir.mkdir(parents=True, exist_ok=True)
+
+    for app_key in removed_apps:
+        app_path = staged_apps_dir / app_key
+        if app_path.is_dir():
+            shutil.rmtree(app_path)
+        elif app_path.exists():
+            app_path.unlink()
+
+    def apply_changed_app(app_key: str) -> None:
+        app_metadata = apps_index.get(app_key)
+        if not isinstance(app_metadata, dict):
+            raise RuntimeError(f"appsIndex is missing changed app metadata: {app_key}")
+        bundle_relative = app_metadata.get("bundle")
+        if not isinstance(bundle_relative, str) or not bundle_relative:
+            raise RuntimeError(f"appsIndex bundle entry is missing for app: {app_key}")
+        checksum = app_metadata.get("checksum")
+        if not isinstance(checksum, dict):
+            raise RuntimeError(f"appsIndex checksum entry is missing for app: {app_key}")
+        bundle_checksum_relative = checksum.get("bundle")
+        if not isinstance(bundle_checksum_relative, str) or not bundle_checksum_relative:
+            raise RuntimeError(f"appsIndex bundle checksum entry is missing for app: {app_key}")
+
+        bundle_path = temp_dir / f"{app_key}.zip"
+        download_file(resolve_json_url(library_manifest_url, bundle_relative), bundle_path)
+        verify_downloaded_file_checksum(library_manifest_url, bundle_relative, bundle_checksum_relative, bundle_path)
+        extract_app_bundle(bundle_path, staged_apps_dir, app_key)
+
+        app_root = staged_apps_dir / app_key
+        expected_hash = app_metadata.get("hash")
+        if expected_hash is not None and app_content_fingerprint(app_root, app_key) != expected_hash.lower():
+            raise AppStoreTransientError(f"app fingerprint mismatch for {app_key}")
+        hydrate_app_sidecar(
+            library_manifest_url, app_key, app_root, app_metadata.get("variables"),
+            checksum.get("variables"), "variables.json", temp_dir,
+        )
+        hydrate_app_sidecar(
+            library_manifest_url, app_key, app_root, app_metadata.get("env"),
+            checksum.get("env"), ".env", temp_dir,
+        )
+
+    if changed_apps:
+        max_workers = min(_resolve_app_download_workers(), len(changed_apps))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(apply_changed_app, app_key) for app_key in changed_apps]
+            for future in futures:
+                future.result()
+
+    verify_library_source(staged_root, manifest_bundle)
+    return staged_root
+
+
 def sync_library_app_artifacts_delta(
     reusable_source: Path,
     target_dir: Path,
@@ -1726,91 +2043,18 @@ def sync_library_app_artifacts_delta(
     snapshot_root: Path,
     dataset_version: str,
     delta_context: dict[str, object],
+    prefetched_source: Path | None = None,
 ) -> dict[str, str]:
     changed_apps = sorted(set(delta_context.get("changedApps", [])) | set(delta_context.get("addedApps", [])) | set(delta_context.get("updatedApps", [])))
     removed_apps = sorted(set(delta_context.get("removedApps", [])))
     _validate_delta_app_keys(changed_apps, removed_apps)
-
     if not changed_apps and not removed_apps:
         verify_library_source(reusable_source, manifest_bundle)
         return promote_existing_package_snapshot(reusable_source, target_dir, marker_path, snapshot_root, dataset_version, "library")
-
-    apps_index = resolve_library_apps_index(manifest_bundle)
-    if not apps_index:
-        raise RuntimeError("library manifest does not expose app-level artifacts")
-
-    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
-    log(f"[platform-assets] applying library app artifacts delta; changed={changed_apps or []} removed={removed_apps or []}")
-
     with tempfile.TemporaryDirectory(prefix="websoft9-library-app-artifacts-") as temp_dir_name:
-        temp_dir = Path(temp_dir_name)
-        staged_root = temp_dir / "staged-library"
-        # Reuse the current library payload through hard links: only the changed apps are
-        # rewritten, so the untouched 60+ MB does not need to be copied for a few KB of updates.
-        replace_tree_linked(reusable_source, staged_root)
-        staged_apps_dir = staged_root / "apps"
-        staged_apps_dir.mkdir(parents=True, exist_ok=True)
-
-        for app_key in removed_apps:
-            app_path = staged_apps_dir / app_key
-            if app_path.is_dir():
-                shutil.rmtree(app_path)
-            elif app_path.exists():
-                app_path.unlink()
-
-        def apply_changed_app(app_key: str) -> None:
-            app_metadata = apps_index.get(app_key)
-            if not isinstance(app_metadata, dict):
-                raise RuntimeError(f"appsIndex is missing changed app metadata: {app_key}")
-
-            bundle_relative = app_metadata.get("bundle")
-            if not isinstance(bundle_relative, str) or not bundle_relative:
-                raise RuntimeError(f"appsIndex bundle entry is missing for app: {app_key}")
-            checksum = app_metadata.get("checksum")
-            if not isinstance(checksum, dict):
-                raise RuntimeError(f"appsIndex checksum entry is missing for app: {app_key}")
-            bundle_checksum_relative = checksum.get("bundle")
-            if not isinstance(bundle_checksum_relative, str) or not bundle_checksum_relative:
-                raise RuntimeError(f"appsIndex bundle checksum entry is missing for app: {app_key}")
-
-            bundle_path = temp_dir / f"{app_key}.zip"
-            download_file(resolve_json_url(library_manifest_url, bundle_relative), bundle_path)
-            verify_downloaded_file_checksum(library_manifest_url, bundle_relative, bundle_checksum_relative, bundle_path)
-            extract_app_bundle(bundle_path, staged_apps_dir, app_key)
-
-            app_root = staged_apps_dir / app_key
-            expected_hash = app_metadata.get("hash")
-            if expected_hash is not None and app_content_fingerprint(app_root, app_key) != expected_hash.lower():
-                raise AppStoreTransientError(f"app fingerprint mismatch for {app_key}")
-            hydrate_app_sidecar(
-                library_manifest_url,
-                app_key,
-                app_root,
-                app_metadata.get("variables"),
-                checksum.get("variables"),
-                "variables.json",
-                temp_dir,
-            )
-            hydrate_app_sidecar(
-                library_manifest_url,
-                app_key,
-                app_root,
-                app_metadata.get("env"),
-                checksum.get("env"),
-                ".env",
-                temp_dir,
-            )
-
-        # Each app owns its own bundle, extraction and sidecar paths, so the per-app artifact
-        # downloads overlap instead of paying one round trip after another.
-        if changed_apps:
-            max_workers = min(_resolve_app_download_workers(), len(changed_apps))
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [executor.submit(apply_changed_app, app_key) for app_key in changed_apps]
-                for future in futures:
-                    future.result()
-
-        verify_library_source(staged_root, manifest_bundle)
+        staged_root = prefetched_source or prepare_library_app_artifacts_source(
+            reusable_source, manifest_bundle, delta_context, Path(temp_dir_name),
+        )
         snapshot_paths = stage_snapshot(staged_root, snapshot_root, dataset_version, "library")
         sync_library_delta_target(snapshot_paths["current"], target_dir, changed_apps, removed_apps, marker_path)
 
@@ -1825,8 +2069,8 @@ def package_needs_sync(package_type: str, marker_path: Path, package_sync_plan: 
     """Report whether a package must be downloaded and applied."""
     if force_refresh:
         return True
-    if package_sync_plan and not package_sync_plan.get(package_type, True):
-        return False
+    if package_sync_plan is not None:
+        return package_sync_plan.get(package_type, True)
     return not marker_exists(marker_path, package_type)
 
 
@@ -1848,6 +2092,8 @@ def prepare_package_source(
 
     zip_path = temp_dir / package_name
     extract_dir = temp_dir / "extract"
+    _reset_directory(extract_dir)
+    _reset_directory(temp_dir / "wrapped-media")
     extract_dir.mkdir(parents=True, exist_ok=True)
 
     download_file(package_url, zip_path)
@@ -1860,7 +2106,7 @@ def prepare_package_source(
 
     source_root = extract_sync_root(extract_dir, package_type)
     if package_type == "library":
-        verify_library_source(source_root, manifest_bundle)
+        verify_library_source(source_root, manifest_bundle, full_package=True)
 
     # v2 catalog zip ships JSON files flat; the runtime layout expects
     # them under a json/ subdirectory (matching the legacy media.zip shape).
@@ -1875,11 +2121,13 @@ def prepare_package_source(
             # Carry over any non-JSON contents (logos, screenshots, etc.)
             for item in source_root.iterdir():
                 if item.is_dir():
-                    shutil.copytree(item, json_dir / item.name)
+                    shutil.copytree(item, json_dir / item.name, dirs_exist_ok=True)
                 elif not item.name.endswith(".json"):
                     shutil.copy2(item, json_dir / item.name)
             source_root = json_dir
 
+    if package_type == "media":
+        verify_catalog_source(source_root, manifest_bundle)
     return source_root
 
 
@@ -1918,14 +2166,14 @@ def prefetch_pending_packages(
 
     Packages are independent, so fetching them in parallel removes one full round of download
     latency (media + library).  The trees themselves are still rewritten one package at a time.
-    A failed prefetch is not fatal: the caller falls back to a serial download for that package.
+    A failed parallel download is retried serially before any activation begins.
     """
     pending = [
         package
         for package in packages
         if package_needs_sync(package[0], package[2], package_sync_plan, force_refresh)
     ]
-    if len(pending) < 2:
+    if not pending:
         return {}, None
 
     prefetch_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-prefetch-"))
@@ -1951,6 +2199,12 @@ def prefetch_pending_packages(
                     prefetched[package_type] = future.result()
                 except Exception as exc:
                     log(f"[platform-assets] {package_type} prefetch failed; downloading it serially instead: {exc}")
+                    prefetched[package_type] = with_transient_retry(
+                        lambda: prepare_package_source(
+                            package_type, channel, artifact_base, manifest_bundle, prefetch_root / package_type,
+                        ),
+                        label=f"{package_type} prefetch",
+                    )
     except BaseException:
         shutil.rmtree(prefetch_root, ignore_errors=True)
         raise
@@ -2328,7 +2582,7 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
         summary = " ".join(f"{reason}={count}" for reason, count in sorted(skipped.items()))
         log(f"[platform-assets] manifest locale={locale} apps={len(apps)} skipped {summary}")
 
-    manifest: dict[str, object] = {"schemaVersion": "1", "locale": locale, "apps": apps}
+    manifest: dict[str, object] = {"schemaVersion": LOCAL_MANIFEST_SCHEMA, "locale": locale, "apps": apps}
     validate_app_store_manifest(manifest, product_path)
     return manifest
 
@@ -2552,6 +2806,310 @@ def prune_stale_appstore_datasets(snapshot_root: Path, active_dataset_version: s
     return removed
 
 
+def runtime_assets_status_path() -> Path:
+    runtime_root = Path(os.getenv("WEBSOFT9_RUNTIME_STATE_DIR", "/run/websoft9"))
+    return Path(os.getenv("WEBSOFT9_APPSTORE_RUNTIME_STATE_FILE", str(runtime_root / "appstore-assets.json")))
+
+
+def write_runtime_assets_status(status: str, message: str = "", dataset_version: object = None) -> None:
+    write_sync_state(runtime_assets_status_path(), {
+        "status": status, "message": message, "datasetVersion": dataset_version,
+    })
+
+
+def restore_runtime_assets_status(previous: dict[str, object], rollback_ok: bool) -> None:
+    try:
+        write_sync_state(runtime_assets_status_path(), previous if rollback_ok else {
+            "status": "unavailable", "message": "Appstore rollback failed",
+        })
+    except OSError as exc:
+        log(f"[platform-assets] failed to restore runtime availability: {exc}")
+        try:
+            runtime_assets_status_path().unlink(missing_ok=True)
+        except OSError as unlink_exc:
+            log(f"[platform-assets] failed to invalidate runtime availability: {unlink_exc}")
+
+
+def validate_runtime_asset_roots(media_root: Path, library_root: Path) -> None:
+    if not has_valid_published_app_store_manifests(media_root, library_root):
+        raise AppStoreTransientError("missing or invalid generated Appstore manifests")
+    if get_published_app_store_schema_version(media_root) != "1":
+        raise AppStoreTransientError("unsupported generated Appstore manifest schema")
+    if not all((media_root / "json" / f"product_{locale}.json").is_file() for locale in ("en", "zh")):
+        raise AppStoreTransientError("missing Appstore product catalogs")
+    if not (library_root / "apps").is_dir():
+        raise AppStoreTransientError("missing Appstore library")
+
+
+def runtime_metadata_matches(
+    media: Path, library: Path, state: dict[str, object], bundle: dict[str, object]
+) -> bool:
+    if not isinstance(state.get("assetDigests"), dict):
+        return False
+    snapshots = state.get("snapshots")
+    if not isinstance(snapshots, dict):
+        return False
+    try:
+        for kind, active in (("media", media), ("library", library)):
+            paths = snapshots.get(kind)
+            if not isinstance(paths, dict) or any(not paths.get(key) for key in ("staging", "release", "current")):
+                return False
+            roots = [active, *(Path(paths[key]) for key in ("staging", "release", "current"))]
+            if kind == "media":
+                for root in roots[1:]:
+                    for name in _GENERATED_MANIFEST_FILENAMES:
+                        if (root / "json" / name).read_bytes() != (active / "json" / name).read_bytes():
+                            return False
+            else:
+                index = fetch_library_apps_index_payload(bundle)
+                for root in roots:
+                    if index is not None and json.loads((root / "apps-index.json").read_bytes()) != index:
+                        return False
+                    for entry_key, filename in SHARED_DICTIONARIES:
+                        entry = library_dictionary_entry(bundle, entry_key)
+                        if entry is not None and file_sha256(root / "metadata" / filename) != entry["sha256"]:
+                            return False
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def validate_saved_asset_snapshot(state: dict[str, object], media: Path, library: Path) -> None:
+    version = state.get("datasetVersion")
+    if not isinstance(version, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", version):
+        raise AppStoreTransientError("snapshot has no valid dataset identity")
+    manifests = state.get("manifests")
+    digests = state.get("assetDigests")
+    if not isinstance(manifests, dict) or not isinstance(digests, dict):
+        raise AppStoreTransientError("snapshot has no verified contract and content record")
+    root = manifests.get("root")
+    if not isinstance(root, dict):
+        raise AppStoreTransientError("snapshot has no root manifest")
+    check_appstore_compatibility(root)
+    if state.get("datasetVersion") != root.get("datasetVersion") or state.get("schemaVersion") != root.get("schemaVersion"):
+        raise AppStoreTransientError("snapshot root identity does not match saved state")
+    if "channel" in root and root["channel"] != state.get("channel"):
+        raise AppStoreTransientError("snapshot root channel does not match saved state")
+    for component in ("catalog", "library"):
+        manifest = manifests.get(component)
+        _validate_component_version(root, component, manifest, state.get("channel"))
+        if manifest.get("schemaVersion") != state.get(f"{component}SchemaVersion"):
+            raise AppStoreTransientError(f"snapshot {component} contract does not match saved state")
+        if manifest.get("datasetVersion") != state.get(f"{component}DatasetVersion"):
+            raise AppStoreTransientError(f"snapshot {component} version does not match saved state")
+    for kind, source in (("media", media), ("library", library)):
+        if not isinstance(digests.get(kind), str) or tree_content_fingerprint(source) != digests[kind]:
+            raise AppStoreTransientError(f"snapshot {kind} content does not match saved state")
+    validate_runtime_asset_roots(media, library)
+    index = manifests.get("appsIndex")
+    if "appsIndex" in manifests["library"] and not isinstance(index, dict):
+        raise AppStoreTransientError("snapshot has no verified library index")
+    bundle = {
+        "appstore_manifest": root,
+        "catalog_manifest": manifests["catalog"],
+        "library_manifest": manifests["library"],
+        "library_manifest_url": (library.resolve() / "manifest.json").as_uri(),
+        "_verified_library_json": {"appsIndex": index} if isinstance(index, dict) else {},
+    }
+    verify_catalog_source(media, bundle)
+    verify_library_source(library, bundle, full_package=True)
+    for entry_key, filename in SHARED_DICTIONARIES:
+        entry = library_dictionary_entry(bundle, entry_key)
+        if entry is not None and file_sha256(library / "metadata" / filename) != entry["sha256"]:
+            raise AppStoreTransientError(f"snapshot {entry_key} checksum mismatch")
+
+
+def reload_runtime_app_store_manifests() -> dict[str, object]:
+    lock = acquire_appstore_sync_lock(Path(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")))
+    if lock is None:
+        raise AppStoreTransientError("Appstore synchronization is running; retry the catalog refresh later")
+    with lock, tempfile.TemporaryDirectory(prefix="websoft9-appstore-reload-") as directory:
+        state_path = _resolve_sync_state_path()
+        state = load_sync_state(state_path)
+        availability = load_sync_state(runtime_assets_status_path())
+        if availability.get("status") != "ready" or availability.get("datasetVersion") != state.get("datasetVersion"):
+            raise AppStoreTransientError("Official Appstore assets are not ready; synchronize before refreshing")
+        media = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
+        library = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
+        try:
+            validate_saved_asset_snapshot(state, media, library)
+        except (OSError, ValueError, RuntimeError) as exc:
+            write_runtime_assets_status("unavailable", f"Official Appstore assets failed validation: {exc}")
+            raise
+        work = Path(directory)
+        staged_media = work / "media"
+        sync_tree(media, staged_media, exclude_uploaded_media=True)
+        build_and_publish_app_store_manifests(staged_media, library)
+        validate_runtime_asset_roots(staged_media, library)
+        digest = tree_content_fingerprint(staged_media)
+        loaded = {
+            locale: len(json.loads((staged_media / "json" / f"app-store-manifest_{locale}.json").read_bytes())["apps"])
+            for locale in ("zh", "en")
+        }
+        if digest == state["assetDigests"]["media"]:
+            return {"loaded": loaded, "errors": []}
+        snapshot_root = Path(state["snapshotRoot"])
+        targets = [
+            media,
+            snapshot_root / "staging" / state["datasetVersion"] / "media",
+            snapshot_root / "releases" / state["datasetVersion"] / "media",
+            snapshot_root / "current" / "media",
+        ]
+        backups = backup_trees(targets, work / "backup")
+        write_runtime_assets_status("updating", "Appstore browsing manifests are being refreshed")
+        try:
+            replace_media_tree(staged_media, media)
+            paths = stage_snapshot(staged_media, snapshot_root, state["datasetVersion"], "media")
+            refreshed = {
+                **state,
+                "assetDigests": {**state["assetDigests"], "media": digest},
+                "snapshots": {**state["snapshots"], "media": {key: str(value) for key, value in paths.items()}},
+            }
+            validate_saved_asset_snapshot(refreshed, media, library)
+            write_sync_state(state_path, refreshed)
+            write_runtime_assets_status("ready", dataset_version=state["datasetVersion"])
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
+            rollback_ok = True
+            try:
+                restore_trees(backups)
+                write_sync_state(state_path, state)
+            except OSError as rollback_exc:
+                rollback_ok = False
+                log(f"[platform-assets] catalog refresh rollback failed: {rollback_exc}")
+            restore_runtime_assets_status(availability, rollback_ok)
+            log(f"[platform-assets] catalog refresh failed: {exc}")
+            raise
+        return {"loaded": loaded, "errors": []}
+
+
+def _intact_persistent_recovery_paths(
+    state: dict[str, object], media: Path, library: Path, snapshot_root: Path
+) -> dict[str, dict[str, str]] | None:
+    version = state.get("datasetVersion")
+    if (
+        not isinstance(version, str)
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", version)
+        or state.get("snapshotRoot") != str(snapshot_root)
+    ):
+        return None
+    try:
+        validate_saved_asset_snapshot(state, media, library)
+        digests = state["assetDigests"]
+        paths: dict[str, dict[str, str]] = {}
+        for kind in ("media", "library"):
+            kind_paths = {
+                "staging": snapshot_root / "staging" / version / kind,
+                "release": snapshot_root / "releases" / version / kind,
+                "current": snapshot_root / "current" / kind,
+            }
+            if any(tree_content_fingerprint(path) != digests[kind] for path in kind_paths.values()):
+                return None
+            paths[kind] = {key: str(value) for key, value in kind_paths.items()}
+        return paths
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError):
+        return None
+
+
+def recover_runtime_assets() -> int:
+    """Restore a complete locally verified dataset without contacting the publisher."""
+    write_runtime_assets_status("unavailable", "Appstore assets have not been verified in this container")
+    state_path = _resolve_sync_state_path()
+    previous = load_sync_state(state_path)
+    media = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
+    library = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
+    snapshot_root = Path(os.getenv(
+        "WEBSOFT9_APP_STORE_SNAPSHOT_ROOT",
+        str(Path(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")) / "appstore"),
+    ))
+    intact_paths = _intact_persistent_recovery_paths(previous, media, library, snapshot_root)
+    if intact_paths is not None:
+        try:
+            restored = dict(previous)
+            restored.update(snapshotRoot=str(snapshot_root), snapshots=intact_paths, recovery={"source": "active-assets"})
+            write_sync_state(state_path, restored)
+            write_runtime_assets_status("ready", "Verified active-assets", previous["datasetVersion"])
+            log(f"[platform-assets] verified intact active dataset {previous['datasetVersion']}; no recovery copy required")
+            return 0
+        except (OSError, ValueError, RuntimeError) as exc:
+            try:
+                write_sync_state(state_path, previous)
+            except OSError as state_exc:
+                log(f"[platform-assets] failed to restore recovery state: {state_exc}")
+            log(f"[platform-assets] recovery activation failed: {exc}")
+            write_runtime_assets_status("unavailable", f"Appstore recovery failed: {exc}")
+            return 1
+
+    image_state_path = Path(os.getenv("WEBSOFT9_APPSTORE_IMAGE_STATE", "/websoft9/appstore/image-state.json"))
+    image = load_sync_state(image_state_path)
+    candidates = []
+    for label, state in (("persistent-snapshot", previous), ("image-baseline", image)):
+        version = state.get("datasetVersion")
+        if not isinstance(version, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", version):
+            continue
+        root = state.get("snapshotRoot")
+        if not isinstance(root, str) or not root:
+            continue
+        release = Path(root) / "releases" / version
+        candidates.append((label, state, release / "media", release / "library"))
+    candidates.insert(1 if candidates and candidates[0][0] == "persistent-snapshot" else 0,
+                      ("active-assets", previous, media, library))
+    for label, state, source_media, source_library in candidates:
+        try:
+            validate_saved_asset_snapshot(state, source_media, source_library)
+        except (OSError, ValueError, RuntimeError) as exc:
+            log(f"[platform-assets] cannot recover {label}: {exc}")
+            continue
+        with tempfile.TemporaryDirectory(prefix="websoft9-appstore-recover-") as directory:
+            work = Path(directory)
+            backups = {}
+            try:
+                # Stage both before touching either live tree, including when adopting active assets.
+                for kind, source in (("media", source_media), ("library", source_library)):
+                    sync_tree(source, work / kind, exclude_uploaded_media=(kind == "media"))
+                validate_saved_asset_snapshot(state, work / "media", work / "library")
+                targets = [media, library]
+                for kind in ("media", "library"):
+                    targets.extend([
+                        snapshot_root / "staging" / state["datasetVersion"] / kind,
+                        snapshot_root / "releases" / state["datasetVersion"] / kind,
+                        snapshot_root / "current" / kind,
+                    ])
+                backups = backup_trees(targets, work / "backup")
+                paths = {}
+                for kind, target in (("media", media), ("library", library)):
+                    if kind == "media":
+                        replace_media_tree(work / kind, target)
+                    else:
+                        replace_tree(work / kind, target)
+                    paths[kind] = {
+                        key: str(value) for key, value in stage_snapshot(
+                            work / kind, snapshot_root, state["datasetVersion"], kind
+                        ).items()
+                    }
+                validate_saved_asset_snapshot(state, media, library)
+                restored = dict(state)
+                restored.update(snapshotRoot=str(snapshot_root), snapshots=paths, recovery={"source": label})
+                write_sync_state(state_path, restored)
+                write_runtime_assets_status("ready", f"Restored verified {label}", state["datasetVersion"])
+                log(f"[platform-assets] restored complete verified dataset {state['datasetVersion']} from {label}")
+                return 0
+            except (OSError, ValueError, RuntimeError) as exc:
+                if backups:
+                    try:
+                        restore_trees(backups)
+                    except OSError as rollback_exc:
+                        log(f"[platform-assets] recovery rollback failed: {rollback_exc}")
+                try:
+                    write_sync_state(state_path, previous)
+                except OSError as state_exc:
+                    log(f"[platform-assets] failed to restore recovery state: {state_exc}")
+                log(f"[platform-assets] recovery activation failed: {exc}")
+                write_runtime_assets_status("unavailable", f"Appstore recovery failed: {exc}")
+                return 1
+    write_runtime_assets_status("unavailable", "No complete verified Appstore snapshot is available; synchronize before installing")
+    return 1
+
+
 def main() -> int:
     channel = detect_channel()
     artifact_base = os.getenv("WEBSOFT9_ARTIFACT_BASE", "https://artifact.websoft9.com")
@@ -2562,7 +3120,10 @@ def main() -> int:
     )
     data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
     sync_state_path = _resolve_sync_state_path()
-    snapshot_root = Path(os.getenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", "/websoft9/appstore"))
+    snapshot_root = Path(os.getenv(
+        "WEBSOFT9_APP_STORE_SNAPSHOT_ROOT",
+        "/websoft9/appstore" if sync_mode == "build" else str(Path(data_root) / "appstore"),
+    ))
 
     packages = [
         (
@@ -2592,30 +3153,36 @@ def main() -> int:
     # Serialise every sync trigger.  Runtime bootstrap, daily cron, CLI and the API all funnel
     # through this lock, so concurrent runs can never rewrite the same trees.  Image builds run
     # alone and must not create runtime state, so they skip locking entirely.
+    sync_lock = None
     if sync_mode != "build":
         try:
             sync_lock = acquire_appstore_sync_lock(Path(data_root))
         except OSError as exc:
-            log(f"[platform-assets] Appstore sync lock unavailable ({exc}); continuing without cross-process serialisation")
-            sync_lock = _APPSTORE_SYNC_LOCK_UNAVAILABLE
+            log(f"[platform-assets] Appstore sync lock unavailable; refusing an unlocked update: {exc}")
+            return 1
         if sync_lock is None:
             log("[platform-assets] another Appstore sync is already running; skipping this round")
             return 0
-        # Keep the handle alive for the process lifetime; closing it would release the lock.
-        _ = sync_lock
         write_appstore_sync_pid_marker()
 
     rollback_backups: dict[Path, Path | None] = {}
     rollback_root: Path | None = None
     prefetch_root: Path | None = None
+    previous_availability = load_sync_state(runtime_assets_status_path())
+    updating_assets = False
     previous_state: dict[str, object] = {}
     try:
         previous_state = load_sync_state(sync_state_path)
         baseline_untrusted = bool(previous_state.get("partial")) or bool(
             previous_state and not _local_runtime_trees_match_state(previous_state)
-        )
+        ) or (sync_mode != "build" and previous_availability.get("status") != "ready")
         if baseline_untrusted:
             log("[platform-assets] local runtime assets do not match recorded sync state; forcing full synchronization")
+            if sync_mode != "build":
+                previous_availability = {
+                    "status": "unavailable", "message": "Appstore assets require a complete verified synchronization",
+                }
+                write_sync_state(runtime_assets_status_path(), previous_availability)
         force_refresh = is_force_refresh_enabled() or baseline_untrusted
         manifest_bundle = None
         latest_dataset_version = None
@@ -2633,18 +3200,10 @@ def main() -> int:
         }
 
         media_root = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
-        local_schema_version = get_published_app_store_schema_version(media_root)
-        if local_schema_version is None:
-            state_schema_version = previous_state.get("schemaVersion")
-            if isinstance(state_schema_version, str) and state_schema_version.strip():
-                local_schema_version = state_schema_version
-        if local_schema_version is None and sync_mode != "build":
-            raise AppStoreCompatibilityError(
-                "active appstore schemaVersion is unavailable. Please upgrade your Websoft9 platform before updating Appstore."
-            )
+        library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
         try:
             manifest_bundle = with_transient_retry(
-                lambda: fetch_appstore_manifests(artifact_base, channel, local_schema_version),
+                lambda: fetch_appstore_manifests(artifact_base, channel, None),
                 label="appstore manifest fetch",
             )
             appstore_manifest = manifest_bundle["appstore_manifest"]
@@ -2655,7 +3214,9 @@ def main() -> int:
                 # Resolve per-component datasetVersions (v2) for state tracking
                 latest_catalog_dsv = _resolve_component_dataset_version(appstore_manifest, "catalog")
                 latest_library_dsv = _resolve_component_dataset_version(appstore_manifest, "library")
-                if not force_refresh and previous_state.get("datasetVersion") == latest_dataset_version:
+                if not force_refresh and _appstore_dataset_already_active(
+                    appstore_manifest, previous_state, force_refresh, manifest_bundle
+                ):
                     catalog_unchanged = (not latest_catalog_dsv
                                          or latest_catalog_dsv == previous_state.get("catalogDatasetVersion"))
                     library_unchanged = (not latest_library_dsv
@@ -2664,18 +3225,27 @@ def main() -> int:
                         should_skip_package_sync = True
                         log(f"[platform-assets] appstore dataset {latest_dataset_version} already active for channel {channel}")
                 if not should_skip_package_sync:
-                    package_sync_plan = determine_package_sync_plan(
-                        manifest_bundle,
-                        previous_state,
-                        latest_dataset_version,
+                    full_library_sync = library_requires_full_sync(manifest_bundle, previous_state, library_root)
+                    package_sync_plan = (
+                        {
+                            "media": (
+                                not latest_catalog_dsv
+                                or latest_catalog_dsv != previous_state.get("catalogDatasetVersion")
+                                or (manifest_bundle.get("catalog_manifest") or {}).get("schemaVersion")
+                                != previous_state.get("catalogSchemaVersion")
+                            ),
+                            "library": True,
+                        }
+                        if full_library_sync
+                        else determine_package_sync_plan(manifest_bundle, previous_state, latest_dataset_version)
                     )
-                    library_delta_context = resolve_library_delta_context(
+                    library_delta_context = None if full_library_sync else resolve_library_delta_context(
                         manifest_bundle,
                         # ``appsDelta`` chains library dataset versions, not the root Appstore one.
                         previous_state.get("libraryDatasetVersion") or previous_state.get("datasetVersion"),
                         latest_library_dsv if latest_library_dsv is not None else latest_dataset_version,
                     )
-                    if not force_refresh and fetch_library_apps_index_payload(manifest_bundle) is not None:
+                    if not full_library_sync and not force_refresh and fetch_library_apps_index_payload(manifest_bundle) is not None:
                         reconciled = resolve_library_index_delta_context(
                             manifest_bundle, previous_state,
                             Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library")), channel,
@@ -2694,56 +3264,124 @@ def main() -> int:
                             package_sync_plan["library"] = any(
                                 reconciled[key] for key in ("addedApps", "changedApps", "removedApps")
                             )
+                    if full_library_sync:
+                        library_delta_context = None
+                        package_sync_plan["library"] = True
         except AppStoreCompatibilityError:
             raise
         except AppStoreManifestNotFoundError as exc:
-            log(f"[platform-assets] appstore manifest absent; falling back to legacy package resolution: {exc}")
+            raise AppStoreTransientError(f"Appstore root manifest is unavailable: {exc}") from exc
         except AppStoreTransientError:
             # Exhausted the retries: fail with the dataset untouched instead of silently falling
             # back to legacy package resolution, which would install unrelated artifacts.
             raise
 
         applied_dataset_version = latest_dataset_version or previous_state.get("datasetVersion") or datetime.datetime.utcnow().strftime("%Y.%m.%d.%H%M%S")
-        library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
         should_rebuild_manifests = not (
             should_skip_package_sync and has_valid_published_app_store_manifests(media_root)
         )
 
         if should_skip_package_sync and isinstance(previous_state.get("snapshots"), dict):
             package_snapshot_paths = dict(previous_state["snapshots"])
-        library_manifest = (manifest_bundle or {}).get("library_manifest")
-        repair_metadata = isinstance(library_manifest, dict) and (
-            "metadata" in library_manifest or "appsIndex" in library_manifest
-        )
-        if not should_skip_package_sync or should_rebuild_manifests or repair_metadata:
-            rollback_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-sync-rollback-"))
-            rollback_targets = [
-                target
-                for package_type, target_dir, _ in packages
-                for target in (target_dir, snapshot_root / "current" / package_type)
-            ]
-            for package_type, _, _ in packages:
-                for area in ("staging", "releases"):
-                    rollback_targets.append(snapshot_root / area / str(applied_dataset_version) / package_type)
-                old_paths = (previous_state.get("snapshots") or {}).get(package_type, {})
-                if isinstance(old_paths, dict):
-                    rollback_targets.extend(Path(value) for value in old_paths.values() if isinstance(value, str) and value)
-            rollback_targets = list({target.resolve(): target for target in rollback_targets}.values())
-            rollback_backups = backup_trees(rollback_targets, rollback_root)
+        if (
+            should_skip_package_sync
+            and not should_rebuild_manifests
+            and runtime_metadata_matches(media_root, library_root, previous_state, manifest_bundle)
+        ):
+            unchanged_state = dict(previous_state)
+            unchanged_state.pop("lastSyncError", None)
+            unchanged_state.pop("incompatibility", None)
+            unchanged_state.update(
+                syncStatus="ready",
+                lastSyncedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                syncMode=sync_mode,
+                updated=False,
+                packageSyncPlan={"media": False, "library": False},
+            )
+            unchanged_state["manifests"] = {
+                "root": manifest_bundle["appstore_manifest"],
+                "catalog": manifest_bundle["catalog_manifest"],
+                "library": manifest_bundle["library_manifest"],
+                "appsIndex": (manifest_bundle.get("_verified_library_json") or {}).get("appsIndex"),
+            }
+            write_sync_state(sync_state_path, unchanged_state)
+            log(f"[platform-assets] verified unchanged dataset {applied_dataset_version}; no asset writes required")
+            return 0
 
+        prefetched_sources = {}
+        prefetched_dictionaries = {}
         if not should_skip_package_sync:
             prefetch_packages = [
                 package for package in packages
                 if not (package[0] == "library" and not force_refresh and library_delta_context is not None)
             ]
             prefetched_sources, prefetch_root = prefetch_pending_packages(
-                prefetch_packages,
-                package_sync_plan,
-                force_refresh,
-                channel,
-                artifact_base,
-                manifest_bundle,
+                prefetch_packages, package_sync_plan, force_refresh, channel, artifact_base, manifest_bundle,
             )
+            if not force_refresh and library_delta_context is not None:
+                if prefetch_root is None:
+                    prefetch_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-prefetch-"))
+                reusable_library = library_root if library_delta_context.get("indexReconciled") else resolve_reusable_package_source(
+                    previous_state, "library", library_root, packages[1][2],
+                )
+                if reusable_library is not None:
+                    try:
+                        prefetched_sources["library"] = with_transient_retry(
+                            lambda: prepare_library_app_artifacts_source(
+                                reusable_library, manifest_bundle, library_delta_context, prefetch_root / "app-artifacts",
+                            ),
+                            label="library app artifacts prefetch",
+                        )
+                    except AppStoreTransientError:
+                        raise
+                    except (OSError, ValueError, RuntimeError) as exc:
+                        log(f"[platform-assets] app-level prefetch unavailable; preparing the full library: {exc}")
+                        library_delta_context = None
+                        prefetched_sources["library"] = with_transient_retry(
+                            lambda: prepare_package_source(
+                                "library", channel, artifact_base, manifest_bundle, prefetch_root / "library-fallback",
+                            ),
+                            label="library fallback prefetch",
+                        )
+
+        for entry_key, filename in SHARED_DICTIONARIES:
+            entry = library_dictionary_entry(manifest_bundle, entry_key)
+            if entry is None:
+                continue
+            source = prefetched_sources.get("library", library_root) / "metadata" / filename
+            if source.is_file() and file_sha256(source) == entry["sha256"]:
+                prefetched_dictionaries[entry_key] = source
+                continue
+            if prefetch_root is None:
+                prefetch_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-prefetch-"))
+            source = prefetch_root / "dictionaries" / filename
+            with_transient_retry(
+                lambda entry_key=entry_key, filename=filename, source=source: sync_shared_dictionary(
+                    manifest_bundle, [source], entry_key=entry_key, filename=filename,
+                ),
+                label=f"{entry_key} dictionary prefetch",
+            )
+            prefetched_dictionaries[entry_key] = source
+
+        if sync_mode != "build":
+            write_runtime_assets_status("updating", "Appstore assets are being updated")
+            updating_assets = True
+        rollback_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-sync-rollback-"))
+        rollback_targets = [
+            target
+            for package_type, target_dir, _ in packages
+            for target in (target_dir, snapshot_root / "current" / package_type)
+        ]
+        for package_type, _, _ in packages:
+            for area in ("staging", "releases"):
+                rollback_targets.append(snapshot_root / area / str(applied_dataset_version) / package_type)
+            old_paths = (previous_state.get("snapshots") or {}).get(package_type, {})
+            if isinstance(old_paths, dict):
+                rollback_targets.extend(Path(value) for value in old_paths.values() if isinstance(value, str) and value)
+        rollback_targets = list({target.resolve(): target for target in rollback_targets}.values())
+        rollback_backups = backup_trees(rollback_targets, rollback_root)
+
+        if not should_skip_package_sync:
             for package_type, target_dir, marker_path in packages:
                 reusable_source = resolve_reusable_package_source(previous_state, package_type, target_dir, marker_path)
                 if package_type == "library" and isinstance(library_delta_context, dict) and library_delta_context.get("indexReconciled"):
@@ -2770,37 +3408,16 @@ def main() -> int:
                     and reusable_source is not None
                     and isinstance(library_delta_context, dict)
                 ):
-                    try:
-                        package_snapshot_paths[package_type] = with_transient_retry(
-                            lambda: sync_library_app_artifacts_delta(
-                                reusable_source,
-                                target_dir,
-                                marker_path,
-                                manifest_bundle,
-                                snapshot_root,
-                                str(applied_dataset_version),
-                                library_delta_context,
-                            ),
-                            label="library app artifacts delta",
-                        )
-                    except AppStoreTransientError:
-                        raise
-                    except Exception as exc:
-                        log(f"[platform-assets] app-level library delta unavailable, falling back to library package delta: {exc}")
-                        package_snapshot_paths[package_type] = with_transient_retry(
-                            lambda: sync_library_package_delta(
-                                reusable_source,
-                                target_dir,
-                                marker_path,
-                                channel,
-                                artifact_base,
-                                manifest_bundle,
-                                snapshot_root,
-                                str(applied_dataset_version),
-                                library_delta_context,
-                            ),
-                            label="library package delta",
-                        )
+                    package_snapshot_paths[package_type] = sync_library_app_artifacts_delta(
+                        reusable_source,
+                        target_dir,
+                        marker_path,
+                        manifest_bundle,
+                        snapshot_root,
+                        str(applied_dataset_version),
+                        library_delta_context,
+                        prefetched_source=prefetched_sources.get("library"),
+                    )
                     continue
                 snapshot_paths = with_transient_retry(
                     lambda: sync_package(
@@ -2820,9 +3437,6 @@ def main() -> int:
                 if snapshot_paths:
                     package_snapshot_paths[package_type] = snapshot_paths
 
-            if prefetch_root is not None:
-                shutil.rmtree(prefetch_root, ignore_errors=True)
-
         # Keep the shared dictionaries current. They ship inside the full package only, so an
         # installation that keeps taking per-app deltas would otherwise freeze the dictionaries
         # at whatever version its last full sync carried — including dictionary-only releases
@@ -2830,6 +3444,7 @@ def main() -> int:
         dictionary_reports: dict[str, dict[str, str]] = {}
         if should_skip_package_sync:
             verify_library_source(library_root, manifest_bundle)
+        verify_catalog_source(media_root, manifest_bundle)
         for dictionary_entry_key, dictionary_filename in SHARED_DICTIONARIES:
             report = with_transient_retry(
                 lambda entry_key=dictionary_entry_key, filename=dictionary_filename: sync_shared_dictionary(
@@ -2837,6 +3452,7 @@ def main() -> int:
                     library_dictionary_targets(library_root, package_snapshot_paths, filename),
                     entry_key=entry_key,
                     filename=filename,
+                    prefetched_source=prefetched_dictionaries.get(entry_key),
                 ),
                 label=f"{dictionary_entry_key} dictionary sync",
             )
@@ -2866,7 +3482,21 @@ def main() -> int:
         if not package_snapshot_paths and isinstance(previous_state.get("snapshots"), dict):
             package_snapshot_paths = dict(previous_state["snapshots"])
 
+        validate_runtime_asset_roots(media_root, library_root)
+        media_snapshots = package_snapshot_paths.get("media", {})
+        generated = {
+            f"app-store-manifest_{locale}.json": json.loads(
+                (media_root / "json" / f"app-store-manifest_{locale}.json").read_bytes()
+            )
+            for locale in ("en", "zh")
+        }
+        publish_json_files({
+            Path(path) / "json" / name: payload
+            for path in media_snapshots.values()
+            for name, payload in generated.items()
+        })
         state_payload: dict[str, object] = {
+            "syncStatus": "ready",
             "channel": channel,
             "schemaVersion": latest_schema_version,
             "datasetVersion": applied_dataset_version,
@@ -2877,7 +3507,21 @@ def main() -> int:
             "snapshotRoot": str(snapshot_root),
             "snapshots": package_snapshot_paths,
             "packageSyncPlan": package_sync_plan,
+            "assetDigests": {
+                "media": tree_content_fingerprint(media_root),
+                "library": tree_content_fingerprint(library_root),
+            },
+            "manifests": {
+                "root": manifest_bundle["appstore_manifest"],
+                "catalog": manifest_bundle["catalog_manifest"],
+                "library": manifest_bundle["library_manifest"],
+                "appsIndex": (manifest_bundle.get("_verified_library_json") or {}).get("appsIndex"),
+            },
         }
+        for component in ("catalog", "library"):
+            component_manifest = manifest_bundle.get(f"{component}_manifest")
+            if isinstance(component_manifest, dict) and component_manifest.get("schemaVersion"):
+                state_payload[f"{component}SchemaVersion"] = component_manifest["schemaVersion"]
         if latest_catalog_dsv is not None:
             state_payload["catalogDatasetVersion"] = latest_catalog_dsv
         if latest_library_dsv is not None:
@@ -2888,6 +3532,8 @@ def main() -> int:
             if isinstance(digest, str) and digest:
                 state_payload[state_key] = digest
         write_sync_state(sync_state_path, state_payload)
+        if sync_mode != "build":
+            write_runtime_assets_status("ready", dataset_version=applied_dataset_version)
         log(f"[platform-assets] completed app store manifest build (mode={sync_mode})")
 
         try:
@@ -2900,40 +3546,62 @@ def main() -> int:
         except OSError as exc:
             log(f"[platform-assets] dataset committed; stale dataset cleanup failed: {exc}")
     except AppStoreCompatibilityError as exc:
+        rollback_ok = True
         if rollback_backups:
             try:
                 restore_trees(rollback_backups)
                 log("[platform-assets] restored active assets after incompatible appstore update")
             except Exception as rollback_exc:
+                rollback_ok = False
                 log(f"[platform-assets] failed to restore active assets after incompatible update: {rollback_exc}")
+        if updating_assets:
+            restore_runtime_assets_status(previous_availability, rollback_ok)
         incompatible_state = dict(previous_state)
+        incompatible_state.pop("lastSyncError", None)
         incompatible_state.update(
             {
                 "syncStatus": "incompatible",
                 "lastSyncAttemptAt": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-                "incompatibility": {"message": str(exc)},
+                "incompatibility": {"message": str(exc), "upgradeRequired": exc.upgrade_required},
             }
         )
         write_sync_state(sync_state_path, incompatible_state)
-        log(f"[platform-assets] app store update requires a Websoft9 upgrade: {exc}")
+        log(f"[platform-assets] app store update is incompatible: {exc}")
         return 1
     except Exception as exc:
+        rollback_ok = True
         if rollback_backups:
             try:
                 restore_trees(rollback_backups)
                 log("[platform-assets] restored active assets after failed sync")
             except Exception as rollback_exc:
+                rollback_ok = False
                 log(f"[platform-assets] failed to restore active assets after sync failure: {rollback_exc}")
+        if updating_assets:
+            restore_runtime_assets_status(previous_availability, rollback_ok)
         log(f"[platform-assets] asset sync failed (mode={sync_mode}): {exc}")
+        failure_state = dict(previous_state)
+        failure_state.pop("incompatibility", None)
+        failure_state.update(
+            syncStatus="failed",
+            lastSyncAttemptAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            lastSyncError=str(exc),
+        )
+        try:
+            write_sync_state(sync_state_path, failure_state)
+        except OSError as state_exc:
+            log(f"[platform-assets] failed to persist sync failure: {state_exc}")
         return 1
     finally:
         if prefetch_root is not None:
             shutil.rmtree(prefetch_root, ignore_errors=True)
         if rollback_root is not None:
             shutil.rmtree(rollback_root, ignore_errors=True)
+        if sync_lock is not None:
+            sync_lock.close()
 
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(recover_runtime_assets() if sys.argv[1:] == ["--recover-only"] else main())

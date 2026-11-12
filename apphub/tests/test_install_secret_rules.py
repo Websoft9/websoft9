@@ -254,3 +254,41 @@ def test_a_missing_dictionary_leaves_the_instance_env_untouched(tmp_path, monkey
 
     assert "secret rules" in error.value.details
     assert (directory / ".env").read_text(encoding="utf-8") == original
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_jwt_signer_resolves_nested_final_values_and_retry_preserves_raw_references(tmp_path, monkeypatch, override):
+    template = {"JWT_SECRET": "${ALIAS}", "ALIAS": "prefix-$SEED", "SEED": "a1" * 32, "ANON_KEY": JWT_TEMPLATE}
+    declarations = [{"ANON_KEY": "jwt:JWT_SECRET"}, "JWT_SECRET", "SEED"]
+    directory = _instance(tmp_path, monkeypatch, template, declarations)
+    settings = {"SEED": "b2" * 32} if override else {}
+    initialize_install_secrets(directory, "app", "supabase", settings)
+    values = dotenv_values(directory / ".env", interpolate=False)
+    assert values["JWT_SECRET"] == "${ALIAS}"
+    assert values["ALIAS"] == "prefix-$SEED"
+    seed = settings.get("SEED", values["SEED"])
+    assert matches_rule(
+        "ANON_KEY", "jwt:JWT_SECRET", values["ANON_KEY"], validate_secret_rules(RULES), lambda _: f"prefix-{seed}"
+    )
+    retry = _instance(tmp_path, monkeypatch, template, declarations)
+    initialize_install_secrets(retry, "app", "supabase", settings)
+    assert dotenv_values(retry / ".env", interpolate=False) == values
+
+
+@pytest.mark.parametrize(
+    "references",
+    [
+        {"JWT_SECRET": "${ALIAS}", "ALIAS": "$JWT_SECRET"},
+        {"JWT_SECRET": "${MISSING}"},
+        {"JWT_SECRET": "${EMPTY}", "EMPTY": ""},
+        {"JWT_SECRET": "${SEED:-fallback}", "SEED": "synthetic"},
+        {"JWT_SECRET": "$$SEED", "SEED": "synthetic"},
+    ],
+)
+def test_invalid_jwt_signer_references_do_not_write_env_or_secret_cache(tmp_path, monkeypatch, references):
+    directory = _instance(tmp_path, monkeypatch, {**references, "ANON_KEY": JWT_TEMPLATE}, [{"ANON_KEY": "jwt:JWT_SECRET"}])
+    original = (directory / ".env").read_bytes()
+    with pytest.raises(CustomException):
+        initialize_install_secrets(directory, "app", "supabase")
+    assert (directory / ".env").read_bytes() == original
+    assert not list((tmp_path / "data/config/apphub/install-secrets").glob("*.json"))

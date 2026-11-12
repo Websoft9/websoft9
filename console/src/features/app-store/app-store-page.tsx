@@ -41,10 +41,12 @@ import { getContentScopeContainer, useContentScopeRect, type ContentScopeRect } 
 import { useAppColorMode } from '../../app/providers/color-mode'
 import {
     getAppStoreInstallDistributions,
+    getAppStoreSyncFeedback,
     getPreferredAppStoreInstallDistribution,
     getPreferredAppStoreScreenshot,
     getAppStoreVersionSummary,
     matchesAppStoreSearch,
+    resolveAppStoreNotice,
     type AppStoreCatalogItem,
     type AppStoreApp,
 } from './app-store-model'
@@ -231,8 +233,10 @@ type AppStoreSyncStatusResponse = {
 }
 
 type AppStoreStateResponse = {
-    syncStatus?: 'ready' | 'incompatible'
-    incompatibility?: { message?: string } | null
+    assetsStatus?: 'ready' | 'updating' | 'unavailable'
+    syncStatus?: 'ready' | 'incompatible' | 'failed'
+    incompatibility?: { message?: string; upgradeRequired?: boolean } | null
+    lastSyncError?: string | null
     channel?: string
     datasetVersion?: string
     catalogDatasetVersion?: string
@@ -986,8 +990,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const effectiveIsLoading = isLoading || isLocalRefreshing
     const effectiveIsSyncRunning = isRefreshingStore || appStoreSyncStatus?.status === 'running'
     const lastSyncedAt = appStoreSyncStatus?.lastSyncedAt ?? appStoreState?.lastSyncedAt
-    const isAppStoreIncompatible = appStoreState?.syncStatus === 'incompatible'
-    const appStoreIncompatibilityDetail = (
+    const areAppStoreAssetsUnavailable = appStoreState?.assetsStatus === 'unavailable' || appStoreState?.assetsStatus === 'updating'
+    const appStoreNotice = resolveAppStoreNotice(appStoreState?.syncStatus, appStoreState?.assetsStatus)
+    const appStoreIncompatibilityDetail = appStoreState?.incompatibility?.upgradeRequired ? (
         <>
             {t('appStorePage.incompatibility.detailPrefix')}
             <Link
@@ -999,7 +1004,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             </Link>
             {t('appStorePage.incompatibility.detailSuffix')}
         </>
-    )
+    ) : t('appStorePage.incompatibility.unsupportedContract')
+    const appStoreNoticeDetail = appStoreNotice?.detailKind === 'incompatible'
+        ? appStoreIncompatibilityDetail
+        : appStoreNotice?.detailKind === 'assetsUnavailable'
+            ? t('appStorePage.feedback.assetsUnavailable')
+            : t('appStorePage.feedback.refreshFailed')
 
     const [isRelatedSectionCollapsed, setIsRelatedSectionCollapsed] = useState(false)
     const [isAllAppsSectionCollapsed, setIsAllAppsSectionCollapsed] = useState(false)
@@ -1887,6 +1897,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         if (!selectedApp) {
             return
         }
+        if (selectedApp.app_origin !== 'local' && areAppStoreAssetsUnavailable) {
+            setInstallError(t('appStorePage.feedback.assetsUnavailable'))
+            return
+        }
 
         const normalizedAppId = normalizeInstallName(installName)
         setInstallFieldErrors({})
@@ -2335,12 +2349,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 refetchAppStoreState(),
             ])
                 .then(([, , , stateResult]) => {
-                    const incompatibilityMessage = stateResult.data?.incompatibility?.message
+                    const feedback = getAppStoreSyncFeedback(stateResult.data?.syncStatus, stateResult.isError)
                     setRefreshFeedback({
-                        severity: incompatibilityMessage ? 'error' : 'success',
-                        message: incompatibilityMessage
-                            ? t('appStorePage.feedback.upgradeRequired')
-                            : t('appStorePage.feedback.refreshComplete'),
+                        severity: feedback.severity,
+                        message: t(feedback.messageKey),
                     })
                 })
                 .catch(() => {
@@ -2769,11 +2781,11 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     </Box>
                                 )}
                             />
-                            {isAppStoreIncompatible ? (
+                            {appStoreNotice ? (
                                 <SurfaceNoticeAlert
-                                    severity="warning"
-                                    title={t('appStorePage.incompatibility.title')}
-                                    detail={appStoreIncompatibilityDetail}
+                                    severity={appStoreNotice.severity}
+                                    title={t(appStoreNotice.titleKey)}
+                                    detail={appStoreNoticeDetail}
                                     darkMode={isDarkMode}
                                 />
                             ) : null}
@@ -4312,7 +4324,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             </Button>
                                         ) : null}
                                         <Button
-                                            disabled={isSubmittingInstall || installPreparationPending || imageCheckFailed}
+                                            disabled={isSubmittingInstall || installPreparationPending || imageCheckFailed || (selectedApp?.app_origin !== 'local' && areAppStoreAssetsUnavailable)}
                                             onClick={() => {
                                                 if (isPrewarmActive) {
                                                     setInstallConfirmOpen(true)
@@ -4394,11 +4406,11 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     {t('appStorePage.actions.syncNever')}
                                 </Typography>
                             )}
-                            {isAppStoreIncompatible ? (
+                            {appStoreNotice ? (
                                 <SurfaceNoticeAlert
-                                    severity="warning"
-                                    title={t('appStorePage.incompatibility.lastSyncTitle')}
-                                    detail={appStoreIncompatibilityDetail}
+                                    severity={appStoreNotice.severity}
+                                    title={t(appStoreNotice.titleKey)}
+                                    detail={appStoreNoticeDetail}
                                     darkMode={isDarkMode}
                                 />
                             ) : null}

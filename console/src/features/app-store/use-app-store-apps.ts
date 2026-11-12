@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { resolveAppCatalogLocale } from '../../shared/i18n/i18n'
 import { withoutExternalDatabaseProfiles } from './external-database-profiles'
+import { fetchAppStoreJson, fetchAppStoreWithFallback } from './app-store-fetch'
 import type { AppStoreApp } from './app-store-model'
 
 type AppStoreError = Error & {
@@ -10,46 +11,28 @@ type AppStoreError = Error & {
 }
 
 type AppStoreManifest = {
+    schemaVersion?: string
+    locale?: string
     apps?: AppStoreApp[]
 }
 
-async function fetchJson<T>(url: string, errorMessage: string) {
-    const response = await fetch(url, {
-        headers: {
-            Accept: 'application/json',
-        },
-    })
-
-    if (!response.ok) {
-        const error = new Error(`${errorMessage}: ${response.status}`) as AppStoreError
-        error.statusCode = response.status
-        throw error
-    }
-
-    return (await response.json()) as T
-}
-
 async function fetchAppStoreAppsFromStaticAssets(apiLocale: string) {
-    const manifest = await fetchJson<AppStoreManifest>(
+    const manifest = await fetchAppStoreJson<AppStoreManifest>(
         `/media/json/app-store-manifest_${apiLocale}.json`,
         'Failed to load static app store manifest',
     )
-    if (!Array.isArray(manifest.apps)) {
-        throw new Error('Static app store manifest has no apps array')
+    if (manifest.schemaVersion !== '1' || manifest.locale !== apiLocale || !Array.isArray(manifest.apps)) {
+        throw new Error('Static app store manifest has an invalid schema, locale or apps array')
     }
     return withoutExternalDatabaseProfiles(manifest.apps)
 }
 
-async function fetchAppStoreAppsFromApi(apiLocale: string) {
-    return fetchJson<AppStoreApp[]>(`/api/apps/available/${apiLocale}`, 'Failed to load app store data')
-}
-
 async function fetchAppStoreApps(apiLocale: string) {
-    try {
-        return await fetchAppStoreAppsFromApi(apiLocale)
-    } catch {
-        return fetchAppStoreAppsFromStaticAssets(apiLocale)
-    }
+    return fetchAppStoreWithFallback(
+        `/api/apps/available/${apiLocale}`,
+        'Failed to load app store data',
+        () => fetchAppStoreAppsFromStaticAssets(apiLocale),
+    )
 }
 
 export function useAppStoreApps() {

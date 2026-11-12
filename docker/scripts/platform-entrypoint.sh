@@ -12,6 +12,7 @@ strict_status_interval="${WEBSOFT9_STRICT_STATUS_INTERVAL:-1800}"
 platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-$data_root/logs/platform-runtime.log}"
 product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-$data_root/product-auth/credential.json}"
 appstore_startup_state_file="${WEBSOFT9_APPSTORE_STARTUP_STATE_FILE:-$data_root/config/appstore_startup_state.json}"
+appstore_sync_script="${WEBSOFT9_PLATFORM_ASSET_SYNC_SCRIPT:-/websoft9/script/platform-sync-runtime-assets.py}"
 service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-$data_root/logs}"
 custom_root="${WEBSOFT9_CUSTOM_ROOT:-$data_root/config}"
 platform_network_name="${WEBSOFT9_PLATFORM_NETWORK_NAME:-websoft9}"
@@ -234,7 +235,7 @@ sync_appstore_assets() {
   output_file="$(mktemp)"
 
   log_event "info" "appstore-sync.start" "phase=runtime-bootstrap action=sync-appstore-assets"
-  if /websoft9/script/platform-sync-runtime-assets.py >"$output_file" 2>&1; then
+  if "$appstore_sync_script" >"$output_file" 2>&1; then
     log_appstore_sync_output "info" "appstore-sync.output" "$output_file"
     rm -f "$output_file"
     write_appstore_startup_state "completed" "runtime appstore synchronization completed"
@@ -524,6 +525,9 @@ main() {
   ensure_data_managed_paths
   log_event "info" "runtime.start" "Starting Websoft9 converged product runtime"
   write_status "starting" "bootstrap started"
+  if ! "$appstore_sync_script" --recover-only; then
+    log_event "warning" "appstore-recovery.unavailable" "No verified Appstore baseline; official browsing and installation remain blocked until sync succeeds"
+  fi
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
   sync_runtime_config base
   ensure_product_runtime_state

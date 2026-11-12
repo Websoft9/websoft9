@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import type { AppStoreCatalogItem } from './app-store-model'
+import { fetchAppStoreJson, fetchAppStoreWithFallback } from './app-store-fetch'
 
 type AppStoreCatalogError = Error & {
     statusCode?: number
@@ -9,22 +10,6 @@ type AppStoreCatalogError = Error & {
 
 function mapLocaleToApiLocale(locale: string) {
     return locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
-}
-
-async function fetchCatalogJson<T>(url: string, errorMessage: string) {
-    const response = await fetch(url, {
-        headers: {
-            Accept: 'application/json',
-        },
-    })
-
-    if (!response.ok) {
-        const error = new Error(`${errorMessage}: ${response.status}`) as AppStoreCatalogError
-        error.statusCode = response.status
-        throw error
-    }
-
-    return (await response.json()) as T
 }
 
 function sortCatalogs(items: AppStoreCatalogItem[]) {
@@ -46,11 +31,11 @@ function sortCatalogs(items: AppStoreCatalogItem[]) {
 }
 
 async function fetchCatalogs(apiLocale: string) {
-    try {
-        return await fetchCatalogJson<AppStoreCatalogItem[]>(`/media/json/catalog_${apiLocale}.json`, 'Failed to load static app store catalogs')
-    } catch {
-        return fetchCatalogJson<AppStoreCatalogItem[]>(`/api/apps/catalog/${apiLocale}`, 'Failed to load app store catalogs')
-    }
+    return fetchAppStoreWithFallback(
+        `/api/apps/catalog/${apiLocale}`,
+        'Failed to load app store catalogs',
+        () => fetchAppStoreJson<AppStoreCatalogItem[]>(`/media/json/catalog_${apiLocale}.json`, 'Failed to load static app store catalogs'),
+    )
 }
 
 export function useAppStoreCatalogs() {

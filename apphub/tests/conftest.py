@@ -1,7 +1,16 @@
+import json
 import os
 import tempfile
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_appstore_runtime_state(tmp_path, monkeypatch):
+    """Model a completed bootstrap without touching the machine's runtime marker."""
+    state = tmp_path / "appstore-assets.json"
+    state.write_text(json.dumps({"status": "ready", "datasetVersion": "unit-test-snapshot"}))
+    monkeypatch.setenv("WEBSOFT9_APPSTORE_RUNTIME_STATE_FILE", str(state))
 
 
 @pytest.fixture(autouse=True)

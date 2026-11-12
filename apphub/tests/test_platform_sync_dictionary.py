@@ -325,8 +325,9 @@ def test_a_missing_dictionary_triggers_one_repair_request_on_the_fast_path(tmp_p
                 "library": {"datasetVersion": "lib-1", "manifest": "library/manifest.json"},
             }
         if url.endswith("catalog/manifest.json"):
-            return {"datasetVersion": "cat-1"}
+            return {"schemaVersion": "1", "datasetVersion": "cat-1"}
         return {
+            "schemaVersion": "1",
             "datasetVersion": "lib-1",
             "metadata": {"databaseTypes": {"path": "metadata/database-types-x.json", "sha256": DICTIONARY_SHA256}},
         }
@@ -350,12 +351,12 @@ def test_a_missing_dictionary_triggers_one_repair_request_on_the_fast_path(tmp_p
         },
     )
 
-    assert bundle["componentManifestsSkipped"] is True
+    assert len(requested) == 3
     assert bundle["library_manifest"] is not None
-    assert requested[-1] == "https://artifact.example.test/appstore/dev/library/manifest.json"
+    assert "https://artifact.example.test/appstore/dev/library/manifest.json" in requested
 
 
-def test_an_intact_dictionary_keeps_the_fast_path_at_one_request(tmp_path, monkeypatch):
+def test_an_old_root_checks_component_schemas_even_when_dictionaries_are_intact(tmp_path, monkeypatch):
     library_root = tmp_path / "library"
     dictionary = library_root / "metadata" / "database-types.json"
     dictionary.parent.mkdir(parents=True)
@@ -364,6 +365,10 @@ def test_an_intact_dictionary_keeps_the_fast_path_at_one_request(tmp_path, monke
 
     def fake_download(url):
         requested.append(url)
+        if "/catalog/" in url:
+            return {"schemaVersion": "1", "datasetVersion": "cat-1"}
+        if "/library/" in url:
+            return {"schemaVersion": "1", "datasetVersion": "lib-1"}
         return {
             "schemaVersion": "1",
             "datasetVersion": "root-1",
@@ -372,6 +377,7 @@ def test_an_intact_dictionary_keeps_the_fast_path_at_one_request(tmp_path, monke
         }
 
     monkeypatch.setattr(runtime_assets, "download_json", fake_download)
+    monkeypatch.setattr(runtime_assets, "download_verified_json", fake_download)
     monkeypatch.delenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC", raising=False)
     monkeypatch.setenv("WEBSOFT9_LIBRARY_ROOT", str(library_root))
 
@@ -388,7 +394,7 @@ def test_an_intact_dictionary_keeps_the_fast_path_at_one_request(tmp_path, monke
         },
     )
 
-    assert requested == ["https://artifact.example.test/appstore/dev/manifests/appstore-manifest.json"]
+    assert len(requested) == 3
 
 
 # ── torn publication, retries and partial activation ────────────────
@@ -399,9 +405,9 @@ def test_a_library_manifest_from_another_dataset_is_a_transient_error(tmp_path, 
 
     def fake_download(url):
         if url.endswith("library/manifest.json"):
-            return {"datasetVersion": "lib-old"}
+            return {"schemaVersion": "1", "datasetVersion": "lib-old"}
         if url.endswith("catalog/manifest.json"):
-            return {"datasetVersion": "cat-1"}
+            return {"schemaVersion": "1", "datasetVersion": "cat-1"}
         return {
             "schemaVersion": "1",
             "datasetVersion": "root-new",
@@ -565,6 +571,7 @@ def _indexed_bundle():
         "appstore_manifest": {"channel": "dev", "library": {"datasetVersion": "lib-new"}},
         "library_manifest_url": "https://artifact.example.test/appstore/dev/library/manifest.json",
         "library_manifest": {
+            "schemaVersion": "1",
             "datasetVersion": "lib-new",
             "supportsPartialUpdate": True,
             "appsIndex": "apps-index.json",
@@ -575,12 +582,12 @@ def _indexed_bundle():
 
 
 @pytest.mark.parametrize("status", [404, 403, 503])
-def test_only_a_missing_root_manifest_allows_legacy_fallback(monkeypatch, status):
+def test_a_missing_root_is_distinguished_from_other_download_failures(monkeypatch, status):
     def failed_root(url):
         cause = runtime_assets.urllib.error.HTTPError(url, status, "failed", {}, None)
         raise runtime_assets.AppStoreTransientError("root unavailable") from cause
 
-    monkeypatch.setattr(runtime_assets, "download_json", failed_root)
+    monkeypatch.setattr(runtime_assets, "download_verified_json", failed_root)
     expected = runtime_assets.AppStoreManifestNotFoundError if status == 404 else runtime_assets.AppStoreTransientError
     with pytest.raises(expected):
         runtime_assets.fetch_appstore_manifests("https://example.test", "dev", "1", {}, False)
@@ -668,7 +675,14 @@ def test_declared_json_checksum_failures_never_become_legacy(monkeypatch, key, f
 
 @pytest.mark.parametrize(
     "field,value",
-    [("channel", "release"), ("channel", None), ("datasetVersion", "old"), ("datasetVersion", None), ("schemaVersion", "2")],
+    [
+        ("channel", "release"),
+        ("channel", None),
+        ("datasetVersion", "old"),
+        ("datasetVersion", None),
+        ("schemaVersion", "2"),
+        ("schemaVersion", "999"),
+    ],
 )
 def test_index_identity_must_match_the_bundle(monkeypatch, field, value):
     payload = _remote_index()
@@ -705,14 +719,18 @@ def test_component_versions_are_checked_on_normal_and_repair_paths(tmp_path, mon
         "catalog": {"manifest": "catalog/manifest.json", "datasetVersion": "cat"},
         "library": {"manifest": "library/manifest.json", "datasetVersion": "lib"},
     }
-    monkeypatch.setattr(runtime_assets, "download_json", lambda url: root)
     monkeypatch.setattr(
         runtime_assets,
         "download_verified_json",
         lambda url: (
-            {}
+            root
+            if url.endswith("appstore-manifest.json")
+            else {}
             if actual == "missing" and f"/{component}/" in url
-            else {"datasetVersion": actual if f"/{component}/" in url else "cat" if "/catalog/" in url else "lib"}
+            else {
+                "schemaVersion": "1",
+                "datasetVersion": actual if f"/{component}/" in url else "cat" if "/catalog/" in url else "lib",
+            }
         ),
     )
     monkeypatch.setenv("WEBSOFT9_LIBRARY_ROOT", str(tmp_path))
@@ -729,14 +747,18 @@ def test_manifest_channels_must_match_the_requested_channel(monkeypatch, compone
         "catalog": {"manifest": "catalog/manifest.json", "datasetVersion": "cat"},
         "library": {"manifest": "library/manifest.json", "datasetVersion": "lib"},
     }
-    monkeypatch.setattr(runtime_assets, "download_json", lambda url: root)
     monkeypatch.setattr(
         runtime_assets,
         "download_verified_json",
-        lambda url: {
-            "datasetVersion": "cat" if "/catalog/" in url else "lib",
-            "channel": "release" if f"/{component}/" in url else "dev",
-        },
+        lambda url: (
+            root
+            if url.endswith("appstore-manifest.json")
+            else {
+                "schemaVersion": "1",
+                "datasetVersion": "cat" if "/catalog/" in url else "lib",
+                "channel": "release" if f"/{component}/" in url else "dev",
+            }
+        ),
     )
 
     with pytest.raises(runtime_assets.AppStoreTransientError, match="channel does not match"):
@@ -934,7 +956,7 @@ def test_main_reconciles_indexes_and_validates_packages_before_activation(tmp_pa
     base = "https://artifact.example.test/appstore/dev"
     payloads = {
         f"{base}/manifests/appstore-manifest.json": root_manifest,
-        f"{base}/catalog/manifest.json": {"datasetVersion": "cat-new"},
+        f"{base}/catalog/manifest.json": {"schemaVersion": "1", "datasetVersion": "cat-new"},
         f"{base}/library/manifest.json": library_manifest,
         f"{base}/library/apps-index.json": _remote_index(new_apps),
         f"{base}/library/apps-delta.json": delta,
@@ -995,7 +1017,7 @@ def test_main_reconciles_indexes_and_validates_packages_before_activation(tmp_pa
         def unavailable_app_artifacts(*args):
             raise RuntimeError("app artifact unavailable")
 
-        monkeypatch.setattr(runtime_assets, "sync_library_app_artifacts_delta", unavailable_app_artifacts)
+        monkeypatch.setattr(runtime_assets, "prepare_library_app_artifacts_source", unavailable_app_artifacts)
     real_prepare = runtime_assets.prepare_package_source
     monkeypatch.setattr(
         runtime_assets,
@@ -1012,7 +1034,11 @@ def test_main_reconciles_indexes_and_validates_packages_before_activation(tmp_pa
         "partial-failure",
     }:
         assert result == 1
-        assert state_path.read_bytes() == original_state
+        failed_state = json.loads(state_path.read_bytes())
+        assert failed_state["syncStatus"] == "failed"
+        assert failed_state["lastSyncError"]
+        for key, value in json.loads(original_state).items():
+            assert failed_state[key] == value
         restored = {
             str(path.relative_to(tmp_path)): path.read_bytes()
             for root in (media, library, snapshots)
@@ -1094,6 +1120,392 @@ def test_current_bootstrap_delta_does_not_require_a_previous_version(monkeypatch
     }
     _serve_json(monkeypatch, payload)
     assert runtime_assets._fetch_library_json(_indexed_bundle(), "appsDelta") == payload
+
+
+@pytest.fixture
+def contract_v2(tmp_path, monkeypatch):
+    base = "https://contract.example.test/appstore/dev"
+    source_library = tmp_path / "source-library"
+    apps = _write_apps(source_library, {"wordpress": 80})
+    (source_library / "library.json").write_text('{"Version":"0.8.8","schemaVersion":"2"}')
+    (source_library / "metadata").mkdir()
+    (source_library / "metadata/database-types.json").write_bytes(DICTIONARY)
+    (source_library / "metadata/secret-rules.json").write_bytes(SECRET_RULES)
+    source_media = tmp_path / "source-media"
+    (source_media / "json").mkdir(parents=True)
+    for locale in ("en", "zh"):
+        (source_media / "json" / f"product_{locale}.json").write_text('[{"key":"wordpress","title":"WordPress"}]')
+        (source_media / "json" / f"catalog_{locale}.json").write_text("[]")
+    catalog_content = ",".join(
+        f"{name}={hashlib.sha256((source_media / 'json' / name).read_bytes()).hexdigest()}"
+        for name in ("catalog_en.json", "catalog_zh.json", "product_en.json", "product_zh.json")
+    )
+    catalog_version = hashlib.sha256(catalog_content.encode() + b"\0").hexdigest()[:16]
+    metadata = {
+        "databaseTypes": {"path": "metadata/database-types-test.json", "sha256": DICTIONARY_SHA256},
+        "secretRules": {"path": "metadata/secret-rules-test.json", "sha256": SECRET_RULES_SHA256},
+    }
+    root = {
+        "schemaVersion": "2",
+        "channel": "dev",
+        "datasetVersion": "a" * 16,
+        "catalog": {"schemaVersion": "1", "datasetVersion": catalog_version, "manifest": "catalog/manifest.json"},
+        "library": {"schemaVersion": "2", "datasetVersion": "b" * 16, "manifest": "library/manifest.json"},
+    }
+    payloads = {
+        f"{base}/manifests/appstore-manifest.json": root,
+        f"{base}/catalog/manifest.json": {
+            "schemaVersion": "1",
+            "datasetVersion": catalog_version,
+            "fullPackage": "full/latest.zip",
+            "checksum": {"fullPackage": "full/latest.zip.sha256"},
+        },
+        f"{base}/library/manifest.json": {
+            "schemaVersion": "2",
+            "channel": "dev",
+            "datasetVersion": "b" * 16,
+            "fullPackage": "full/latest.zip",
+            "appsIndex": "apps-index.json",
+            "appsDelta": "apps-delta.json",
+            "supportsPartialUpdate": True,
+            "metadata": metadata,
+            "checksum": {
+                "fullPackage": "full/latest.zip.sha256",
+                "appsIndex": "apps-index.json.sha256",
+                "appsDelta": "apps-delta.json.sha256",
+            },
+        },
+        f"{base}/library/apps-index.json": {
+            "schemaVersion": "2",
+            "channel": "dev",
+            "datasetVersion": "b" * 16,
+            "apps": apps,
+            "metadata": metadata,
+        },
+        f"{base}/library/apps-delta.json": {
+            "schemaVersion": "2",
+            "channel": "dev",
+            "fromVersion": "initial",
+            "toVersion": "b" * 16,
+            "addedApps": ["wordpress"],
+            "changedApps": [],
+            "removedApps": [],
+        },
+    }
+    artifacts = {
+        f"{base}/catalog/full/latest.zip": _zip_bytes(source_media / "json", "catalog"),
+        f"{base}/library/full/latest.zip": _zip_bytes(source_library, "library"),
+        f"{base}/library/apps/wordpress/latest.zip": _zip_bytes(source_library / "apps/wordpress", "wordpress"),
+        f"{base}/library/{metadata['databaseTypes']['path']}": DICTIONARY,
+        f"{base}/library/{metadata['secretRules']['path']}": SECRET_RULES,
+    }
+    requests, downloads = [], []
+
+    def raw(url):
+        if url in payloads:
+            return json.dumps(payloads[url], indent=2).encode()
+        return artifacts[url]
+
+    def serve(request, **kwargs):
+        requests.append(request.full_url)
+        return BytesIO(raw(request.full_url))
+
+    def checksum(url):
+        requests.append(url)
+        return hashlib.sha256(raw(url.removesuffix(".sha256"))).hexdigest()
+
+    def download(url, target):
+        downloads.append(url)
+        target.write_bytes(raw(url))
+
+    for name, value in {
+        "WEBSOFT9_MEDIA_ROOT": tmp_path / "media",
+        "WEBSOFT9_LIBRARY_ROOT": tmp_path / "library",
+        "WEBSOFT9_MEDIA_MARKER": tmp_path / "media/json/product_en.json",
+        "WEBSOFT9_LIBRARY_MARKER": tmp_path / "library/apps",
+        "WEBSOFT9_APP_STORE_SNAPSHOT_ROOT": tmp_path / "snapshots",
+        "WEBSOFT9_APP_STORE_SYNC_STATE": tmp_path / "state.json",
+        "WEBSOFT9_APPSTORE_SYNC_LOCK_FILE": tmp_path / "sync.lock",
+        "WEBSOFT9_APPSTORE_SYNC_PID_FILE": tmp_path / "sync.pid",
+    }.items():
+        monkeypatch.setenv(name, str(value))
+    monkeypatch.setenv("WEBSOFT9_ARTIFACT_BASE", "https://contract.example.test")
+    monkeypatch.setenv("WEBSOFT9_RUNTIME_ASSET_CHANNEL", "dev")
+    monkeypatch.delenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC", raising=False)
+    monkeypatch.delenv("WEBSOFT9_RUNTIME_ASSET_SYNC_MODE", raising=False)
+    monkeypatch.setattr(runtime_assets, "_APPSTORE_SYNC_RETRY_ATTEMPTS", 1)
+    monkeypatch.setattr(runtime_assets.urllib.request, "urlopen", serve)
+    monkeypatch.setattr(runtime_assets, "download_text", checksum)
+    monkeypatch.setattr(runtime_assets, "download_file", download)
+    return base, payloads, artifacts, requests, downloads
+
+
+def test_v2_cold_start_activates_full_contract_and_reuses_verified_manifests(tmp_path, contract_v2):
+    base, _, _, requests, downloads = contract_v2
+    assert runtime_assets.main() == 0
+    state = json.loads((tmp_path / "state.json").read_bytes())
+    assert state["schemaVersion"] == "2"
+    assert state["catalogSchemaVersion"] == "1"
+    assert state["librarySchemaVersion"] == "2"
+    assert state["manifests"]["appsIndex"]["schemaVersion"] == "2"
+    assert f"{base}/library/full/latest.zip" in downloads
+    assert not any(url.endswith("apps-delta.json") for url in requests)
+    for locale in ("en", "zh"):
+        display = json.loads((tmp_path / f"media/json/app-store-manifest_{locale}.json").read_bytes())
+        assert display["schemaVersion"] == "1"
+        assert display["apps"][0]["key"] == "wordpress"
+    requests.clear()
+    downloads.clear()
+    assert runtime_assets.main() == 0
+    assert requests == [
+        f"{base}/manifests/appstore-manifest.json",
+        f"{base}/manifests/appstore-manifest.json.sha256",
+    ]
+    assert downloads == []
+
+
+@pytest.mark.parametrize("old_schema", ["1", None])
+def test_contract_migration_requires_full_even_with_identical_app_hashes(tmp_path, contract_v2, old_schema):
+    base, payloads, _, requests, downloads = contract_v2
+    assert runtime_assets.main() == 0
+    state_path = tmp_path / "state.json"
+    state = json.loads(state_path.read_bytes())
+    state["schemaVersion"] = "1"
+    state["datasetVersion"] = "old-root"
+    state.pop("librarySchemaVersion")
+    index = json.loads((tmp_path / "library/apps-index.json").read_bytes())
+    if old_schema:
+        index["schemaVersion"] = old_schema
+    else:
+        index.pop("schemaVersion")
+    (tmp_path / "library/apps-index.json").write_text(json.dumps(index))
+    state_path.write_text(json.dumps(state))
+    payloads[f"{base}/library/apps-delta.json"]["fromVersion"] = "b" * 16
+    requests.clear()
+    downloads.clear()
+    assert runtime_assets.main() == 0
+    assert f"{base}/library/full/latest.zip" in downloads
+    assert not any(url.endswith("apps-delta.json") for url in requests)
+    assert json.loads(state_path.read_bytes())["librarySchemaVersion"] == "2"
+
+
+def test_v2_bootstrap_flag_cannot_be_bypassed_by_index_reconciliation(tmp_path, contract_v2):
+    base, payloads, _, requests, downloads = contract_v2
+    assert runtime_assets.main() == 0
+    payloads[f"{base}/manifests/appstore-manifest.json"]["datasetVersion"] = "d" * 16
+    payloads[f"{base}/library/manifest.json"]["supportsPartialUpdate"] = False
+    requests.clear()
+    downloads.clear()
+    assert runtime_assets.main() == 0
+    assert f"{base}/library/full/latest.zip" in downloads
+    assert not any(url.endswith("apps-delta.json") for url in requests)
+
+
+@pytest.mark.parametrize("change", ["app", "dictionary", "app-fallback"])
+def test_v2_same_contract_keeps_incremental_and_dictionary_only_updates(tmp_path, monkeypatch, contract_v2, change):
+    base, payloads, artifacts, _, downloads = contract_v2
+    assert runtime_assets.main() == 0
+    root = payloads[f"{base}/manifests/appstore-manifest.json"]
+    root["datasetVersion"] = "d" * 16
+    root["library"]["datasetVersion"] = "e" * 16
+    manifest = payloads[f"{base}/library/manifest.json"]
+    manifest["datasetVersion"] = "e" * 16
+    index = payloads[f"{base}/library/apps-index.json"]
+    index["datasetVersion"] = "e" * 16
+    delta = payloads[f"{base}/library/apps-delta.json"]
+    delta.update(fromVersion="b" * 16, toVersion="e" * 16, addedApps=[])
+    if change.startswith("app"):
+        app = tmp_path / "source-library/apps/wordpress"
+        (app / ".env").write_text("W9_HTTP_PORT_SET=90\n")
+        index["apps"][0]["hash"] = runtime_assets.app_content_fingerprint(app, "wordpress")
+        artifacts[f"{base}/library/apps/wordpress/latest.zip"] = _zip_bytes(app, "wordpress")
+        artifacts[f"{base}/library/full/latest.zip"] = _zip_bytes(tmp_path / "source-library", "library")
+        delta["changedApps"] = ["wordpress"]
+    else:
+        dictionary = DICTIONARY + b"\n"
+        digest = hashlib.sha256(dictionary).hexdigest()
+        manifest["metadata"]["databaseTypes"] = {"path": "metadata/database-types-next.json", "sha256": digest}
+        artifacts[f"{base}/library/metadata/database-types-next.json"] = dictionary
+    real_download = runtime_assets.download_file
+
+    def download_while_ready(url, target):
+        assert runtime_assets.load_sync_state(runtime_assets.runtime_assets_status_path())["status"] == "ready"
+        real_download(url, target)
+
+    monkeypatch.setattr(runtime_assets, "download_file", download_while_ready)
+    if change == "app-fallback":
+
+        def unavailable_app_artifacts(*args):
+            raise RuntimeError("app artifact unavailable")
+
+        monkeypatch.setattr(runtime_assets, "prepare_library_app_artifacts_source", unavailable_app_artifacts)
+    downloads.clear()
+    assert runtime_assets.main() == 0
+    assert (f"{base}/library/full/latest.zip" in downloads) == (change == "app-fallback")
+    if change.startswith("app"):
+        if change == "app":
+            assert f"{base}/library/apps/wordpress/latest.zip" in downloads
+        assert (tmp_path / "library/apps/wordpress/.env").read_text() == "W9_HTTP_PORT_SET=90\n"
+    else:
+        assert downloads == [f"{base}/library/metadata/database-types-next.json"]
+        assert (tmp_path / "library/metadata/database-types.json").read_bytes() == DICTIONARY + b"\n"
+    state = json.loads((tmp_path / "state.json").read_bytes())
+    assert state["syncStatus"] == "ready"
+    assert state["libraryDatasetVersion"] == "e" * 16
+
+
+def test_old_root_and_library_remain_supported_after_v2(tmp_path, contract_v2):
+    base, payloads, artifacts, _, downloads = contract_v2
+    assert runtime_assets.main() == 0
+    root = payloads[f"{base}/manifests/appstore-manifest.json"]
+    root["schemaVersion"] = "1"
+    root["datasetVersion"] = "old-root"
+    root["library"].pop("schemaVersion")
+    root["catalog"].pop("schemaVersion")
+    payloads[f"{base}/library/manifest.json"]["schemaVersion"] = "1"
+    payloads[f"{base}/library/apps-index.json"]["schemaVersion"] = "1"
+    (tmp_path / "source-library/library.json").write_text('{"Version":"0.8.7","schemaVersion":"1"}')
+    artifacts[f"{base}/library/full/latest.zip"] = _zip_bytes(tmp_path / "source-library", "library")
+    downloads.clear()
+    assert runtime_assets.main() == 0
+    state = json.loads((tmp_path / "state.json").read_bytes())
+    assert state["schemaVersion"] == "1"
+    assert state["librarySchemaVersion"] == "1"
+    assert state["syncStatus"] == "ready"
+    assert "incompatibility" not in state
+    assert f"{base}/library/full/latest.zip" in downloads
+
+
+@pytest.mark.parametrize("component", ["root", "catalog", "library"])
+@pytest.mark.parametrize("mode", ["runtime", "build"])
+def test_unknown_contract_is_rejected_before_no_change_or_payload_downloads(
+    tmp_path, monkeypatch, contract_v2, component, mode
+):
+    base, payloads, _, _, downloads = contract_v2
+    assert runtime_assets.main() == 0
+    state_path = tmp_path / "state.json"
+    previous = json.loads(state_path.read_bytes())
+    root = payloads[f"{base}/manifests/appstore-manifest.json"]
+    if component == "root":
+        root["schemaVersion"] = "999"
+    else:
+        root[component]["schemaVersion"] = "999"
+    monkeypatch.setenv("WEBSOFT9_RUNTIME_ASSET_SYNC_MODE", mode)
+    downloads.clear()
+    assert runtime_assets.main() == 1
+    state = json.loads(state_path.read_bytes())
+    assert state["syncStatus"] == "incompatible"
+    assert state["datasetVersion"] == previous["datasetVersion"]
+    assert state["manifests"] == previous["manifests"]
+    assert state["incompatibility"]["upgradeRequired"] is False
+    assert downloads == []
+
+
+@pytest.mark.parametrize(
+    "object_name",
+    ["root", "catalog", "library", "index", "future-leaf-schema", "embedded-schema", "embedded-dictionary", "catalog-content"],
+)
+def test_v2_torn_publication_keeps_previous_complete_snapshot(tmp_path, contract_v2, object_name):
+    base, payloads, artifacts, _, _ = contract_v2
+    assert runtime_assets.main() == 0
+    previous = json.loads((tmp_path / "state.json").read_bytes())
+    trees = {
+        str(p.relative_to(tmp_path)): p.read_bytes()
+        for name in ("media", "library", "snapshots")
+        for p in (tmp_path / name).rglob("*")
+        if p.is_file()
+    }
+    root = payloads[f"{base}/manifests/appstore-manifest.json"]
+    root["datasetVersion"] = "d" * 16
+    if object_name == "root":
+        root["library"]["schemaVersion"] = "1"
+    elif object_name == "catalog":
+        payloads[f"{base}/catalog/manifest.json"]["datasetVersion"] = "e" * 16
+    elif object_name == "library":
+        payloads[f"{base}/library/manifest.json"]["schemaVersion"] = "1"
+    elif object_name == "index":
+        payloads[f"{base}/library/apps-index.json"]["metadata"] = {}
+    elif object_name == "future-leaf-schema":
+        payloads[f"{base}/library/manifest.json"]["schemaVersion"] = "999"
+    elif object_name == "catalog-content":
+        root["catalog"]["datasetVersion"] = "e" * 16
+        payloads[f"{base}/catalog/manifest.json"]["datasetVersion"] = "e" * 16
+    else:
+        source = tmp_path / "source-library"
+        if object_name == "embedded-schema":
+            (source / "library.json").write_text('{"schemaVersion":"1"}')
+        else:
+            (source / "metadata/secret-rules.json").write_text("{}")
+        artifacts[f"{base}/library/full/latest.zip"] = _zip_bytes(source, "library")
+        payloads[f"{base}/library/manifest.json"]["supportsPartialUpdate"] = False
+    assert runtime_assets.main() == 1
+    state = json.loads((tmp_path / "state.json").read_bytes())
+    assert state["syncStatus"] == "failed"
+    assert state["datasetVersion"] == previous["datasetVersion"]
+    assert state["manifests"] == previous["manifests"]
+    assert trees == {
+        str(p.relative_to(tmp_path)): p.read_bytes()
+        for name in ("media", "library", "snapshots")
+        for p in (tmp_path / name).rglob("*")
+        if p.is_file()
+    }
+
+
+@pytest.mark.parametrize(
+    "path", ["manifests/appstore-manifest.json", "catalog/manifest.json", "library/manifest.json", "library/apps-index.json"]
+)
+def test_v2_checksum_404_is_not_an_optional_legacy_checksum(tmp_path, monkeypatch, contract_v2, path):
+    base, _, _, _, _ = contract_v2
+    original = runtime_assets.download_text
+
+    def missing_checksum(url):
+        if url == f"{base}/{path}.sha256":
+            raise runtime_assets.AppStoreTransientError("checksum absent") from runtime_assets.urllib.error.HTTPError(
+                url, 404, "missing", {}, None
+            )
+        return original(url)
+
+    monkeypatch.setattr(runtime_assets, "download_text", missing_checksum)
+    assert runtime_assets.main() == 1
+    state = json.loads((tmp_path / "state.json").read_bytes())
+    assert state["syncStatus"] == "failed"
+    assert "datasetVersion" not in state
+    assert not (tmp_path / "library/apps").exists()
+
+
+@pytest.mark.parametrize("status", ["failed", "incompatible"])
+def test_a_successful_retry_clears_failed_attempt_status_and_preserves_no_change_fast_path(tmp_path, contract_v2, status):
+    base, _, _, requests, downloads = contract_v2
+    assert runtime_assets.main() == 0
+    state_path = tmp_path / "state.json"
+    previous = json.loads(state_path.read_bytes())
+    previous.update(
+        syncStatus=status,
+        lastSyncError="previous checksum failure",
+        incompatibility={"message": "previous unsupported contract"},
+    )
+    state_path.write_text(json.dumps(previous))
+    requests.clear()
+    downloads.clear()
+    assert runtime_assets.main() == 0
+    state = json.loads(state_path.read_bytes())
+    assert state["syncStatus"] == "ready"
+    assert "lastSyncError" not in state
+    assert "incompatibility" not in state
+    assert requests == [f"{base}/manifests/appstore-manifest.json", f"{base}/manifests/appstore-manifest.json.sha256"]
+    assert downloads == []
+
+
+def test_root_404_never_uses_legacy_zip_fallback(tmp_path, monkeypatch, contract_v2):
+    def absent(url, *args):
+        raise runtime_assets.AppStoreTransientError("root absent") from runtime_assets.urllib.error.HTTPError(
+            url, 404, "missing", {}, None
+        )
+
+    monkeypatch.setattr(runtime_assets, "download_verified_json", absent)
+    monkeypatch.setattr(runtime_assets, "download_file", lambda *args: pytest.fail("must not download legacy ZIPs"))
+    assert runtime_assets.main() == 1
+    assert json.loads((tmp_path / "state.json").read_bytes())["syncStatus"] == "failed"
 
 
 @pytest.mark.parametrize(

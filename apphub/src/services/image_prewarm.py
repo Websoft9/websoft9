@@ -11,6 +11,7 @@ import yaml
 
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
+from src.services.appstore_availability import require_appstore_assets
 from src.services.image_pull import (
     ImagePullError,
     collect_compose_images,
@@ -24,6 +25,7 @@ class ImagePrewarmService:
     """Pull all images required by one supported application version."""
 
     def __init__(self, library_path: str | None = None, docker_client=None):
+        self._uses_official_library = not library_path
         self.library_path = Path(library_path or ConfigManager("system.ini").get_value("docker_library", "path"))
         self.docker_client = docker_client
 
@@ -72,6 +74,8 @@ class ImagePrewarmService:
         return {"app": app_name, "version": version, "ready": not missing, "images": images, "missing": missing}
 
     def _images_for(self, app_name: str, version: str) -> list[str]:
+        if self._uses_official_library:
+            require_appstore_assets()
         app_name = str(app_name or "").strip()
         version = str(version or "").strip()
         app_directory = self.library_path / app_name

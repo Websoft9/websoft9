@@ -45,6 +45,7 @@ from src.services.app_database_manager import AppDatabaseManager
 from src.services.app_manager import AppManger
 from src.services.app_status import get_app_custom_fields, request_install_cancel, save_app_custom_fields
 from src.services.apps_stream_cache import apps_stream_cache
+from src.services.appstore_availability import require_appstore_assets
 from src.services.common_check import install_validate
 from src.services.compose_install import (
     install_compose_application,
@@ -74,23 +75,36 @@ router = APIRouter()
 @router.post(
     "/apps/images/prewarm",
     status_code=202,
-    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
 )
 def enqueue_app_image_prewarm(
     payload: ImagePrewarmRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)
 ):
     service = ScheduledTaskService()
+    operator = service.auth_service._require_authenticated_operator(session_token)
+    require_appstore_assets()
     existing = service.get_prewarm_task(session_token, payload.app_name, payload.version)
     if existing and existing["queue_state"] in {"success", "failed", "cancelled"}:
         task = service.retry_prewarm(session_token, existing["task_id"], refresh=payload.refresh)
     else:
         task = service.enqueue_prewarm(session_token, payload.app_name, payload.version, refresh=payload.refresh)
     service.dispatch_prewarm()
-    operator = service.auth_service._require_authenticated_operator(session_token)
     return service._public_task(service._get_task(str(operator["id"]), task["task_id"]))
 
 
-@router.get("/apps/images/prewarm/status", responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}})
+@router.get(
+    "/apps/images/prewarm/status",
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
 def get_app_image_prewarm_status(
     app_name: str = Query(...),
     version: str = Query(...),
@@ -109,6 +123,7 @@ def get_app_image_prewarm_status(
         200: {"model": list[AppCatalogResponse]},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
     },
 )
 def get_catalog_apps(
@@ -125,6 +140,7 @@ def get_catalog_apps(
         200: {"model": list[AppAvailableResponse]},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
     },
 )
 def get_available_apps(
@@ -504,6 +520,7 @@ def submit_app_php_migration_request(
         200: {"model": AppInstallAcceptedResponse},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
     },
 )
 async def apps_install(
@@ -587,9 +604,11 @@ def cancel_app_install(app_id: str = Path(..., description="App ID whose image p
         200: {"model": dict},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
     },
 )
 def test_external_database_install_connection(payload: ExternalDatabaseConnectionTestRequest):
+    require_appstore_assets()
     library_path = ConfigManager("system.ini").get_value("docker_library", "path")
     app_directory = f"{library_path}/{payload.app_name}"
     if not is_external_database_profile(app_directory, payload.profile):

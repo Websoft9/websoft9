@@ -5,20 +5,23 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.5] - 2026-11-09
+## [2.4.5] - 2026-11-12
 
 ### Added
 - **Application Database Details** — Show the database connections an application actually uses in My Apps → Data, resolved from the `database[]` declaration in `variables.json` against the container environment, Compose environment, referenced `env_file` and project `.env`. One row per account, roles only when declared, external connections labelled, and unknown values shown as `—` instead of a guess.
 - **Database API** — Add `GET /api/apps/{id}/databases` with the resolved components, connections and accounts, plus the shared database type dictionary for engine defaults.
 - **External Databases Without Profile Files** — Derive the external database profile from the application declaration when `.env.external-db` is no longer shipped, using `providers[].external.drivers`, `providers[].internal.service` and `datasource`; existing profile files still take precedence.
-- **App Store Reload** — Add `POST /appstore/reload` and `websoft9 appstore reload [--json]` to rebuild the App Store catalogs from local assets; the previous refresh endpoint and CLI command remain as deprecated aliases.
+- **App Store Reload** — Add `POST /appstore/reload` and `websoft9 appstore reload [--json]` to rebuild the official and custom App Store catalogs from verified local assets under the shared synchronization lock, keeping snapshots and digests consistent while preserving the previous refresh endpoint and CLI command as deprecated aliases.
+- **Application Secrets** — Install applications whose startup secrets must be encoded or signed (Airflow, Dify, LobeHub, Semaphore UI, Supabase) and applications that use comma-separated secret lists such as Strapi `APP_KEYS`, resolving variable references to their final values before signing JWTs while keeping the original reference expressions in `.env`.
+- **Compose Workspace** — Warn before discarding unsaved edits when switching tabs or files, returning to the file list or leaving the page, and refresh in the background without losing the cursor, scroll position or unsaved text.
 
 ### Changed
-- **App Store Synchronization** — Align runtime synchronization with the published contract: per-app deltas now chain library dataset versions, the shared database dictionary is repaired even when versions match, and dictionary-only releases are applied.
-- **App Store Integrity** — Verify manifests, indexes and delta files against their declared checksums and expected dataset versions and channels, validate downloaded application content against the published fingerprint, and reconcile local and remote indexes so installations that skipped published versions download only changed applications.
-- **App Store Recovery** — Restore the previous assets and recorded dataset when a required dictionary, index or manifest step fails, keep partially completed synchronizations visibly incomplete until repaired, and retry transient download failures.
+- **App Store Contracts** — Support independent App Store root (`1`/`2`), catalog (`1`) and library (`1`/`2`) schema versions alongside the local browsing manifest schema, normalize flat and nested catalog packages before fingerprint checks, force a verified full package on library contract transitions, and distinguish unsupported contracts from transient sync failures in the Console without falling back to legacy ZIP archives.
+- **App Store Synchronization** — Chain per-app deltas on library dataset versions, reconcile local and remote app indexes so skipped publications only download changed applications, repair or update shared `database-types.json` and `secret-rules.json` dictionaries independently, and stage downloads and checks before entering activation so unchanged datasets and pre-activation fetches keep verified assets available.
+- **App Store Integrity and Offline Recovery** — Persist verified App Store release snapshots under `$WEBSOFT9_DATA_ROOT/appstore` alongside an image baseline at `/websoft9/appstore/image-state.json`, restore a complete verified Media/Library pair offline before services start on container recreation, gate official browsing, prewarm and installation with HTTP `503` (without static file fallback) when no verified pair is ready, roll back caught activation failures, and preserve operator-uploaded brand media across sync, reload and recovery.
 - **Console Layout** — Keep dialogs scoped to the content area when the window is resized or the sidebar collapses, and make scheduled tasks, settings forms and the My Apps detail layout responsive.
 - **Access Panel Localization** — Format the certificate expiry date with `Intl.DateTimeFormat` and a translated label.
+- **Access Panel Connections** — Show the addresses an application publishes for external clients and for other applications on the platform, including which container port a published port maps to.
 
 ### Fixed
 - **Installation Without Web Ports** — Apps that publish neither `W9_HTTP_PORT` nor `W9_HTTPS_PORT` now return a readable `400` and roll back the repository and stack instead of raising `UnboundLocalError`.
@@ -27,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Container Operations** — Return `404` for a missing container, tolerate `304`/`404` when restarting, preserve the original error details when removing stacks and volumes, and keep one broken stack from failing the whole Compose list.
 - **SSH Configuration** — Write the SFTP `sshd` configuration idempotently so repeated setup does not stack duplicate directives.
 - **Application Databases** — Preserve legacy rendering for installations without a `database[]` declaration and report an unknown authentication state instead of claiming no authentication is required.
+- **External Database Connections** — Show the external database connection of stopped applications again instead of unknown values.
 
 ## [2.4.4] - 2026-10-27
 

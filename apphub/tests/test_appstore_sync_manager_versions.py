@@ -69,3 +69,29 @@ def test_get_state_exposes_appstore_incompatibility(tmp_path, monkeypatch):
 
     assert state["syncStatus"] == "incompatible"
     assert state["incompatibility"] == {"message": "Please upgrade Websoft9"}
+
+
+def test_get_state_reports_failed_attempt_without_changing_active_dataset(tmp_path, monkeypatch):
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "syncStatus": "failed",
+                "datasetVersion": "previous",
+                "lastSyncedAt": "previous-success-time",
+                "lastSyncAttemptAt": "latest-attempt-time",
+                "lastSyncError": "checksum mismatch",
+                "catalogSchemaVersion": "1",
+                "librarySchemaVersion": "2",
+            }
+        )
+    )
+    monkeypatch.setenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(state_path))
+    state = AppStoreSyncManager().get_state()
+    assert state["syncStatus"] == "failed"
+    assert state["datasetVersion"] == "previous"
+    assert state["lastSyncedAt"] == "previous-success-time"
+    assert state["lastSyncAttemptAt"] == "latest-attempt-time"
+    assert state["lastSyncError"] == "checksum mismatch"
+    assert state["catalogSchemaVersion"] == "1"
+    assert state["librarySchemaVersion"] == "2"

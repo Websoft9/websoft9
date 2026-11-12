@@ -46,6 +46,7 @@ from src.services.app_status import (
     set_install_phase,
     start_app_installation,
 )
+from src.services.appstore_availability import require_appstore_assets
 from src.services.common_check import check_endpointId
 from src.services.external_database import (
     EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS,
@@ -692,6 +693,7 @@ class AppManger:
         Args:
             locale (str): The language to get catalog apps from.
         """
+        require_appstore_assets()
         try:
             normalized_locale = self._normalize_locale(locale)
             app_media_path = self._ensure_media_asset(f"catalog_{normalized_locale}.json")
@@ -711,6 +713,7 @@ class AppManger:
         Args:
             locale (str): The language to get available apps from.
         """
+        require_appstore_assets()
         normalized_locale = self._normalize_locale(locale)
         initial_apps = ConfigManager("config.ini").get_value("initial_apps", "keys")
         cache_key = f"available_apps_{normalized_locale}_{initial_apps or 'all'}"
@@ -1376,6 +1379,8 @@ class AppManger:
         tracking_id: str | None = None,
         library_path: str | None = None,
     ):
+        if not library_path and tracking_id is None:
+            require_appstore_assets()
         app_id = tracked_app_id or appInstall.app_id
         app_uuid = tracking_id or start_app_installation(app_id, appInstall.app_name)
         try:
@@ -1437,6 +1442,8 @@ class AppManger:
             appInstall (appInstall): The app install info.
             endpointId (int, optional): The endpoint id. Defaults to None.
         """
+        if not library_path:
+            require_appstore_assets()
         # Get the portainer and gitea manager
         portainerManager = PortainerManager()
         giteaManager = GiteaManager()

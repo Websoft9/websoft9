@@ -302,9 +302,9 @@ def test_appstore_compatibility_rejects_newer_websoft9_requirement():
         runtime_assets.check_appstore_compatibility({"schemaVersion": "1", "minWebsoft9Version": "2.4.1"}, "1", "2.4.0")
 
 
-def test_appstore_compatibility_rejects_mismatched_schema_without_legacy_fallback():
-    with pytest.raises(runtime_assets.AppStoreCompatibilityError, match="does not match the active local schemaVersion"):
-        runtime_assets.check_appstore_compatibility({"schemaVersion": "2"}, "1", "2.4.1")
+def test_appstore_compatibility_rejects_unknown_schema_without_legacy_fallback():
+    with pytest.raises(runtime_assets.AppStoreCompatibilityError, match="unsupported root schemaVersion"):
+        runtime_assets.check_appstore_compatibility({"schemaVersion": "999"}, None, "2.4.5")
 
 
 def test_replace_tree_keeps_published_manifests_readable(tmp_path, monkeypatch):
@@ -424,16 +424,20 @@ def test_sync_pid_marker_is_published_and_removed(tmp_path, monkeypatch):
     assert not pid_file.exists()
 
 
-def test_appstore_manifest_fetch_skips_component_manifests_for_active_dataset(monkeypatch):
+def test_old_root_without_schema_declarations_still_checks_component_manifests(monkeypatch):
     requested_urls = []
 
     def record_download(url):
         requested_urls.append(url)
+        if "/catalog/" in url:
+            return {"schemaVersion": "1", "datasetVersion": "catalog-1"}
+        if "/library/" in url:
+            return {"schemaVersion": "1", "datasetVersion": "library-1"}
         return {
             "schemaVersion": "1",
             "datasetVersion": "2026.09.11.120000",
-            "catalog": {"datasetVersion": "catalog-1"},
-            "library": {"datasetVersion": "library-1"},
+            "catalog": {"datasetVersion": "catalog-1", "manifest": "catalog/manifest.json"},
+            "library": {"datasetVersion": "library-1", "manifest": "library/manifest.json"},
         }
 
     monkeypatch.setattr(runtime_assets, "download_json", record_download)
@@ -455,10 +459,9 @@ def test_appstore_manifest_fetch_skips_component_manifests_for_active_dataset(mo
         },
     )
 
-    assert requested_urls == ["https://artifact.example.test/appstore/dev/manifests/appstore-manifest.json"]
-    assert bundle["componentManifestsSkipped"] is True
-    assert bundle["catalog_manifest"] is None
-    assert bundle["library_manifest"] is None
+    assert len(requested_urls) == 3
+    assert bundle["catalog_manifest"]["schemaVersion"] == "1"
+    assert bundle["library_manifest"]["schemaVersion"] == "1"
 
 
 def test_appstore_manifest_fetch_downloads_component_manifests_when_dataset_changes(monkeypatch):
@@ -469,9 +472,9 @@ def test_appstore_manifest_fetch_downloads_component_manifests_when_dataset_chan
         if url.endswith("library/manifest.json"):
             # The library manifest must agree with the root manifest, otherwise the fetch is
             # treated as a torn publication.
-            return {"datasetVersion": "library-2", "supportsPartialUpdate": True}
+            return {"schemaVersion": "1", "datasetVersion": "library-2", "supportsPartialUpdate": True}
         if url.endswith("catalog/manifest.json"):
-            return {"datasetVersion": "catalog-2"}
+            return {"schemaVersion": "1", "datasetVersion": "catalog-2"}
         return {
             "schemaVersion": "1",
             "datasetVersion": "2026.09.11.130000",
@@ -511,8 +514,8 @@ def test_fetch_appstore_manifests_downloads_root_manifest_once(monkeypatch):
             "catalog": {"manifest": "catalog/manifest.json"},
             "library": {"manifest": "library/manifest.json"},
         },
-        catalog_url: {},
-        library_url: {},
+        catalog_url: {"schemaVersion": "1"},
+        library_url: {"schemaVersion": "1"},
     }
 
     def download_json(url):
@@ -549,7 +552,7 @@ def test_fetch_appstore_manifests_downloads_component_manifests_concurrently(mon
         else:
             assert component_started.wait(timeout=1)
         assert release_components.wait(timeout=1)
-        return {}
+        return {"schemaVersion": "1"}
 
     monkeypatch.setattr(runtime_assets, "download_json", download_json)
     monkeypatch.setattr(runtime_assets, "download_verified_json", download_json)
@@ -574,6 +577,7 @@ def test_main_records_remote_schema_after_comparing_existing_local_manifests(tmp
     media_json.mkdir(parents=True)
     (library_root / "apps").mkdir(parents=True)
     for locale in ("zh", "en"):
+        (media_json / f"product_{locale}.json").write_text("[]")
         (media_json / f"app-store-manifest_{locale}.json").write_text(
             json.dumps({"schemaVersion": "1", "locale": locale, "apps": []}),
             encoding="utf-8",
@@ -582,7 +586,7 @@ def test_main_records_remote_schema_after_comparing_existing_local_manifests(tmp
     state_path = tmp_path / "state.json"
 
     def fetch_matching_remote_manifest(_artifact_base, _channel, local_schema_version):
-        assert local_schema_version == "1"
+        assert local_schema_version is None
         return {
             "appstore_manifest": {
                 "schemaVersion": "1",
@@ -590,8 +594,8 @@ def test_main_records_remote_schema_after_comparing_existing_local_manifests(tmp
                 "catalog": {"datasetVersion": "catalog-1"},
                 "library": {"datasetVersion": "library-1"},
             },
-            "catalog_manifest": {},
-            "library_manifest": {},
+            "catalog_manifest": {"schemaVersion": "1"},
+            "library_manifest": {"schemaVersion": "1"},
         }
 
     monkeypatch.setenv("WEBSOFT9_MEDIA_ROOT", str(media_root))
@@ -618,6 +622,7 @@ def test_main_skips_delta_requests_when_all_component_versions_are_active(tmp_pa
     media_json.mkdir(parents=True)
     (library_root / "apps").mkdir(parents=True)
     for locale in ("zh", "en"):
+        (media_json / f"product_{locale}.json").write_text("[]")
         (media_json / f"app-store-manifest_{locale}.json").write_text(
             json.dumps({"schemaVersion": "1", "locale": locale, "apps": []}),
             encoding="utf-8",
@@ -630,6 +635,12 @@ def test_main_skips_delta_requests_when_all_component_versions_are_active(tmp_pa
                 "datasetVersion": "2026.09.11.120000",
                 "catalogDatasetVersion": "catalog-1",
                 "libraryDatasetVersion": "library-1",
+                "catalogSchemaVersion": "1",
+                "librarySchemaVersion": "1",
+                "manifests": {
+                    "catalog": {"schemaVersion": "1", "datasetVersion": "catalog-1"},
+                    "library": {"schemaVersion": "1", "datasetVersion": "library-1"},
+                },
             }
         ),
         encoding="utf-8",
@@ -643,13 +654,27 @@ def test_main_skips_delta_requests_when_all_component_versions_are_active(tmp_pa
                 "catalog": {"datasetVersion": "catalog-1"},
                 "library": {"datasetVersion": "library-1"},
             },
-            "catalog_manifest": {},
-            "library_manifest": {},
+            "catalog_manifest": {"schemaVersion": "1", "datasetVersion": "catalog-1"},
+            "library_manifest": {"schemaVersion": "1", "datasetVersion": "library-1"},
         }
 
     def fail_delta_request(*_args):
         pytest.fail("unchanged Appstore data must not request delta metadata")
 
+    snapshot_root = tmp_path / "appstore"
+    state = json.loads(state_path.read_bytes())
+    state["snapshots"] = {
+        kind: {
+            key: str(value)
+            for key, value in runtime_assets.stage_snapshot(root, snapshot_root, state["datasetVersion"], kind).items()
+        }
+        for kind, root in (("media", media_root), ("library", library_root))
+    }
+    state["assetDigests"] = {
+        "media": runtime_assets.tree_content_fingerprint(media_root),
+        "library": runtime_assets.tree_content_fingerprint(library_root),
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
     monkeypatch.setenv("WEBSOFT9_MEDIA_ROOT", str(media_root))
     monkeypatch.setenv("WEBSOFT9_LIBRARY_ROOT", str(library_root))
     monkeypatch.setenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", str(tmp_path / "appstore"))
@@ -670,8 +695,9 @@ def test_main_backs_up_assets_when_unchanged_data_requires_manifest_rebuild(tmp_
     media_json.mkdir(parents=True)
     (library_root / "apps").mkdir(parents=True)
     for locale in ("zh", "en"):
+        (media_json / f"product_{locale}.json").write_text("[]")
         (media_json / f"app-store-manifest_{locale}.json").write_text(
-            json.dumps({"schemaVersion": "1", "locale": locale, "apps": []}),
+            json.dumps({"schemaVersion": "1", "locale": locale, "apps": "invalid"}),
             encoding="utf-8",
         )
     state_path = tmp_path / "state.json"
@@ -682,6 +708,12 @@ def test_main_backs_up_assets_when_unchanged_data_requires_manifest_rebuild(tmp_
                 "datasetVersion": "2026.09.11.120000",
                 "catalogDatasetVersion": "catalog-1",
                 "libraryDatasetVersion": "library-1",
+                "catalogSchemaVersion": "1",
+                "librarySchemaVersion": "1",
+                "manifests": {
+                    "catalog": {"schemaVersion": "1", "datasetVersion": "catalog-1"},
+                    "library": {"schemaVersion": "1", "datasetVersion": "library-1"},
+                },
             }
         ),
         encoding="utf-8",
@@ -696,8 +728,8 @@ def test_main_backs_up_assets_when_unchanged_data_requires_manifest_rebuild(tmp_
                 "catalog": {"datasetVersion": "catalog-1"},
                 "library": {"datasetVersion": "library-1"},
             },
-            "catalog_manifest": {},
-            "library_manifest": {},
+            "catalog_manifest": {"schemaVersion": "1", "datasetVersion": "catalog-1"},
+            "library_manifest": {"schemaVersion": "1", "datasetVersion": "library-1"},
         }
 
     def record_backup(targets, backup_root):
@@ -709,34 +741,33 @@ def test_main_backs_up_assets_when_unchanged_data_requires_manifest_rebuild(tmp_
     monkeypatch.setenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", str(tmp_path / "appstore"))
     monkeypatch.setenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(state_path))
     monkeypatch.setattr(runtime_assets, "fetch_appstore_manifests", fetch_unchanged_manifest)
-    monkeypatch.setattr(runtime_assets, "has_valid_published_app_store_manifests", lambda _media_root: False)
     monkeypatch.setattr(runtime_assets, "backup_trees", record_backup)
-    monkeypatch.setattr(runtime_assets, "build_and_publish_app_store_manifests", lambda *_args: None)
 
     assert runtime_assets.main() == 0
     assert len(backup_calls) == 1
 
 
-def test_main_rejects_runtime_update_without_any_local_schema(tmp_path, monkeypatch):
+def test_main_checks_remote_contract_even_without_any_local_schema(tmp_path, monkeypatch):
     media_root = tmp_path / "media"
     library_root = tmp_path / "library"
     (media_root / "json").mkdir(parents=True)
     (library_root / "apps").mkdir(parents=True)
     state_path = tmp_path / "state.json"
 
-    def fail_if_remote_manifest_is_requested(*_args):
-        pytest.fail("runtime update must not request a remote manifest without local schema information")
+    def reject_unknown_remote_schema(*args):
+        assert args[2] is None
+        runtime_assets.check_appstore_compatibility({"schemaVersion": "999"})
 
     monkeypatch.setenv("WEBSOFT9_MEDIA_ROOT", str(media_root))
     monkeypatch.setenv("WEBSOFT9_LIBRARY_ROOT", str(library_root))
     monkeypatch.setenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", str(tmp_path / "appstore"))
     monkeypatch.setenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(state_path))
-    monkeypatch.setattr(runtime_assets, "fetch_appstore_manifests", fail_if_remote_manifest_is_requested)
+    monkeypatch.setattr(runtime_assets, "fetch_appstore_manifests", reject_unknown_remote_schema)
 
     assert runtime_assets.main() == 1
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["syncStatus"] == "incompatible"
-    assert "schemaVersion is unavailable" in state["incompatibility"]["message"]
+    assert "unsupported root schemaVersion" in state["incompatibility"]["message"]
 
 
 def test_main_preserves_current_assets_when_appstore_is_incompatible(tmp_path, monkeypatch):
@@ -1087,7 +1118,14 @@ def test_main_restores_actual_trees_and_state_on_poststep_failure(tmp_path, monk
         monkeypatch.setattr(runtime_assets, "build_and_publish_app_store_manifests", fail_build)
 
     assert runtime_assets.main() == 1
-    assert state.read_bytes() == original_state
+    if failure == "state":
+        assert state.read_bytes() == original_state
+    else:
+        failed_state = json.loads(state.read_bytes())
+        assert failed_state["syncStatus"] == "failed"
+        assert failed_state["lastSyncError"]
+        for key, value in json.loads(original_state).items():
+            assert failed_state[key] == value
     assert all(not root.exists() for root in prefetch_dirs)
     restored = {
         str(path.relative_to(tmp_path)): path.read_bytes()

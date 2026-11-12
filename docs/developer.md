@@ -25,6 +25,124 @@ websoft9/
 └── docs/            # Documentation
 ```
 
+## App Store consumer contracts (2.4.5)
+
+The runtime sync consumer supports root protocols `1`/`2`, catalog contract `1`,
+and library contracts `1`/`2`. These are independent of the platform release
+version and the generated browsing manifest, which remains schema `1`.
+
+- Root protocol `1` reads each component's contract from its component manifest.
+  The local browsing schema is not a remote compatibility requirement.
+- Root protocol `2` validates declared component contracts before any no-change
+  shortcut. Root, component and index identities must agree. Root/component/index
+  checksums are required for new-contract publications, including on cold image builds.
+- Library contract changes or an unknown local contract require a verified full
+  package, not index reconciliation or app-level deltas. A publisher's
+  `supportsPartialUpdate: false` is also authoritative. Full contract-2 libraries
+  must contain matching `library.json` and both shared metadata dictionaries.
+- Unchanged verified root-2 snapshots reuse their cached component manifests and
+  index. Root-1 publications without component schema declarations still require
+  component requests. Dictionary-only updates and repairs remain independent of
+  application changes.
+- Catalog packages may contain the four JSON files directly below the archive's
+  wrapper directory (the current publisher layout), or under `json/`. The consumer
+  normalizes both layouts before validating the catalog fingerprint.
+- A complete unchanged dataset does not back up or rewrite assets or toggle
+  availability. Full packages, app deltas and changed dictionaries are prepared
+  and verified before activation while a trusted active dataset remains ready.
+  App-artifact fallback also prepares a verified full library before activation.
+  Official installs are still blocked during activation and rollback; an untrusted
+  or missing baseline is never opened while downloads are in progress.
+- The successful state caches publication manifests and component contract versions.
+  A failed attempt preserves active dataset metadata and reports `syncStatus:
+  failed` plus `lastSyncError`; unsupported contracts report `incompatible`.
+  Unknown future contracts do not imply that upgrading to the latest release fixes them.
+- A missing root never triggers legacy ZIP fallback. This change does not update,
+  delete or certify legacy ZIPs or modify historical Websoft9 clients.
+
+Run the focused Python regressions from the repository root:
+
+```bash
+python3 -m pytest -q --no-cov -p no:cacheprovider \
+  apphub/tests/test_appstore_manifest_builder.py \
+  apphub/tests/test_platform_sync_dictionary.py \
+  apphub/tests/test_install_secrets.py \
+  apphub/tests/test_install_secret_rules.py \
+  apphub/tests/test_appstore_sync_manager_versions.py \
+  apphub/tests/test_appstore_sync_router.py \
+  apphub/tests/test_platform_readiness.py \
+  apphub/tests/test_appstore_recovery.py \
+  apphub/tests/test_local_app_store.py
+cd console
+npm run typecheck
+npm run test:unit -- tests/unit/app-store-sync-feedback.spec.ts tests/unit/app-store-fetch.spec.ts
+```
+
+### Container recreation and offline recovery
+
+Runtime snapshots now default to `$WEBSOFT9_DATA_ROOT/appstore` (normally
+`/opt/websoft9/data/appstore`), not the container layer. Image builds separately
+save `/websoft9/appstore/image-state.json`, outside the host data mount.
+The successful state records complete Media/Library tree digests, verified
+publication manifests, component contracts and the app index.
+
+Before starting services, the entrypoint runs the sync script with
+`--recover-only`, without network requests. If the active trees and all six
+persistent snapshot directories already match the verified state, it marks the
+container ready without rewriting files. Otherwise it tries the saved release
+snapshot, then fully matching active assets, then the image baseline. Each
+candidate must validate as a complete pair: both languages' generated manifests
+and products, catalog fingerprint, app fingerprints, index, dictionaries and
+saved tree digests. Top-level UUID brand uploads written by `apphub-media` under
+`/websoft9/media` are preserved across sync, reload and recovery and excluded
+from App Store snapshot digests. It stages and checks both components before
+replacing either live tree. An old state without this verification record is not
+trusted; use a complete verified image baseline or a successful online
+synchronization instead.
+
+Availability is container-local at `/run/websoft9/appstore-assets.json`
+(`WEBSOFT9_APPSTORE_RUNTIME_STATE_FILE` overrides it). It is deliberately separate
+from the latest network synchronization result:
+
+- A recovered dataset remains usable if a later remote update is offline or
+  incompatible; the previous validated pair is retained.
+- Missing, corrupt or incomplete recovery blocks official browsing and installation
+  with HTTP 503. Active updates also block new official installs. Console must not
+  bypass this explicit response by falling back to static files; ordinary API or
+  network failures retain the previous static fallback behavior.
+- Startup continues when recovery fails so the platform can be repaired through
+  online synchronization. A successful sync clears the block. Explicit local
+  libraries, custom Compose installs and existing app operations are not gated.
+- File rollback handles caught activation failures, including state and destination
+  snapshots. It is not a crash-safe transaction or a multi-directory atomic switch.
+  Recovery validates the entire pair again after every container restart.
+
+Official catalog refresh shares the online sync lock and performs no downloads.
+It requires a ready, validated active dataset, builds browsing manifests in a
+temporary tree, and only enters the activation gate if the generated content
+changes. Changed projections update Media snapshots and saved digests together;
+activation failures restore files and state. A busy sync, unavailable assets or
+modified official source payloads produce an explicit official-refresh error,
+without preventing the independent custom catalog refresh. Modified official
+payloads must be repaired by synchronization, not blessed by refresh; use the
+custom catalog for locally maintained applications. Runtime sync refuses to
+write without its lock, rather than silently running concurrently.
+
+The recovery tests simulate container Library resets with persistent Media,
+publisher outages and unsupported contracts, image fallback, damaged snapshots,
+failed activation, missing runtime markers and subsequent online repair. They do
+not replace an actual upgrade/recreation test of the frozen release image with
+its production data mount.
+
+This consumer patch is not release approval. Credentials/setup capability coverage,
+real-image upgrade/recreation acceptance, release validation helpers and actual
+published-channel artifacts still need separate release qualification. The existing
+`validate_appstore_*` shell helpers exercise historical publication layouts; do not
+use their equal-dataset or legacy-path checks as proof of contract-2 compatibility.
+No live CDN or object-store state can be certified from a local publisher checkout.
+The existing rollback restores files after caught failures; it is not an atomic
+multi-directory switch or a crash-safe transaction.
+
 ## Development Setup
 
 ### Shortcut: `make`

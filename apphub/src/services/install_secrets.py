@@ -111,21 +111,23 @@ def generate_secret_item(field: str, template: str) -> str:
     raise _invalid(field, "unable to generate a distinct value")
 
 
-def _validate_references(values: dict, fields: list[str]) -> None:
-    def resolve(field: str, visiting: set[str]) -> str:
-        if field in visiting:
-            raise _invalid(field, "circular variable reference")
-        value = values.get(field)
-        if not isinstance(value, str) or not value:
-            raise _invalid(field, "missing or empty value")
-        visiting = visiting | {field}
-        resolved = _REFERENCE.sub(lambda match: resolve(match.group(1) or match.group(2), visiting), value)
-        if "$" in resolved:
-            raise _invalid(field, "unsupported variable reference")
-        return resolved
+def _resolve_reference_value(values: dict, field: str, visiting: frozenset[str] = frozenset()) -> str:
+    if field in visiting:
+        raise _invalid(field, "circular variable reference")
+    value = values.get(field)
+    if not isinstance(value, str) or not value:
+        raise _invalid(field, "missing or empty value")
+    resolved = _REFERENCE.sub(
+        lambda match: _resolve_reference_value(values, match.group(1) or match.group(2), visiting | {field}), value
+    )
+    if "$" in resolved:
+        raise _invalid(field, "unsupported variable reference")
+    return resolved
 
+
+def _validate_references(values: dict, fields: list[str]) -> None:
     for field in fields:
-        resolve(field, set())
+        _resolve_reference_value(values, field)
 
 
 def _secret_declarations(directory: Path) -> dict[str, str]:
@@ -257,8 +259,7 @@ def initialize_install_secrets(directory: str | Path, app_id: str, app_name: str
             updates: dict[str, str] = {}
 
             def resolve(name: str) -> str:
-                value = final.get(name)
-                return value if isinstance(value, str) else ""
+                return _resolve_reference_value(final, name)
 
             def decide(field: str) -> str | None:
                 """Value for ``field``; ``None`` means the template only references another key."""

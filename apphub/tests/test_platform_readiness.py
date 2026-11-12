@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -239,6 +240,20 @@ def test_setup_allows_usable_catalog_after_failed_sync(monkeypatch, tmp_path):
 
     assert ready is True
     assert pending == []
+
+
+def test_valid_old_display_files_do_not_make_unverified_assets_ready(monkeypatch, tmp_path):
+    from src.services.appstore_availability import get_appstore_assets_state
+
+    monkeypatch.setenv("WEBSOFT9_DATA_ROOT", str(tmp_path))
+    for locale in ("zh", "en"):
+        _write_manifest(tmp_path / "media/json" / f"app-store-manifest_{locale}.json", locale)
+    Path(os.environ["WEBSOFT9_APPSTORE_RUNTIME_STATE_FILE"]).unlink()
+    assert get_appstore_assets_state()["status"] == "unavailable"
+    assert platform_readiness._has_valid_appstore_manifests() is False
+    ready, pending = PlatformReadinessService(http_probe=lambda url: True).check_setup()
+    assert ready is False
+    assert "appstore-manifest" in pending
 
 
 def test_setup_rejects_catalog_without_marketplace_app(monkeypatch, tmp_path):

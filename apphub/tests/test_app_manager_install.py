@@ -241,6 +241,17 @@ def _stages(install):
     return [entry[1] for entry in install.state.logs]
 
 
+def test_explicit_local_library_can_install_while_official_assets_are_unavailable(install, monkeypatch, tmp_path):
+    marker = tmp_path / 'unavailable.json'
+    marker.write_text('{"status":"unavailable"}')
+    monkeypatch.setenv('WEBSOFT9_APPSTORE_RUNTIME_STATE_FILE', str(marker))
+
+    _install(install, tracked_app_id=APP_ID, tracking_id='tracking-1', endpointId=42)
+
+    assert install.portainer.created
+    assert install.state.completed == ['tracking-1']
+
+
 # ── happy paths ───────────────────────────────────────────────────────────
 
 
