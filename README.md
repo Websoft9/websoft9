@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="http://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-LGPL%20v3-blue.svg" alt="License"></a>
+  <a href="https://www.gnu.org/licenses/agpl-3.0.html"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg" alt="License"></a>
   <a href="https://github.com/Websoft9/websoft9/actions/workflows/ci.yml"><img src="https://github.com/Websoft9/websoft9/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/Websoft9/websoft9/releases"><img src="https://img.shields.io/github/v/release/websoft9/websoft9" alt="Release"></a>
   <a href="https://github.com/Websoft9/websoft9/stargazers"><img src="https://img.shields.io/github/stars/websoft9/websoft9?style=social" alt="Stars"></a>
@@ -122,7 +122,8 @@ All components are managed by supervisord inside one container — simple to dep
 - 💬 [GitHub Issues](https://github.com/Websoft9/websoft9/issues) — Bug reports and feature requests
 -  [Application Templates](https://github.com/Websoft9/docker-library) — 300+ ready-to-deploy apps
 
-## License
+## Open Source
 
-Websoft9 is licensed under [LGPL-3.0](LICENSE.md).  
-**Additional restriction**: Publishing free or paid images based on this repository to any cloud platform marketplace without authorization is prohibited.
+Websoft9 is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE.md).
+
+The open-source edition currently has no limits on the number of users or applications you can install.
