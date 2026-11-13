@@ -447,19 +447,14 @@ jobs:
       (github.event_name != 'workflow_dispatch' || github.event.inputs.notify == 'true')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Send WeChat webhook
         env:
           WX_VERSION: ${{ needs.determine-channel.outputs.version }}
           WX_CHANNEL: ${{ needs.determine-channel.outputs.channel }}
-          WX_CHANGELOG: ${{ needs.release-notes.outputs.changelog_body }}
-        run: |
-          CHANGELOG=$(printf '%s' "$WX_CHANGELOG" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-
-          curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${{ secrets.WIXIN_ROBOT_KEY }}' \
-            -H 'Content-Type: application/json' \
-            -d "{
-              \"msgtype\": \"markdown\",
-              \"markdown\": {
-                \"content\": \"【Release 通知】\\n> 项目名称：<font color=\\\"info\\\">websoft9</font>\\n> 发布通道：<font color=\\\"comment\\\">${WX_CHANNEL}</font>\\n> 最新版本：<font color=\\\"comment\\\">${WX_VERSION}</font>\\n> 更新内容：\\n${CHANGELOG}\\n>\"
-              }
-            }"
+          WX_WEBHOOK_KEY: ${{ secrets.WIXIN_ROBOT_KEY }}
+        # scripts/notify_wechat.py truncates the CHANGELOG to the 4096 byte
+        # markdown limit and fails the step when WeChat rejects the message,
+        # so a long changelog can no longer skip the announcement silently.
+        run: python3 scripts/notify_wechat.py --version "$WX_VERSION" --channel "$WX_CHANNEL"

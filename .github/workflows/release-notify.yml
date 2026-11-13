@@ -1,0 +1,31 @@
+name: Release Notify
+
+# Re-send a release announcement to WeChat Work without rebuilding or
+# re-publishing images. The release pipeline sends the same message itself
+# through scripts/notify_wechat.py.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to announce (defaults to version.json)
+        required: false
+        type: string
+      channel:
+        description: Channel label shown in the notification
+        required: false
+        default: release
+        type: string
+
+jobs:
+  notify:
+    name: Send WeChat Notification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send WeChat webhook
+        env:
+          WX_VERSION: ${{ inputs.version }}
+          WX_CHANNEL: ${{ inputs.channel }}
+          WX_WEBHOOK_KEY: ${{ secrets.WIXIN_ROBOT_KEY }}
+        run: python3 scripts/notify_wechat.py --version "$WX_VERSION" --channel "$WX_CHANNEL"
