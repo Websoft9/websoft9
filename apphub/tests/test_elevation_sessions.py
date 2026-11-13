@@ -127,6 +127,40 @@ def test_elevation_status_is_scoped_per_view(tmp_path):
     assert disabled["can_elevate"] is True
 
 
+def test_elevation_probes_are_cached_and_transient_failures_retried(tmp_path):
+    host = _service(tmp_path, [])
+    profile = {"profile_id": "p1", "username": "sftpadmin", "auth_method": "key"}
+    host.get_connection_profile = lambda token, profile_id=None: profile
+    HostAccessService._file_elevation.clear()
+    HostAccessService._file_elevation_probe.clear()
+
+    probes: list[str] = []
+
+    def failing_probe(value):
+        probes.append(str(value.get("profile_id")))
+        # Reported while the SSH connection is still warming up.
+        return {"can_elevate": False, "requires_password": False, "reason": "unavailable"}
+
+    host._probe_file_elevation = failing_probe
+
+    def status():
+        return host.file_elevation_status("valid-session", "p1", scope="app", app_id="a1", volume_id="v1")
+
+    assert status()["can_elevate"] is False
+    assert status()["can_elevate"] is False
+    # A transient failure must never be remembered, or administrator mode stays hidden.
+    assert len(probes) == 2
+
+    host._probe_file_elevation = lambda value: {"can_elevate": True, "requires_password": True, "reason": "password"}
+    assert status()["requires_password"] is True
+    assert status()["requires_password"] is True
+    # A real answer is reused instead of opening another SSH session per render.
+    assert len(probes) == 2
+
+    HostAccessService._file_elevation.clear()
+    HostAccessService._file_elevation_probe.clear()
+
+
 def test_logout_clears_sessions_and_elevation(tmp_path):
     host = _service(tmp_path, [{"profile_id": "p1"}])
     HostAccessService._terminal_sessions.clear()
@@ -166,3 +200,24 @@ def test_logout_releases_application_file_sessions(tmp_path):
     assert released == 1
     assert "mine" not in service.sessions
     assert "other" in service.sessions
+
+
+def test_deleting_a_connection_releases_only_its_application_file_sessions(tmp_path):
+    root = tmp_path / "volume"
+    root.mkdir()
+    host = _service(tmp_path, [])
+    authority = FakeAuthority(str(root))
+    service = AppSftpService(host, account_service=FakeAccount(), authority=authority)
+    service.sessions = {
+        "chosen": {"operator_id": "operator-1", "root": str(root), "profile": {"profile_id": "p1"}, "expires_at": 9e18},
+        "kept": {"operator_id": "operator-1", "root": str(root), "profile": {"profile_id": "p2"}, "expires_at": 9e18},
+        "platform": {"operator_id": "operator-1", "root": str(root), "profile": {}, "expires_at": 9e18},
+        "other-operator": {"operator_id": "operator-2", "root": str(root), "profile": {"profile_id": "p1"}, "expires_at": 9e18},
+    }
+
+    released = service.invalidate_profile("operator-1", "p1")
+
+    assert released == 1
+    assert "chosen" not in service.sessions
+    assert set(service.sessions) == {"kept", "platform", "other-operator"}
+    assert authority.released == ["chosen"]

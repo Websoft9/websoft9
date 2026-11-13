@@ -41,6 +41,11 @@ except ValueError:
 TEXT_FILE_PREVIEW_LIMIT = 2 * 1024 * 1024
 FILE_BROWSER_CLIENT_IDLE_TTL_SECONDS = 20
 IDENTITY_SOURCE_CACHE_TTL_SECONDS = 300
+# Probing sudo opens an SSH session, so the answer is reused briefly. Without this
+# every application file view asked again on each render and could race with the
+# connection that was still being warmed up, reporting administrator mode as
+# unavailable for a healthy account.
+ELEVATION_PROBE_TTL_SECONDS = 30
 TERMINAL_SESSION_IDLE_TTL_SECONDS = 300
 TERMINAL_SESSION_BUFFER_LIMIT = 256 * 1024
 TERMINAL_SESSION_CHUNK_LIMIT = 512
@@ -55,6 +60,9 @@ class HostAccessService:
     _file_browser_clients: dict[str, dict[str, Any]] = {}
     # Administrator mode for host file browsing, keyed by saved profile id.
     _file_elevation: dict[str, dict[str, Any]] = {}
+    # Last probe result per elevation key: (timestamp, status).
+    _file_elevation_probe: dict[str, tuple[float, dict[str, Any]]] = {}
+    _elevation_probe_lock = threading.RLock()
 
     def __init__(self, data_dir: Optional[str] = None, auth_service: Optional[ProductAuthService] = None):
         data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
@@ -387,7 +395,21 @@ class HostAccessService:
                     "DELETE FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
                     (operator["id"], profile_id),
                 )
-                self._file_elevation.pop(profile_id, None)
+                # Administrator mode is keyed as "host:<profile>" and
+                # "app:<app>:<volume>:<profile>", so a deleted connection must drop
+                # every scope, never a bare profile id.
+                for elevation_key in [
+                    entry
+                    for entry in self._file_elevation
+                    if entry == f"host:{profile_id}" or entry.endswith(f":{profile_id}")
+                ]:
+                    self._file_elevation.pop(elevation_key, None)
+                for elevation_key in [
+                    entry
+                    for entry in self._file_elevation_probe
+                    if entry == f"host:{profile_id}" or entry.endswith(f":{profile_id}")
+                ]:
+                    self._file_elevation_probe.pop(elevation_key, None)
                 deleted_cache_entry = self._file_browser_clients.get(self._build_file_client_cache_key(deleted_profile))
                 deleted_elevated_sftp = deleted_cache_entry.get("elevated_sftp") if deleted_cache_entry else None
                 if deleted_elevated_sftp is not None:
@@ -455,6 +477,8 @@ class HostAccessService:
                     # Administrator mode never survives a logout.
                     for key in [entry for entry in self._file_elevation if entry.endswith(f":{profile_id}")]:
                         self._file_elevation.pop(key, None)
+                    for key in [entry for entry in self._file_elevation_probe if entry.endswith(f":{profile_id}")]:
+                        self._file_elevation_probe.pop(key, None)
         return closed
 
     def _revoke_local_ssh_credentials(self, profile: dict[str, Any]) -> None:
@@ -670,24 +694,49 @@ with os.fdopen(descriptor, 'r+b') as handle:
             if status['enabled']:
                 self._clear_file_elevation(profile, elevation_key)
             return {**status, 'enabled': False}
-        status.update(self._probe_file_elevation(profile))
+        status.update(self._probe_file_elevation_cached(profile, elevation_key))
         if status['enabled'] and not status['can_elevate']:
             self._clear_file_elevation(profile, elevation_key)
             status['enabled'] = False
         return status
 
+    def _probe_file_elevation_cached(self, profile: dict[str, Any], elevation_key: str) -> dict[str, Any]:
+        """Probe sudo support at most once per connection and probe window.
+
+        The probe holds its own lock so two views (host files, an application, a
+        reload) cannot open sudo channels at the same time and report a healthy
+        account as unavailable just because the shared SSH client was busy.
+        """
+        with self._elevation_probe_lock:
+            cached = self._file_elevation_probe.get(elevation_key)
+            if cached is not None and time.time() - cached[0] < ELEVATION_PROBE_TTL_SECONDS:
+                return dict(cached[1])
+            result = self._probe_file_elevation(profile)
+            if result.get('reason') != 'unavailable':
+                # A transient failure must not be remembered, so the next view retries.
+                self._file_elevation_probe[elevation_key] = (time.time(), dict(result))
+            return result
+
     def _probe_file_elevation(self, profile: dict[str, Any]) -> dict[str, Any]:
+        client: Optional[paramiko.SSHClient] = None
         try:
-            with self._open_file_client(profile) as client:
-                if self._elevated_sftp_works(client, None):
-                    return {'can_elevate': True, 'requires_password': False, 'reason': 'passwordless'}
-                _, stdout, _ = client.exec_command('LC_ALL=C sudo -n -l 2>&1', timeout=10)
-                exit_code = stdout.channel.recv_exit_status()
-                output = stdout.read().decode('utf-8', 'replace').lower()
-        except CustomException:
-            raise
+            # A dedicated connection keeps the probe independent from the cached
+            # client the file browser warms up, opens channels on and closes.
+            client = self._connect_client(profile)
+            if self._elevated_sftp_works(client, None):
+                return {'can_elevate': True, 'requires_password': False, 'reason': 'passwordless'}
+            _, stdout, _ = client.exec_command('LC_ALL=C sudo -n -l 2>&1', timeout=10)
+            exit_code = stdout.channel.recv_exit_status()
+            output = stdout.read().decode('utf-8', 'replace').lower()
         except Exception:
+            # A passive probe must never fail the request: an unreachable or busy
+            # host is reported as "unavailable" so the view can retry instead of
+            # hiding administrator mode behind an error status.
             return {'can_elevate': False, 'requires_password': False, 'reason': 'unavailable'}
+        finally:
+            if client is not None:
+                with suppress(Exception):
+                    client.close()
         if (
             'may not run sudo' in output
             or 'not in the sudoers file' in output

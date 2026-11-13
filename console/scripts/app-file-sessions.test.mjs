@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { beforeEach, test } from 'node:test'
-import { acquireAppFileSession, closeAppFileSession, ConnectionLimitError, FileSessionError, getAppFileErrorKey, getAppFileTitle, getNextWorkspaceTabId, getWorkspaceConnectionCount, MAX_WORKSPACE_CONNECTIONS, readAppFileSessions, reconcileWorkspaceTabOrder, rememberAppFileSession, restoreTerminalSessions, synchronizeAppFileProfiles, TERMINAL_WORKSPACE_STORAGE_KEY } from '../src/features/terminal/app-file-sessions.ts'
+import { acquireAppFileSession, closeAppFileSession, ConnectionLimitError, FileSessionError, getAppFileErrorKey, getAppFileTitle, getNextWorkspaceTabId, getWorkspaceConnectionCount, MAX_WORKSPACE_CONNECTIONS, readAppFileSessions, reconcileWorkspaceTabOrder, rememberAppFileSession, restoreTerminalSessions, synchronizeAppFileProfiles, TERMINAL_WORKSPACE_STORAGE_KEY, verifyStoredAppFileSessions } from '../src/features/terminal/app-file-sessions.ts'
 
 let storage
 let active
@@ -36,7 +36,10 @@ beforeEach(() => {
             return Response.json({})
         }
         const status = active.has(identifier) && !expired.has(identifier) ? validationStatus : 403
-        return Response.json(status === 200 ? {} : { message: 'Unavailable' }, { status })
+        // Mirrors the API: a lost session answers with an explicit error code, while
+        // a directory the account cannot read answers 403 without one.
+        if (status === 403) return Response.json({ message: 'SFTP Session Expired', details: 'The application SFTP session is unavailable' }, { status })
+        return Response.json({ message: 'Unavailable', details: 'Unavailable' }, { status })
     }
 })
 
@@ -261,4 +264,73 @@ test('a removed host profile does not prevent reopening files with a new local c
     assert.notEqual(renewed.session_id, first.session_id)
     assert.equal(renewed.status, 'connected')
     assert.equal(readAppFileSessions().length, 1)
+})
+
+test('selecting the same connection again re-checks a snapshot flagged unavailable', async () => {
+    const first = await acquireAppFileSession('app-a', 'volume-a', 'kept-host')
+    synchronizeAppFileProfiles([])
+    assert.equal(readAppFileSessions()[0].profile_available, false)
+    // Selecting the tab on its own keeps the ended snapshot: no requests.
+    await assert.rejects(acquireAppFileSession('app-a', 'volume-a', 'kept-host'), error => getAppFileErrorKey(error) === 'sftpConnectionUnavailable')
+    // Confirming the same connection in the dialog is an explicit re-check.
+    const renewed = await acquireAppFileSession('app-a', 'volume-a', 'kept-host', { recheck: true })
+    assert.equal(renewed.session_id, first.session_id)
+    assert.equal(renewed.status, 'connected')
+    assert.equal(readAppFileSessions()[0].profile_available, true)
+    assert.equal(created, 1)
+})
+
+test('a platform session is reused instead of being recreated on every entry', async () => {
+    const first = await acquireAppFileSession('app-a', 'volume-a', undefined, { platform: true })
+    const again = await acquireAppFileSession('app-a', 'volume-a', undefined, { platform: true })
+    assert.equal(again.session_id, first.session_id)
+    assert.equal(created, 1)
+})
+
+test('switching from a local connection to the platform account replaces it', async () => {
+    const local = await acquireAppFileSession('app-a', 'volume-a', 'local-host')
+    const platform = await acquireAppFileSession('app-a', 'volume-a', undefined, { platform: true })
+    assert.notEqual(platform.session_id, local.session_id)
+    assert.equal(platform.profile_id, null)
+    assert.equal(active.has(local.session_id), false)
+    assert.equal(readAppFileSessions().length, 1)
+})
+
+test('a directory permission failure keeps the live session instead of rebuilding it', async () => {
+    const first = await acquireAppFileSession('app-a', 'volume-a', 'chosen-host')
+    // Force server validation instead of the short-lived local trust window.
+    rememberAppFileSession({ ...first, verified_at: 0 })
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async (url, options = {}) => {
+        if (!options.method && url.includes(`/app-files/${first.session_id}/tree`)) {
+            return Response.json({ detail: 'The connection account does not have permission for this file operation' }, { status: 403 })
+        }
+        return originalFetch(url, options)
+    }
+
+    const reused = await acquireAppFileSession('app-a', 'volume-a', 'chosen-host')
+
+    assert.equal(reused.session_id, first.session_id)
+    assert.equal(reused.status, 'connected')
+    assert.equal(created, 1)
+})
+
+test('a permission failure never marks a stored session ended', async () => {
+    await acquireAppFileSession('app-a', 'volume-a', 'chosen-host')
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => Response.json({ detail: 'The connection account does not have permission for this file operation' }, { status: 403 })
+    await verifyStoredAppFileSessions()
+    globalThis.fetch = originalFetch
+    assert.equal(readAppFileSessions()[0].status, 'connected')
+})
+
+test('an expired server session is still replaced and marked ended', async () => {
+    const first = await acquireAppFileSession('app-a', 'volume-a', 'chosen-host')
+    expired.add(first.session_id)
+    rememberAppFileSession({ ...first, verified_at: 0 })
+    const renewed = await acquireAppFileSession('app-a', 'volume-a', 'chosen-host')
+    assert.notEqual(renewed.session_id, first.session_id)
+    expired.add(renewed.session_id)
+    await verifyStoredAppFileSessions()
+    assert.equal(readAppFileSessions()[0].status, 'ended')
 })

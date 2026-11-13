@@ -453,9 +453,19 @@ class AppSftpService:
         return len(identifiers)
 
     def invalidate_profile(self, operator_id, profile_id):
+        """Release every application file session that uses a deleted connection.
+
+        Sessions keep the resolved profile under ``profile`` (the platform session
+        has none), so the account has to be read from there and every session must
+        go through ``release`` to drop its path grants and cached SSH client.
+        """
         with self.lock:
-            self.sessions = {
-                key: session
-                for key, session in self.sessions.items()
-                if session['operator_id'] != operator_id or session['profile_id'] != profile_id
-            }
+            identifiers = [
+                identifier
+                for identifier, session in self.sessions.items()
+                if session.get('operator_id') == operator_id
+                and str((session.get('profile') or {}).get('profile_id') or '') == str(profile_id)
+            ]
+        for identifier in identifiers:
+            self.release(identifier)
+        return len(identifiers)

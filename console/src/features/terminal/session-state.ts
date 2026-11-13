@@ -28,6 +28,40 @@ export function resolveAppFileAccess(options: {
 }
 
 /**
+ * Whether a stored application file session already belongs to the requested
+ * account. A platform session carries no profile id, so `null` and `undefined`
+ * must be treated as the same account instead of triggering a replacement.
+ * When no account is requested at all the stored snapshot owns the tab.
+ */
+export function sessionUsesAppFileAccess(
+    session: { profile_id?: string | null } | null | undefined,
+    access: { profileId?: string; usePlatform: boolean },
+): boolean {
+    if (!session) return false
+    const savedProfileId = session.profile_id || undefined
+    if (access.usePlatform) return !savedProfileId
+    if (!access.profileId) return true
+    return savedProfileId === access.profileId
+}
+
+/**
+ * Whether a stale "ended" snapshot may be reported as unavailable.
+ *
+ * Stored snapshots outlive the server session (restart, 30 minute expiry, a
+ * closed connection), so an ended entry alone proves nothing: the view must
+ * report it only after it was actually open. Reporting it while the reopen
+ * attempt is still running aborts that attempt and leaves the operator on an
+ * error even though the connection works.
+ */
+export function shouldReportAppFileUnavailable(options: {
+    isAppFiles: boolean
+    accessReady: boolean
+    status?: string | null
+}): boolean {
+    return options.isAppFiles && options.accessReady && options.status === 'ended'
+}
+
+/**
  * Each connection keeps its own Terminal/Files selection; application files are
  * always shown as files.
  */

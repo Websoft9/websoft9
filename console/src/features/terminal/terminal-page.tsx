@@ -37,6 +37,7 @@ import { Terminal as XTerm } from 'xterm'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { acquireAppFileSession, closeAppFileSession, getAppFileErrorKey, getAppFileRoute, getAppFileTitle, getNextWorkspaceTabId, getWorkspaceConnectionCount, HOST_PROFILE_DELETED_EVENT, MAX_WORKSPACE_CONNECTIONS, PLATFORM_SFTP_PROFILE_ID, readAppFileSessions, reconcileWorkspaceTabOrder, rememberAppFileSession, rememberSftpAccessChoice, restoreTerminalSessions, SESSION_RESET_EVENT, synchronizeAppFileProfiles, verifyStoredAppFileSessions, TERMINAL_WORKSPACE_STORAGE_KEY, useAppFileSessions, type AppFileSession } from './app-file-sessions'
+import { shouldReportAppFileUnavailable } from './session-state'
 import { AppSftpDialog } from '../my-apps/app-sftp-dialog'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { useAppColorMode } from '../../app/providers/color-mode'
@@ -1855,9 +1856,13 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         activateRequestedTerminal()
     }, [isAppFiles, requestedTerminal, visible, accessBootstrapped, wantsNewConnection])
     const invalidateSelectedFileConnection = useEffectEvent(() => {
-        if (isAppFiles && selectedFileStatus === 'ended') markAppFilesUnavailable(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable'))
+        // Stored snapshots outlive the server session (restart, expiry, closed
+        // connection). Reporting an ended entry before the reopen attempt finishes
+        // aborts that attempt and leaves the view on the error although the fresh
+        // session is usable, so only trust it while the view is actually open.
+        if (shouldReportAppFileUnavailable({ isAppFiles, accessReady, status: selectedFileStatus })) markAppFilesUnavailable(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable'))
     })
-    useEffect(() => { invalidateSelectedFileConnection() }, [isAppFiles, selectedFileStatus, visible])
+    useEffect(() => { invalidateSelectedFileConnection() }, [isAppFiles, accessReady, selectedFileStatus, visible])
     const selectedTabId = visible ? activeSession?.id : null
     const reportActiveTerminal = useEffectEvent(() => {
         if (!isAppFiles && selectedTabId && sessions.some(session => session.id === selectedTabId)) onActiveSessionChange?.(selectedTabId)
@@ -1889,32 +1894,66 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     const elevationProfileId = isAppFiles ? (appFileSession?.profile_id ?? null) : activeFileProfileId
 
     // Administrator mode applies to the host file browser and to application files.
+    // Its state belongs to one connection: as soon as another connection is used the
+    // previous state must be dropped, otherwise the toolbar and the elevation dialog
+    // can show one connection's sudo requirement while the other connection is open.
+    const elevationScopeRef = useRef('')
+    // Last known status per connection+volume: switching back must show that
+    // connection's own answer immediately, while the probe refreshes it, instead of
+    // reusing the other connection's state or blanking the controls.
+    const elevationCacheRef = useRef<Record<string, FileElevation>>({})
     useEffect(() => {
         const ready = isAppFiles
             ? Boolean(appFileSession?.profile_id) && appFileSession?.status !== 'ended'
             : filesViewEnabled && workspaceView === 'files'
-        if (!elevationProfileId || !ready) {
-            setFileElevation(null)
+        const profileId = elevationProfileId && ready ? elevationProfileId : null
+        const scopeKey = profileId
+            ? `${isAppFiles ? 'app' : 'host'}:${isAppFiles ? `${appFileAppId}:${appFileVolumeId}:` : ''}${profileId}`
+            : ''
+        if (elevationScopeRef.current !== scopeKey) {
+            elevationScopeRef.current = scopeKey
+            const cached = scopeKey ? elevationCacheRef.current[scopeKey] : undefined
+            setFileElevation(cached ? { ...cached } : null)
             setElevationDialogOpen(false)
-            return
+            setElevationPassword('')
+            setElevationError('')
+            setElevationAttempts(0)
         }
+        if (!profileId) return
         let cancelled = false
         void (async () => {
+            const params = new URLSearchParams({ profile_id: profileId })
+            if (isAppFiles) {
+                params.set('scope', 'app')
+                params.set('app_id', appFileAppId)
+                params.set('volume_id', appFileVolumeId)
+            }
+            const url = `/api/host-access/files/elevation?${params}`
+            const load = () => requestJson<FileElevation>(url, { method: 'GET' })
+            const apply = (status: FileElevation) => {
+                elevationCacheRef.current[scopeKey] = status
+                if (!cancelled) setFileElevation(status)
+            }
             try {
-                const params = new URLSearchParams({ profile_id: elevationProfileId })
-                if (isAppFiles) {
-                    params.set('scope', 'app')
-                    params.set('app_id', appFileAppId)
-                    params.set('volume_id', appFileVolumeId)
+                const response = await load()
+                // A late response for another connection must never be displayed.
+                if ((response.profile_id ?? '') !== profileId) return
+                if (!response.can_elevate && response.reason === 'unavailable') {
+                    // The host probe can coincide with the connection warm-up; ask once
+                    // more instead of hiding administrator mode for a healthy account.
+                    await new Promise((resolve) => window.setTimeout(resolve, 1200))
+                    if (cancelled) return
+                    const retried = await load()
+                    if ((retried.profile_id ?? '') === profileId) apply(retried)
+                    return
                 }
-                const response = await requestJson<FileElevation>(`/api/host-access/files/elevation?${params}`, { method: 'GET' })
-                if (!cancelled) setFileElevation(response)
+                apply(response)
             } catch {
-                if (!cancelled) setFileElevation(null)
+                if (!cancelled && !elevationCacheRef.current[scopeKey]) setFileElevation(null)
             }
         })()
         return () => { cancelled = true }
-    }, [isAppFiles, appFileAppId, appFileVolumeId, appFileSession?.profile_id, appFileSession?.status, filesViewEnabled, workspaceView, activeSession?.id, activeFileProfileId, browserRefreshNonce])
+    }, [isAppFiles, appFileAppId, appFileVolumeId, appFileSession?.profile_id, appFileSession?.status, elevationProfileId, filesViewEnabled, workspaceView, activeSession?.id, activeFileProfileId, browserRefreshNonce])
 
     // Deep link used by the application SFTP dialog: open the host file view.
     useEffect(() => {
@@ -1931,7 +1970,12 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             return (a.name || a.host).localeCompare(b.name || b.host)
         })
     }, [profileSearchValue, savedProfiles])
-    const elevationProfile = useMemo(() => savedProfiles.find((item) => item.profile_id === elevationProfileId), [savedProfiles, elevationProfileId])
+    const elevationProfile = useMemo(() => {
+        // Follow the connection the reported status belongs to, never the one that
+        // happens to be current, so account and sudo requirement always match.
+        const profileId = fileElevation?.profile_id ?? elevationProfileId
+        return savedProfiles.find((item) => item.profile_id === profileId)
+    }, [savedProfiles, fileElevation?.profile_id, elevationProfileId])
     const elevationAccount = elevationProfile?.username || accessForm.username || ''
     const elevationTarget = useMemo(() => {
         const host = `${elevationProfile?.username || ''}@${elevationProfile?.host || ''}:${elevationProfile?.port || 22}`
@@ -2259,6 +2303,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             setEditorContent('')
             setEditorInitialContent('')
             setFileElevation(null)
+            elevationCacheRef.current = {}
             setElevationDialogOpen(false)
             setSwitchDialogOpen(false)
         }
@@ -2487,8 +2532,14 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         // and come back while switching.
         const targetProfileId = profileId ?? previous?.profile_id ?? undefined
         const targetPlatform = profileId ? platform : previous ? !previous.profile_id : platform
+        // An explicit choice (the operator confirmed a connection) may re-check a
+        // snapshot that was flagged unavailable; opening the tab may not.
+        const explicitChoice = Boolean(profileId) || platform
         try {
-            const session = await acquireAppFileSession(appFileAppId, appFileVolumeId, targetProfileId, targetPlatform ? { platform: true } : undefined)
+            const session = await acquireAppFileSession(appFileAppId, appFileVolumeId, targetProfileId, {
+                ...(targetPlatform ? { platform: true } : {}),
+                recheck: explicitChoice,
+            })
             if (requestId !== appFileRequestRef.current) return
             if (appFileSession?.session_id === session.session_id) return
             let restoredPath = session.root_path
@@ -2536,7 +2587,9 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     }
 
     async function applyFileElevation(enabled: boolean) {
-        if (elevationBusy) return
+        // Without a connection there is nothing to elevate: sending the request
+        // would let the server fall back to whichever connection is active.
+        if (elevationBusy || !elevationProfileId) return
         setElevationBusy(true)
         setElevationError('')
         try {
@@ -2550,6 +2603,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
                 }),
             })
             setFileElevation(response)
+            elevationCacheRef.current[elevationScopeRef.current] = response
             setElevationDialogOpen(false)
             setElevationPassword('')
             setElevationAttempts(0)
@@ -2993,7 +3047,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
     }, [sessions, accessReady, isAppFiles])
 
     useEffect(() => {
-        if (isAppFiles && selectedFileStatus === 'ended') {
+        if (shouldReportAppFileUnavailable({ isAppFiles, accessReady, status: selectedFileStatus })) {
             markAppFilesUnavailable(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable'))
             return
         }
@@ -3028,7 +3082,7 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
         setEditorPath(null)
         setEditorContent('')
         setEditorInitialContent('')
-    }, [activeSession?.cwd, activeSession?.id, isAppFiles, selectedFileStatus])
+    }, [activeSession?.cwd, activeSession?.id, accessReady, isAppFiles, selectedFileStatus])
 
     useEffect(() => {
         if (isConnectionDialog || !accessBootstrapped || !status?.enabled || !status?.authenticated) {
@@ -3181,6 +3235,12 @@ function TerminalWorkspace({ visible, fileContext, sessionTabs, onSelectTab, onT
             .catch((error) => {
                 const currentSession = activeSessionRef.current
                 if (!cancelled && browserRequestIdRef.current === requestId && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
+                    // An expired application session is not a permission problem:
+                    // stop browsing and let the operator reopen the connection.
+                    if (isAppFiles && error instanceof HostAccessRequestError && error.code === 'SFTP Session Expired') {
+                        markAppFilesUnavailable(t('myAppsDetailPage.tabs.volumes.fileManager.sftpConnectionUnavailable'))
+                        return
+                    }
                     setBrowserError(`${copy.browserErrorTitle}: ${error instanceof HostAccessRequestError && error.status === 403 ? copy.permissionDenied : error instanceof Error ? error.message : copy.browserErrorTitle}`)
                     setBrowserEntries([])
                     setBrowserMetadata(null)

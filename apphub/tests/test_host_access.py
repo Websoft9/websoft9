@@ -821,14 +821,19 @@ def test_app_sftp_creates_platform_account_sessions(scoped_files):
 
 
 def test_app_sftp_invalidate_profile_only_removes_matching_sessions():
+    released = []
     service = AppSftpService(None)
+    service.authority = SimpleNamespace(release=released.append)
+    # Sessions keep the resolved account under "profile"; the platform session has none.
     service.sessions = {
-        'same-profile': {'operator_id': 'operator-a', 'profile_id': 'profile-a'},
-        'other-operator': {'operator_id': 'operator-b', 'profile_id': 'profile-a'},
-        'other-profile': {'operator_id': 'operator-a', 'profile_id': 'profile-b'},
+        'same-profile': {'operator_id': 'operator-a', 'profile': {'profile_id': 'profile-a'}},
+        'other-operator': {'operator_id': 'operator-b', 'profile': {'profile_id': 'profile-a'}},
+        'other-profile': {'operator_id': 'operator-a', 'profile': {'profile_id': 'profile-b'}},
+        'platform': {'operator_id': 'operator-a', 'profile': {}},
     }
-    service.invalidate_profile('operator-a', 'profile-a')
-    assert set(service.sessions) == {'other-operator', 'other-profile'}
+    assert service.invalidate_profile('operator-a', 'profile-a') == 1
+    assert set(service.sessions) == {'other-operator', 'other-profile', 'platform'}
+    assert released == ['same-profile']
 
 
 def test_app_sftp_http_endpoints_enforce_scope(scoped_files, monkeypatch):

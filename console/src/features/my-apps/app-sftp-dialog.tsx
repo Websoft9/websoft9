@@ -119,7 +119,9 @@ export function AppSftpDialog({ appId, volumeId, initialError, darkMode, scopeRe
     }, [])
 
     async function openSession(profileId?: string, platform = false) {
-        const session = await acquireAppFileSession(appId, volumeId, profileId, platform ? { platform: true } : undefined)
+        // The operator picked this access method just now, so a stored snapshot
+        // that was flagged unavailable must be re-checked against the server.
+        const session = await acquireAppFileSession(appId, volumeId, profileId, { ...(platform ? { platform: true } : {}), recheck: true })
         if (dismissedRef.current) return
         onClose()
         if (switchMode) {

@@ -64,6 +64,7 @@ def _run_app_file_operation(session_id: str, handler, grant_targets=()):
     def execute():
         return handler()
 
+    permission_error: Exception
     try:
         return execute()
     except Exception as error:
@@ -73,6 +74,7 @@ def _run_app_file_operation(session_id: str, handler, grant_targets=()):
             if isinstance(error, (ValueError, TypeError)):
                 raise HTTPException(400, 'Invalid application SFTP payload') from error
             raise
+        permission_error = error
     for target in grant_targets or ():
         if not target:
             continue
@@ -83,7 +85,12 @@ def _run_app_file_operation(session_id: str, handler, grant_targets=()):
         except Exception as error:
             if not _is_permission_denied(error):
                 raise
-    raise HTTPException(403, 'The platform SFTP account does not have permission for this file operation')
+            permission_error = error
+    # The session is alive; this account simply cannot reach the path. Saying so
+    # (instead of blaming the platform account) keeps the client from treating a
+    # permission problem as an expired session.
+    reason = str(getattr(permission_error, 'details', '') or permission_error)
+    raise HTTPException(403, f'The connection account does not have permission for this file operation: {reason}') from permission_error
 
 
 @router.post('/host-access/app-files/sessions')

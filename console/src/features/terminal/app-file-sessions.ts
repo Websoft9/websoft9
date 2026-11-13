@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-import { resolveAppFileAccess, type SftpAccessChoice } from './session-state'
+import { resolveAppFileAccess, sessionUsesAppFileAccess, type SftpAccessChoice } from './session-state'
 
 export type { SftpAccessChoice } from './session-state'
 
@@ -182,9 +182,8 @@ export async function verifyStoredAppFileSessions(): Promise<void> {
         try {
             await request(`/api/host-access/app-files/${session.session_id}/tree?${new URLSearchParams({ path: session.root_path })}`)
         } catch (error) {
-            if (error instanceof FileSessionError && (error.status === 403 || error.status === 404)) {
-                ended.push(session.session_id)
-            }
+            // A directory the account cannot read is not a lost session.
+            if (isAppFileSessionGone(error)) ended.push(session.session_id)
         }
     }
     if (!ended.length) return
@@ -210,10 +209,27 @@ export class FileSessionError extends Error {
     constructor(message: string, status: number, code?: string) { super(message); this.status = status; this.code = code }
 }
 
+/**
+ * Whether the server lost the application file session itself.
+ *
+ * A `403` does **not** prove that: the same status is returned when the session is
+ * alive but its account cannot read the application directory (no docker group,
+ * protected volume path). Only an explicit "session expired" answer, a missing
+ * session (`404`) or a deleted connection may replace the stored session —
+ * recreating it on a permission failure churns sessions and makes the file view
+ * report a live connection as unavailable.
+ */
+export function isAppFileSessionGone(error: unknown): boolean {
+    if (!(error instanceof FileSessionError)) return false
+    if (error.status === 404) return true
+    return error.code === 'SFTP Session Expired' || error.code === 'Host Access Profile Not Found'
+}
+
 export function getAppFileErrorKey(error: unknown) {
     if (error instanceof ConnectionLimitError) return 'sftpConnectionLimit'
     const code = error instanceof FileSessionError ? error.code : undefined
     const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+    if (code === 'SFTP Session Expired') return 'sftpConnectionUnavailable'
     if (code === 'Local SSH Setup Revoked') return 'sftpAuthorizationRevoked'
     if (code === 'Host Access Profile Not Found' || message.includes('The requested host profile is unavailable for file operations')) return 'sftpConnectionUnavailable'
     if (code === 'SFTP Scope Denied') return 'sftpScopeDenied'
@@ -257,7 +273,7 @@ async function closeRemoteSessionQuietly(identifier: string) {
     }
 }
 
-export function acquireAppFileSession(appId: string, volumeId: string, profileId?: string, options?: { platform?: boolean }): Promise<AppFileSession> {
+export function acquireAppFileSession(appId: string, volumeId: string, profileId?: string, options?: { platform?: boolean; recheck?: boolean }): Promise<AppFileSession> {
     const access = resolveAppFileAccess({ profileId, platform: options?.platform, remembered: readSftpAccessChoice() })
     const { profileId: effectiveProfileId, usePlatform } = access
     const key = JSON.stringify([appId, volumeId, effectiveProfileId || null, usePlatform])
@@ -265,27 +281,43 @@ export function acquireAppFileSession(appId: string, volumeId: string, profileId
     if (existing) return existing
     const operation = (async () => {
         const saved = readAppFileSessions().find((session) => session.app_id === appId && session.volume_id === volumeId)
-        if (saved?.profile_available === false && (!effectiveProfileId || saved.profile_id === effectiveProfileId)) {
+        const reusesSaved = sessionUsesAppFileAccess(saved, access)
+        // A snapshot is flagged unavailable only when the connection disappeared.
+        // Selecting that same connection again in the dialog is an explicit
+        // re-check, so the stale flag must not block it forever: the server is the
+        // only authority on whether the connection still exists.
+        if (saved?.profile_available === false && reusesSaved && !options?.recheck) {
             throw new FileSessionError('The requested host profile is unavailable for file operations', 400, 'Host Access Profile Not Found')
         }
-        if (saved && (!effectiveProfileId || saved.profile_id === effectiveProfileId) && !usePlatform) {
-            if (saved.status !== 'ended' && typeof saved.verified_at === 'number' && Date.now() - saved.verified_at < 60000) {
-                return { ...saved, status: 'connected' as const }
-            }
+        if (saved && reusesSaved) {
+            // Always ask the server: a snapshot can outlive a restart, the session
+            // TTL or a close in another tab, and trusting it shows a dead session as
+            // connected until the first file operation fails.
             try {
                 await request(`/api/host-access/app-files/${saved.session_id}/tree?${new URLSearchParams({ path: saved.root_path })}`)
-                const verified = { ...saved, status: 'connected' as const, verified_at: Date.now() }
+                const verified = { ...saved, status: 'connected' as const, verified_at: Date.now(), profile_available: true }
                 rememberAppFileSession(verified)
                 return verified
             } catch (error) {
-                if (!(error instanceof FileSessionError && (error.status === 403 || error.status === 404 || error.code === 'Host Access Profile Not Found'))) throw error
+                // A live session that cannot read the directory still owns the tab:
+                // the file browser reports the permission problem and offers the
+                // administrator-mode retry instead of rebuilding the session.
+                if (error instanceof FileSessionError && error.status === 403 && !isAppFileSessionGone(error)) {
+                    const verified = { ...saved, status: 'connected' as const, verified_at: Date.now() }
+                    rememberAppFileSession(verified)
+                    return verified
+                }
+                // Only a lost session is replaced.
+                if (!isAppFileSessionGone(error)) throw error
                 // Keep the stored entry until the replacement session is saved, so
                 // the tab does not vanish and reappear while switching.
             }
         } else if (saved) {
             void closeRemoteSessionQuietly(saved.session_id)
         }
-        if (getWorkspaceConnectionCount() >= MAX_WORKSPACE_CONNECTIONS) throw new ConnectionLimitError()
+        // Renewing or switching the session of this tab replaces the stored one, so
+        // it must not be counted twice against the workspace connection limit.
+        if (getWorkspaceConnectionCount() - (saved ? 1 : 0) >= MAX_WORKSPACE_CONNECTIONS) throw new ConnectionLimitError()
         creating.add(key)
         try {
             const session = await request<AppFileSession>('/api/host-access/app-files/sessions', {
