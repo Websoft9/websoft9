@@ -5,7 +5,7 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.5] - 2026-11-12
+## [2.4.5] - 2026-11-13
 
 ### Added
 - **Application Database Details** — Show the database connections an application actually uses in My Apps → Data, resolved from the `database[]` declaration in `variables.json` against the container environment, Compose environment, referenced `env_file` and project `.env`. One row per account, roles only when declared, external connections labelled, and unknown values shown as `—` instead of a guess.
