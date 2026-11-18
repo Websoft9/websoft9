@@ -4,6 +4,7 @@
 minimal fake request instead of through the main API.
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -13,10 +14,6 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-
-import json
-
-from src import media
 
 
 class FakeUploadFile:
@@ -54,14 +51,24 @@ def _body(response):
     return json.loads(response.body)
 
 
+@pytest.fixture(scope="module")
+def media(tmp_path_factory):
+    directory = tmp_path_factory.mktemp("media-root")
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setenv("WEBSOFT9_MEDIA_ROOT", str(directory))
+        from src import media
+
+    return media
+
+
 @pytest.fixture(autouse=True)
-def media_dir(tmp_path, monkeypatch):
+def media_dir(media, tmp_path, monkeypatch):
     directory = tmp_path / 'media'
     monkeypatch.setattr(media, 'MEDIA_DIR', str(directory))
     return directory
 
 
-def test_health_check_answers_ok():
+def test_health_check_answers_ok(media):
     import asyncio
 
     response = asyncio.run(media.healthz(None))
@@ -70,7 +77,7 @@ def test_health_check_answers_ok():
     assert _body(response) == {'status': 'ok'}
 
 
-def test_upload_stores_the_file_and_returns_its_url(media_dir):
+def test_upload_stores_the_file_and_returns_its_url(media, media_dir):
     import asyncio
 
     request = FakeRequest(FakeForm(FakeUploadFile('logo.png', b'\x89PNG data')))
@@ -87,7 +94,7 @@ def test_upload_stores_the_file_and_returns_its_url(media_dir):
     assert 'logo' not in stored.name
 
 
-def test_upload_requires_a_file():
+def test_upload_requires_a_file(media):
     import asyncio
 
     response = asyncio.run(media.upload(FakeRequest(FakeForm(None))))
@@ -96,7 +103,7 @@ def test_upload_requires_a_file():
     assert _body(response) == {'error': 'No file provided'}
 
 
-def test_upload_accepts_a_file_without_an_extension(media_dir):
+def test_upload_accepts_a_file_without_an_extension(media, media_dir):
     import asyncio
 
     response = asyncio.run(media.upload(FakeRequest(FakeForm(FakeUploadFile('README', b'text')))))
@@ -107,7 +114,7 @@ def test_upload_accepts_a_file_without_an_extension(media_dir):
     assert stored.read_bytes() == b'text'
 
 
-def test_upload_reports_a_read_failure():
+def test_upload_reports_a_read_failure(media):
     import asyncio
 
     request = FakeRequest(FakeForm(FakeUploadFile('logo.png', b'', error=OSError('disk gone'))))
@@ -118,7 +125,7 @@ def test_upload_reports_a_read_failure():
     assert 'disk gone' in _body(response)['error']
 
 
-def test_upload_reports_a_broken_multipart_body():
+def test_upload_reports_a_broken_multipart_body(media):
     import asyncio
 
     response = asyncio.run(media.upload(FakeRequest(form_error=ValueError('malformed multipart'))))
@@ -127,7 +134,7 @@ def test_upload_reports_a_broken_multipart_body():
     assert 'malformed multipart' in _body(response)['error']
 
 
-def test_media_directory_is_created_on_demand(media_dir):
+def test_media_directory_is_created_on_demand(media, media_dir):
     import asyncio
 
     assert not media_dir.exists()
