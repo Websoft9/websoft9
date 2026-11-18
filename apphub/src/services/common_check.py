@@ -120,7 +120,22 @@ def check_port_conflicts(settings: dict, app_name: str | None = None):
             )
 
 
-def check_appName_and_appVersion(app_name: str, app_version: str, library_path: str | None = None):
+def ensure_legacy_install_access(variables: dict) -> None:
+    from src.services.access_spec import classify_access
+
+    try:
+        declaration = classify_access(variables)
+    except ValueError as exc:
+        raise CustomException(status_code=400, message="Invalid Request", details=str(exc)) from exc
+    if declaration == "v2":
+        raise CustomException(
+            status_code=409,
+            message="Installation Not Supported",
+            details="This package uses Access V2 metadata; installation is not enabled on this platform.",
+        )
+
+
+def check_appName_and_appVersion(app_name: str, app_version: str, library_path: str | None = None, *, for_install=False):
     """
     Check the app_name and app_version is exists in docker library
 
@@ -152,6 +167,8 @@ def check_appName_and_appVersion(app_name: str, app_version: str, library_path: 
                         message="Invalid Request",
                         details=f"app_version:{app_version} not supported",
                     )
+                if for_install:
+                    ensure_legacy_install_access(variables)
     except CustomException:
         raise
     except Exception as e:
@@ -278,7 +295,7 @@ def install_validate(appInstall: appInstall, endpointId: int, library_path: str 
         app_id = appInstall.app_id
 
         # Check the app_name and app_version is exists in docker library
-        check_appName_and_appVersion(app_name, app_version, library_path)
+        check_appName_and_appVersion(app_name, app_version, library_path, for_install=True)
 
         library_path = library_path or ConfigManager("system.ini").get_value("docker_library", "path")
         validate_profile_settings(

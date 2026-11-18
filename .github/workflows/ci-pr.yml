@@ -63,12 +63,16 @@ jobs:
           fetch-depth: 0
 
       - name: Run Gitleaks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/repo" \
             -w /repo \
             zricethezav/gitleaks:v8.30.1 \
-            detect --source=/repo --redact
+            git --redact=100 --log-opts="${BASE_SHA}..HEAD" /repo
 
   # ── Change detection (skip irrelevant jobs) ──
   changes:
@@ -102,6 +106,9 @@ jobs:
               - 'apphub/src/cli/apphub_cli.py'
               - 'apphub/src/api/v1/routers/appstore_sync.py'
               - 'apphub/src/services/appstore_sync_manager.py'
+              - 'apphub/src/services/access_spec.py'
+              - 'apphub/src/services/common_check.py'
+              - 'apphub/src/services/local_app_store.py'
               - 'apphub/src/services/app_manager.py'
               - 'apphub/tests/test_apphub_cli_upgrade.py'
               - 'apphub/tests/test_appstore_sync_manager_versions.py'
@@ -734,9 +741,14 @@ jobs:
             "channel": "dev",
             "catalogArchive": "catalog-dev.zip",
             "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {"library": "../library/library-delta.json", "apps": "../library/apps-delta.json"},
             "checksum": {
               "catalogArchive": "catalog-dev.zip.sha256",
-              "libraryPackage": "../library/library-dev.zip.sha256"
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta.json.sha256",
+              "appsDelta": "../library/apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -752,8 +764,13 @@ jobs:
             "datasetVersion": "2026.06.05.180000",
             "channel": "dev",
             "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {"library": "library-delta.json", "apps": "apps-delta.json"},
             "checksum": {
-              "libraryPackage": "library-dev.zip.sha256"
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta.json.sha256",
+              "appsDelta": "apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -788,9 +805,14 @@ jobs:
             "channel": "dev",
             "catalogArchive": "catalog-dev.zip",
             "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {"library": "../library/library-delta.json", "apps": "../library/apps-delta.json"},
             "checksum": {
               "catalogArchive": "catalog-dev.zip.sha256",
-              "libraryPackage": "../library/library-dev.zip.sha256"
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta.json.sha256",
+              "appsDelta": "../library/apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -807,8 +829,13 @@ jobs:
             "datasetVersion": "2026.06.05.180000",
             "channel": "dev",
             "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {"library": "library-delta.json", "apps": "apps-delta.json"},
             "checksum": {
-              "libraryPackage": "library-dev.zip.sha256"
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta.json.sha256",
+              "appsDelta": "apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -825,9 +852,14 @@ jobs:
             "channel": "dev",
             "catalogArchive": "catalog-dev.zip",
             "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {"library": "../library/library-delta.json", "apps": "../library/apps-delta.json"},
             "checksum": {
               "catalogArchive": "catalog-dev.zip.sha256",
-              "libraryPackage": "../library/library-dev.zip.sha256"
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta.json.sha256",
+              "appsDelta": "../library/apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -843,8 +875,13 @@ jobs:
             "datasetVersion": "2026.06.05.190000",
             "channel": "dev",
             "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {"library": "library-delta.json", "apps": "apps-delta.json"},
             "checksum": {
-              "libraryPackage": "library-dev.zip.sha256"
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta.json.sha256",
+              "appsDelta": "apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,

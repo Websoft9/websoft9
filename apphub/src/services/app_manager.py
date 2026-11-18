@@ -47,7 +47,7 @@ from src.services.app_status import (
     start_app_installation,
 )
 from src.services.appstore_availability import require_appstore_assets
-from src.services.common_check import check_endpointId
+from src.services.common_check import check_endpointId, ensure_legacy_install_access
 from src.services.external_database import (
     EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS,
     external_database_declaration_from_variables,
@@ -1525,6 +1525,13 @@ class AppManger:
             shutil.copytree(local_path, app_tmp_dir_path)
             os.chmod(app_tmp_dir_path, 0o700)
 
+            try:
+                with open(os.path.join(app_tmp_dir_path, "variables.json"), encoding="utf-8") as handle:
+                    ensure_legacy_install_access(json.load(handle))
+            except (CustomException, OSError, ValueError):
+                shutil.rmtree(app_tmp_dir_path, ignore_errors=True)
+                raise
+
             materialize_profile_template(app_tmp_dir_path, profile)
 
             # Modify the env file
@@ -1848,11 +1855,7 @@ class AppManger:
         # A broken stack is the main reason operators call redeploy, so it must
         # not be filtered out here — it used to make the lookup below empty and
         # the whole command fail with `list index out of range`.
-        app_official = [
-            app
-            for app in appInstallApps
-            if app.app_official and app.status in (1, 2, self._stack_error_status)
-        ]
+        app_official = [app for app in appInstallApps if app.app_official and app.status in (1, 2, self._stack_error_status)]
 
         portainerManager = PortainerManager()
 
@@ -1908,9 +1911,7 @@ class AppManger:
                 (
                     app.gitConfig.get("URL")
                     for app in app_official
-                    if app.app_id == app_id
-                    and isinstance(app.gitConfig, dict)
-                    and app.gitConfig.get("URL")
+                    if app.app_id == app_id and isinstance(app.gitConfig, dict) and app.gitConfig.get("URL")
                 ),
                 None,
             )

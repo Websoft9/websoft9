@@ -310,6 +310,44 @@ def test_local_reload_accepts_an_unpublished_application_and_records_an_overlay(
         assert _manifest_settings(tmp_path, locale) == {"W9_HTTP_PORT_SET": "8080"}
 
 
+def test_local_reload_previews_access_v2_on_a_verified_legacy_snapshot(tmp_path, contract_v2):
+    assert runtime_assets.main() == 0
+    before = _read_state(tmp_path)
+    library = tmp_path / "library"
+    app_dir = library / "apps" / "wordpress"
+    variables_path = app_dir / "variables.json"
+    variables = json.loads(variables_path.read_text())
+    variables["access"] = [
+        {
+            "id": "http",
+            "service": "wordpress",
+            "port": 80,
+            "public": True,
+            "endpoints": [{"scheme": "http", "roles": ["web"]}],
+        }
+    ]
+    variables_path.write_text(json.dumps(variables))
+    (app_dir / "docker-compose.yml").write_text('services:\n  wordpress:\n    ports: ["9001:80"]\n')
+    (library / "metadata" / "access-types.json").write_text(
+        json.dumps(
+            {
+                "roles": {"web": {"kind": "ui", "schemes": ["http"]}},
+                "schemes": {"http": {"address": "url", "allowPathQuery": True}},
+            }
+        )
+    )
+
+    assert runtime_assets.reload_runtime_app_store_manifests("local")["errors"] == []
+    assert _read_state(tmp_path)["localOverlay"] is True
+    assert _read_state(tmp_path)["snapshots"] == before["snapshots"]
+    manifest_path = tmp_path / "media/json/app-store-manifest_en.json"
+    assert json.loads(manifest_path.read_text())["apps"][0]["access"][0]["id"] == "http"
+
+    assert runtime_assets.main() == 0
+    assert not _read_state(tmp_path).get("localOverlay")
+    assert "access" not in json.loads(manifest_path.read_text())["apps"][0]
+
+
 def test_local_reload_is_idempotent(tmp_path, contract_v2):
     assert runtime_assets.main() == 0
     _stage_unreleased_app_update(tmp_path)
@@ -599,8 +637,9 @@ def test_unavailable_official_assets_do_not_gate_local_library_validation(monkey
     runtime_assets.write_runtime_assets_status("unavailable")
     from src.services import common_check
 
-    def local_validation(app_name, version, library_path):
+    def local_validation(app_name, version, library_path, *, for_install):
         assert library_path == str(tmp_path)
+        assert for_install is True
         raise CustomException(400, "Local validation reached", "local template validation")
 
     monkeypatch.setattr(common_check, "PortainerManager", lambda: None)

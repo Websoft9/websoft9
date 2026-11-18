@@ -212,7 +212,12 @@ def test_deleting_a_connection_releases_only_its_application_file_sessions(tmp_p
         "chosen": {"operator_id": "operator-1", "root": str(root), "profile": {"profile_id": "p1"}, "expires_at": 9e18},
         "kept": {"operator_id": "operator-1", "root": str(root), "profile": {"profile_id": "p2"}, "expires_at": 9e18},
         "platform": {"operator_id": "operator-1", "root": str(root), "profile": {}, "expires_at": 9e18},
-        "other-operator": {"operator_id": "operator-2", "root": str(root), "profile": {"profile_id": "p1"}, "expires_at": 9e18},
+        "other-operator": {
+            "operator_id": "operator-2",
+            "root": str(root),
+            "profile": {"profile_id": "p1"},
+            "expires_at": 9e18,
+        },
     }
 
     released = service.invalidate_profile("operator-1", "p1")

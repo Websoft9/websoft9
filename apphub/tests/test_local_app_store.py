@@ -62,6 +62,20 @@ def test_refresh_skips_invalid_app_and_keeps_valid_apps(tmp_path):
     assert [app["key"] for app in get_local_app_store_apps(tmp_path)] == ["canvas"]
 
 
+def test_refresh_does_not_fall_back_to_legacy_for_invalid_access(tmp_path):
+    _write_app(tmp_path, "canvas")
+    _write_app(tmp_path, "broken")
+    variables_path = tmp_path / "apps" / "broken" / "variables.json"
+    variables = json.loads(variables_path.read_text())
+    variables_path.write_text(json.dumps({**variables, "access": None}))
+
+    report = reload_local_app_catalog(tmp_path)
+
+    assert report["loaded"] == report["skipped"] == 1
+    assert report["errors"][0]["app"] == "broken"
+    assert "Invalid access declaration" in report["errors"][0]["error"]
+
+
 def test_refresh_preserves_previous_manifest_when_no_valid_apps_exist(tmp_path):
     _write_app(tmp_path, "canvas")
     reload_local_app_catalog(tmp_path)

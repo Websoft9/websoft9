@@ -32,6 +32,7 @@ def install(monkeypatch, tmp_path):
     library = tmp_path / 'library'
     app_dir = library / APP_NAME
     app_dir.mkdir(parents=True)
+    (app_dir / 'variables.json').write_text('{}')
     # 默认是一个 web 应用(.env 里有 W9_URL),默认代理关掉
     (app_dir / '.env').write_text(
         'W9_URL=\nW9_HTTP_PORT_SET=8080\nW9_HTTP_PORT=8080\nW9_HTTPS_PORT_SET=8443\nW9_HTTPS_PORT=8443\n'
@@ -414,6 +415,17 @@ def test_an_unexpected_repository_failure_is_wrapped(install):
 
     assert error.value.status_code == 500
     assert install.state.modified == [('tracking-1', 'gitea is down')]
+
+
+def test_install_rejects_access_v2_on_the_copied_template(install):
+    (install.app_dir / 'variables.json').write_text('{"access": []}')
+
+    with pytest.raises(CustomException) as error:
+        _install(install, payload=_payload(), tracked_app_id=APP_ID, endpointId=42)
+
+    assert error.value.status_code == 409
+    assert install.gitea.removed == [APP_ID]
+    assert install.state.phases == []
 
 
 def test_a_preparation_failure_removes_the_created_repository(install, monkeypatch):

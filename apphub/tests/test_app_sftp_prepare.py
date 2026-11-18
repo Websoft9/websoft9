@@ -52,7 +52,7 @@ def host(monkeypatch, tmp_path):
     monkeypatch.setattr(prepare, "SSHD_CONFIG", ssh_dir / "sshd_config")
     monkeypatch.setattr(prepare, "SSHD_DROPIN_DIR", ssh_dir / "sshd_config.d")
     monkeypatch.setattr(prepare, "SSHD_DROPIN", ssh_dir / "sshd_config.d" / "60-websoft9-sftp.conf")
-    monkeypatch.setattr(prepare, "Path", lambda value: REAL_PATH(value))
+    monkeypatch.setattr(prepare, "Path", _path_with_volume_root(tmp_path / "docker-volumes"))
     monkeypatch.setattr(prepare, "pwd", SimpleNamespace(getpwnam=lambda name: state.accounts[name]))
     monkeypatch.setattr(prepare.os, "geteuid", lambda: state.euid)
     monkeypatch.setattr(prepare.os, "chown", lambda path, uid, gid: state.chowns.append((str(path), uid, gid)))
@@ -341,6 +341,7 @@ def test_ensure_keypair_reuses_an_existing_key_and_tightens_its_mode(host, tmp_p
     key = tmp_path / "sftp.key"
     key.write_text("existing")
     key.chmod(0o644)
+    host.euid = key.stat().st_uid
 
     key_file, public_key = prepare.ensure_keypair(tmp_path)
 
@@ -465,6 +466,13 @@ def test_prepare_requires_root(host):
 
 
 def test_prepare_writes_the_state_the_service_expects(host, monkeypatch, capsys):
+    secure_directory = prepare.secure_directory
+
+    def secure_test_directory(path, owner):
+        assert owner == 0
+        secure_directory(path, host.tmp_path.stat().st_uid)
+
+    monkeypatch.setattr(prepare, "secure_directory", secure_test_directory)
     monkeypatch.setattr(prepare, "account_groups", lambda name: set())
     monkeypatch.setattr(prepare, "prepare_volume_root", lambda account: True)
     _write_sshd_config(host, "Port 22\n")

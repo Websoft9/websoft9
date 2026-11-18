@@ -345,6 +345,21 @@ def _install_payload(**overrides):
     return appInstall(**payload)
 
 
+@pytest.mark.parametrize("explicit_library", [False, True])
+@pytest.mark.parametrize("access,status", [([], 409), ([{}], 409), (None, 400)])
+def test_install_validation_blocks_unsupported_access(orchestration, explicit_library, access, status):
+    variables_path = orchestration.library / "wordpress" / "variables.json"
+    variables = json.loads(variables_path.read_text())
+    variables_path.write_text(json.dumps({**variables, "access": access}))
+
+    with pytest.raises(CustomException) as error:
+        check_module.install_validate(_install_payload(), 21, str(orchestration.library) if explicit_library else None)
+
+    assert error.value.status_code == status
+    assert "access" in error.value.details.lower()
+    assert orchestration.calls == []
+
+
 def test_install_validation_runs_every_gate(orchestration):
     check_module.install_validate(_install_payload(), 21)
 

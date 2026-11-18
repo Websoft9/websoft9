@@ -7,7 +7,7 @@ from starlette.staticfiles import StaticFiles
 
 app = Starlette()
 
-MEDIA_DIR = "/websoft9/media"
+MEDIA_DIR = os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media")
 
 
 async def healthz(request):
