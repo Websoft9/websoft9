@@ -90,7 +90,9 @@ def _run_app_file_operation(session_id: str, handler, grant_targets=()):
     # (instead of blaming the platform account) keeps the client from treating a
     # permission problem as an expired session.
     reason = str(getattr(permission_error, 'details', '') or permission_error)
-    raise HTTPException(403, f'The connection account does not have permission for this file operation: {reason}') from permission_error
+    raise HTTPException(
+        403, f'The connection account does not have permission for this file operation: {reason}'
+    ) from permission_error
 
 
 @router.post('/host-access/app-files/sessions')

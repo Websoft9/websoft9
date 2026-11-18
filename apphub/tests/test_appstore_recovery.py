@@ -317,16 +317,25 @@ def test_local_reload_previews_access_v2_on_a_verified_legacy_snapshot(tmp_path,
     app_dir = library / "apps" / "wordpress"
     variables_path = app_dir / "variables.json"
     variables = json.loads(variables_path.read_text())
-    variables["access"] = [{
-        "id": "http", "service": "wordpress", "port": 80, "public": True,
-        "endpoints": [{"scheme": "http", "roles": ["web"]}],
-    }]
+    variables["access"] = [
+        {
+            "id": "http",
+            "service": "wordpress",
+            "port": 80,
+            "public": True,
+            "endpoints": [{"scheme": "http", "roles": ["web"]}],
+        }
+    ]
     variables_path.write_text(json.dumps(variables))
     (app_dir / "docker-compose.yml").write_text('services:\n  wordpress:\n    ports: ["9001:80"]\n')
-    (library / "metadata" / "access-types.json").write_text(json.dumps({
-        "roles": {"web": {"kind": "ui", "schemes": ["http"]}},
-        "schemes": {"http": {"address": "url", "allowPathQuery": True}},
-    }))
+    (library / "metadata" / "access-types.json").write_text(
+        json.dumps(
+            {
+                "roles": {"web": {"kind": "ui", "schemes": ["http"]}},
+                "schemes": {"http": {"address": "url", "allowPathQuery": True}},
+            }
+        )
+    )
 
     assert runtime_assets.reload_runtime_app_store_manifests("local")["errors"] == []
     assert _read_state(tmp_path)["localOverlay"] is True

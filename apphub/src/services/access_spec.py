@@ -3,7 +3,6 @@ import re
 from pathlib import Path
 from urllib.parse import unquote
 
-
 URL_SCHEMES = {"http", "https", "ws", "wss"}
 PORT_EXPRESSION = re.compile(r"\$\{([A-Za-z_][A-Za-z_0-9]*)(?::-([0-9]+))?\}")
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
@@ -68,14 +67,19 @@ def _endpoint(value, roles: dict, schemes: dict) -> dict:
     if not isinstance(path, str) or not path.startswith("/") or re.search(r"[?#]|%(?![\da-fA-F]{2})", path):
         raise ValueError("invalid endpoint path")
     decoded = unquote(path, errors="strict")
-    if not decoded.startswith("/") or decoded.startswith("//") or "\\" in decoded or CONTROL.search(decoded) or any(
-        part in {".", ".."} for part in decoded.split("/")
+    if (
+        not decoded.startswith("/")
+        or decoded.startswith("//")
+        or "\\" in decoded
+        or CONTROL.search(decoded)
+        or any(part in {".", ".."} for part in decoded.split("/"))
     ):
         raise ValueError("unsafe endpoint path")
     if not isinstance(query, dict) or any(
-        not isinstance(item, str) or key.casefold() in SENSITIVE_QUERY_KEYS or any(
-            CONTROL.search(part) or "${" in part or "{{" in part for part in (key, item)
-        ) for key, item in query.items()
+        not isinstance(item, str)
+        or key.casefold() in SENSITIVE_QUERY_KEYS
+        or any(CONTROL.search(part) or "${" in part or "{{" in part for part in (key, item))
+        for key, item in query.items()
     ):
         raise ValueError("invalid endpoint query")
     return {**result, "path": path, "query": query}
@@ -103,7 +107,9 @@ def access_preview_fields(app_dir: Path, variables: dict, env: dict) -> dict:
                 port = _published_ports(service, env).get((_port(target, env), protocol))
                 if port is None:
                     raise ValueError("unmanaged port is not published")
-                unmanaged.append({"service": service_name, "container_port": int(target), "protocol": protocol, "mapped_port": port})
+                unmanaged.append(
+                    {"service": service_name, "container_port": int(target), "protocol": protocol, "mapped_port": port}
+                )
         for group in variables["access"]:
             group_id, service_name, port_expr = group["id"], group["service"], group["port"]
             if not isinstance(group_id, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", group_id) or group_id in seen_ids:
@@ -143,16 +149,28 @@ def access_preview_fields(app_dir: Path, variables: dict, env: dict) -> dict:
                     if field != "mappedPort":
                         address_fields.add(name)
             kind = next((name for name in ("ui", "api", "infra") if any(item["kind"] == name for item in endpoints)), "infra")
-            groups.append({
-                "id": group_id, "service": service_name, "container_port": port, "port_expr": str(port_expr),
-                "protocol": protocol, "public": public, "default_mapped_port": mapped_port,
-                "purpose": group.get("purpose", ""), "can_bind_domain": bool(url_schemes),
-                "require_domain": require_domain, "require_https": require_https,
-                "supports_primary_domain": bool(address_fields),
-                "first_startup_locked": bool(address_fields.intersection((variables.get("env") or {}).get("first_startup_only", []))),
-                "forward_scheme": "https" if url_schemes & {"https", "wss"} else "http",
-                "main_kind": kind, "endpoints": endpoints,
-            })
+            groups.append(
+                {
+                    "id": group_id,
+                    "service": service_name,
+                    "container_port": port,
+                    "port_expr": str(port_expr),
+                    "protocol": protocol,
+                    "public": public,
+                    "default_mapped_port": mapped_port,
+                    "purpose": group.get("purpose", ""),
+                    "can_bind_domain": bool(url_schemes),
+                    "require_domain": require_domain,
+                    "require_https": require_https,
+                    "supports_primary_domain": bool(address_fields),
+                    "first_startup_locked": bool(
+                        address_fields.intersection((variables.get("env") or {}).get("first_startup_only", []))
+                    ),
+                    "forward_scheme": "https" if url_schemes & {"https", "wss"} else "http",
+                    "main_kind": kind,
+                    "endpoints": endpoints,
+                }
+            )
     except (AttributeError, KeyError, TypeError, ValueError, OSError, yaml.YAMLError) as exc:
         raise ValueError(f"Invalid access metadata for {app_dir.name}: {exc}") from exc
     first_url_group = next((group for group in groups if group["can_bind_domain"]), None)
@@ -160,6 +178,12 @@ def access_preview_fields(app_dir: Path, variables: dict, env: dict) -> dict:
         "access": groups,
         "unmanaged_ports": unmanaged,
         "is_web_app": first_url_group is not None,
-        "default_scheme": "https" if first_url_group and (first_url_group["require_https"] or first_url_group["forward_scheme"] == "https") else "http",
-        "settings": {key: value for key, value in env.items() if key.startswith("W9_") and key.endswith("_SET") and not key.endswith("_PORT_SET")},
+        "default_scheme": "https"
+        if first_url_group and (first_url_group["require_https"] or first_url_group["forward_scheme"] == "https")
+        else "http",
+        "settings": {
+            key: value
+            for key, value in env.items()
+            if key.startswith("W9_") and key.endswith("_SET") and not key.endswith("_PORT_SET")
+        },
     }

@@ -56,8 +56,8 @@ if [[ -z "$PREVIOUS" ]] || [[ ! -f "$PREVIOUS" ]]; then
 fi
 
 jq -n \
-  --argfile current "$CURRENT" \
-  --argfile previous "$PREVIOUS" \
+  --slurpfile current "$CURRENT" \
+  --slurpfile previous "$PREVIOUS" \
   --arg entity "$ENTITY" \
   --arg fromVersion "$FROM_VERSION" \
   --arg toVersion "$TO_VERSION" \
@@ -68,8 +68,8 @@ jq -n \
       if ($item.key // "") == "" then . else . + {($item.key): $item} end
     );
 
-  ($current | index_by_key(.)) as $currentMap |
-  ($previous | index_by_key(.)) as $previousMap |
+  ($current[0] | index_by_key(.)) as $currentMap |
+  ($previous[0] | index_by_key(.)) as $previousMap |
   (($currentMap | keys_unsorted) + ($previousMap | keys_unsorted) | unique) as $allKeys |
   {
     entity: $entity,

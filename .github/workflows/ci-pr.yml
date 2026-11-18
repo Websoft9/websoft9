@@ -737,9 +737,14 @@ jobs:
             "channel": "dev",
             "catalogArchive": "catalog-dev.zip",
             "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {"library": "../library/library-delta.json", "apps": "../library/apps-delta.json"},
             "checksum": {
               "catalogArchive": "catalog-dev.zip.sha256",
-              "libraryPackage": "../library/library-dev.zip.sha256"
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta.json.sha256",
+              "appsDelta": "../library/apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -755,8 +760,13 @@ jobs:
             "datasetVersion": "2026.06.05.180000",
             "channel": "dev",
             "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {"library": "library-delta.json", "apps": "apps-delta.json"},
             "checksum": {
-              "libraryPackage": "library-dev.zip.sha256"
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta.json.sha256",
+              "appsDelta": "apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -791,9 +801,14 @@ jobs:
             "channel": "dev",
             "catalogArchive": "catalog-dev.zip",
             "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {"library": "../library/library-delta.json", "apps": "../library/apps-delta.json"},
             "checksum": {
               "catalogArchive": "catalog-dev.zip.sha256",
-              "libraryPackage": "../library/library-dev.zip.sha256"
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta.json.sha256",
+              "appsDelta": "../library/apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -810,8 +825,13 @@ jobs:
             "datasetVersion": "2026.06.05.180000",
             "channel": "dev",
             "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {"library": "library-delta.json", "apps": "apps-delta.json"},
             "checksum": {
-              "libraryPackage": "library-dev.zip.sha256"
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta.json.sha256",
+              "appsDelta": "apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -828,9 +848,14 @@ jobs:
             "channel": "dev",
             "catalogArchive": "catalog-dev.zip",
             "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {"library": "../library/library-delta.json", "apps": "../library/apps-delta.json"},
             "checksum": {
               "catalogArchive": "catalog-dev.zip.sha256",
-              "libraryPackage": "../library/library-dev.zip.sha256"
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta.json.sha256",
+              "appsDelta": "../library/apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,
@@ -846,8 +871,13 @@ jobs:
             "datasetVersion": "2026.06.05.190000",
             "channel": "dev",
             "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {"library": "library-delta.json", "apps": "apps-delta.json"},
             "checksum": {
-              "libraryPackage": "library-dev.zip.sha256"
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta.json.sha256",
+              "appsDelta": "apps-delta.json.sha256"
             },
             "compatibility": {
               "legacyPluginPaths": true,

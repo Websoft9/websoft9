@@ -27,10 +27,9 @@ RUN set -e; \
     export PIP_DISABLE_PIP_VERSION_CHECK=1; \
     if [ -n "$WEBSOFT9_PIP_INDEX_URL" ]; then export PIP_INDEX_URL="$WEBSOFT9_PIP_INDEX_URL"; fi; \
     if [ -n "$WEBSOFT9_PIP_TRUSTED_HOST" ]; then export PIP_TRUSTED_HOST="$WEBSOFT9_PIP_TRUSTED_HOST"; fi; \
-    mkdir -p /tmp/pip-cache; \
     for attempt in 1 2 3; do \
     python -m pip install \
-    --cache-dir /tmp/pip-cache \
+    --no-cache-dir \
     --retries 10 \
     --timeout 120 \
     --target /opt/websoft9-pydeps \
@@ -146,6 +145,7 @@ version_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
 initialize_product_runtime_state()
 PY
+
 COPY --from=console-builder /build/console/dist /etc/websoft9/console
 # Runtime source of truth for the platform nginx zone definitions. The data
 # root is bind-mounted from the host at runtime, so the npm start scripts

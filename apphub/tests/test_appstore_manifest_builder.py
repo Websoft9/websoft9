@@ -140,19 +140,29 @@ def test_official_and_local_preview_resolve_compose_port_defaults(tmp_path):
     app_dir = tmp_path / "apps" / "wordpress"
     variables_path = app_dir / "variables.json"
     variables = json.loads(variables_path.read_text())
-    variables["access"] = [{
-        "id": "http", "service": "wordpress", "port": 80, "public": True,
-        "rootUrl": ["WP_HOME"], "endpoints": [{"scheme": "http", "roles": ["web"]}],
-    }]
+    variables["access"] = [
+        {
+            "id": "http",
+            "service": "wordpress",
+            "port": 80,
+            "public": True,
+            "rootUrl": ["WP_HOME"],
+            "endpoints": [{"scheme": "http", "roles": ["web"]}],
+        }
+    ]
     variables_path.write_text(json.dumps(variables))
     (app_dir / ".env").write_text('WP_HOME=""\nW9_HTTP_PORT_SET=8080\n')
     (app_dir / "docker-compose.yml").write_text('services:\n  wordpress:\n    ports: ["9001:${NGINX_PORT:-80}"]\n')
     metadata = tmp_path / "metadata"
     metadata.mkdir()
-    (metadata / "access-types.json").write_text(json.dumps({
-        "roles": {"web": {"kind": "ui", "schemes": ["http"]}},
-        "schemes": {"http": {"address": "url", "allowPathQuery": True}},
-    }))
+    (metadata / "access-types.json").write_text(
+        json.dumps(
+            {
+                "roles": {"web": {"kind": "ui", "schemes": ["http"]}},
+                "schemes": {"http": {"address": "url", "allowPathQuery": True}},
+            }
+        )
+    )
     catalog = tmp_path / "catalog"
     catalog.mkdir()
     (catalog / "wordpress.json").write_text('{"title": "WordPress"}')
