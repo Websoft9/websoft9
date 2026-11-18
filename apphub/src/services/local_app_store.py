@@ -150,6 +150,9 @@ def _build_app(media_path: Path, library_root: Path) -> dict[str, object]:
             "app_origin": "local",
         }
     )
+    from src.services.access_spec import access_preview_fields
+
+    manifest.update(access_preview_fields(app_dir, variables, env_values))
     profiles = _discover_profiles(app_dir, variables)
     if profiles:
         manifest["profiles"] = profiles

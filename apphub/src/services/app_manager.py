@@ -47,7 +47,7 @@ from src.services.app_status import (
     start_app_installation,
 )
 from src.services.appstore_availability import require_appstore_assets
-from src.services.common_check import check_endpointId
+from src.services.common_check import check_endpointId, ensure_legacy_install_access
 from src.services.external_database import (
     EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS,
     external_database_declaration_from_variables,
@@ -1524,6 +1524,13 @@ class AppManger:
             # Copy the entire directory.
             shutil.copytree(local_path, app_tmp_dir_path)
             os.chmod(app_tmp_dir_path, 0o700)
+
+            try:
+                with open(os.path.join(app_tmp_dir_path, "variables.json"), encoding="utf-8") as handle:
+                    ensure_legacy_install_access(json.load(handle))
+            except (CustomException, OSError, ValueError):
+                shutil.rmtree(app_tmp_dir_path, ignore_errors=True)
+                raise
 
             materialize_profile_template(app_tmp_dir_path, profile)
 

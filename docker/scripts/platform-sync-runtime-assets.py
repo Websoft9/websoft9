@@ -2472,6 +2472,17 @@ def resolve_catalog_product(metadata: dict[str, object], app_key: str, locale: s
     return product
 
 
+def _access_preview_fields(app_dir: Path, variables: dict, env_values: dict) -> dict:
+    if "access" not in variables or isinstance(variables["access"], dict):
+        return {}
+    apphub_root = Path(__file__).resolve().parents[2] / "apphub"
+    if apphub_root.is_dir() and str(apphub_root) not in sys.path:
+        sys.path.insert(0, str(apphub_root))
+    from src.services.access_spec import access_preview_fields
+
+    return access_preview_fields(app_dir, variables, env_values)
+
+
 def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: str) -> dict[str, object]:
     product_path = media_json_root / f"product_{locale}.json"
     try:
@@ -2558,6 +2569,7 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
             "is_web_app": "W9_URL" in env_values,
             "default_scheme": default_scheme,
         })
+        app_manifest.update(_access_preview_fields(app_dir, variables_metadata, env_values))
         updated_at = updated_at_by_key.get(app_key)
         if updated_at:
             app_manifest["updatedAt"] = updated_at
@@ -2956,7 +2968,7 @@ def validate_local_library_root(library: Path) -> None:
             continue
         if path.is_symlink() or not path.is_dir():
             raise AppStoreTransientError(f"unsafe library app entry: {path.name}")
-    for _, filename in SHARED_DICTIONARIES:
+    for _, filename in (*SHARED_DICTIONARIES, ("accessTypes", "access-types.json")):
         dictionary = library / "metadata" / filename
         if not dictionary.is_file():
             continue

@@ -132,6 +132,59 @@ def test_build_manifests_includes_complete_wordpress_metadata(tmp_path):
     assert wordpress["help"] == {"en": "https://example.test/help"}
 
 
+def test_official_and_local_preview_resolve_compose_port_defaults(tmp_path):
+    from src.services.local_app_store import get_local_app_store_apps, reload_local_app_catalog
+
+    _write_product(tmp_path / "product_en.json")
+    _write_wordpress_library(tmp_path)
+    app_dir = tmp_path / "apps" / "wordpress"
+    variables_path = app_dir / "variables.json"
+    variables = json.loads(variables_path.read_text())
+    variables["access"] = [{
+        "id": "http", "service": "wordpress", "port": 80, "public": True,
+        "rootUrl": ["WP_HOME"], "endpoints": [{"scheme": "http", "roles": ["web"]}],
+    }]
+    variables_path.write_text(json.dumps(variables))
+    (app_dir / ".env").write_text('WP_HOME=""\nW9_HTTP_PORT_SET=8080\n')
+    (app_dir / "docker-compose.yml").write_text('services:\n  wordpress:\n    ports: ["9001:${NGINX_PORT:-80}"]\n')
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    (metadata / "access-types.json").write_text(json.dumps({
+        "roles": {"web": {"kind": "ui", "schemes": ["http"]}},
+        "schemes": {"http": {"address": "url", "allowPathQuery": True}},
+    }))
+    catalog = tmp_path / "catalog"
+    catalog.mkdir()
+    (catalog / "wordpress.json").write_text('{"title": "WordPress"}')
+
+    runtime_assets.validate_local_library_root(tmp_path)
+    official = runtime_assets.build_app_store_manifest(tmp_path, tmp_path / "apps", "en")["apps"][0]
+    assert reload_local_app_catalog(tmp_path)["loaded"] == 1
+    assert get_local_app_store_apps(tmp_path)[0]["access"] == official["access"]
+    assert official["is_web_app"] is True
+    assert official["settings"] == {}
+    assert official["access"][0]["container_port"] == 80
+    assert official["access"][0]["default_mapped_port"] == 9001
+    assert "WP_HOME" not in json.dumps(official["access"])
+
+    variables_path.write_text(json.dumps({**variables, "access": [{}]}))
+    with pytest.raises(ValueError, match="Invalid access metadata"):
+        runtime_assets.build_app_store_manifest(tmp_path, tmp_path / "apps", "en")
+
+
+def test_empty_access_is_not_inferred_from_legacy_env(tmp_path):
+    _write_product(tmp_path / "product_en.json")
+    _write_wordpress_library(tmp_path)
+    app_dir = tmp_path / "apps" / "wordpress"
+    (app_dir / "variables.json").write_text('{"edition": [{"dist": "community", "version": "6.6"}], "access": []}')
+    (app_dir / "docker-compose.yml").write_text("services: {}\n")
+
+    app = runtime_assets.build_app_store_manifest(tmp_path, tmp_path / "apps", "en")["apps"][0]
+    assert app["access"] == []
+    assert app["is_web_app"] is False
+    assert app["settings"] == {}
+
+
 def test_build_manifest_adds_library_catalog_metadata_without_changing_product_entries(tmp_path):
     media_root = tmp_path / "media"
     media_json = media_root / "json"

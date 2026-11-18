@@ -66,5 +66,8 @@ class AppAvailableResponse(BaseModel):
     )
     settings: Optional[Dict[str, str]] = Field(None, description="Default installation settings")
     is_web_app: Optional[bool] = Field(None, description="Whether the app accepts a web address")
+    default_scheme: Optional[str] = Field(None, description="Default web scheme")
+    access: Optional[List[Dict[str, Any]]] = Field(None, description="Normalized Access V2 preview groups")
+    unmanaged_ports: Optional[List[Dict[str, Any]]] = Field(None, description="Fixed published ports outside access groups")
     profiles: Optional[Dict[str, Dict[str, Any]]] = Field(None, description="Available installation profiles")
     help: Optional[Dict[str, str]] = Field(None, description="Application installation guidance")
