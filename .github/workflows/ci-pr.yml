@@ -63,12 +63,16 @@ jobs:
           fetch-depth: 0
 
       - name: Run Gitleaks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/repo" \
             -w /repo \
             zricethezav/gitleaks:v8.30.1 \
-            detect --source=/repo --redact
+            git --redact=100 --log-opts="${BASE_SHA}..HEAD" /repo
 
   # ── Change detection (skip irrelevant jobs) ──
   changes:
