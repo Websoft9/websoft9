@@ -90,6 +90,11 @@ class AppManger:
     _cache_timestamps: dict[str, Any] = {}
     _cache_ttl = 300  # 5分钟缓存
     _missing_stack_containers_error = "No containers were created for this stack."
+    # Portainer still reports the stack as Active, but every container is gone
+    # (removed outside Portainer, or lost together with the Docker daemon state).
+    # It is an error for the operator, yet it is exactly the state redeploy has
+    # to repair — so it must stay eligible for redeploy.
+    _stack_error_status = 4
 
     @classmethod
     def clear_cache(cls):
@@ -384,7 +389,7 @@ class AppManger:
 
     def _resolve_stack_runtime_state(self, stack_status: int, stack_containers: list[dict] | None) -> Tuple[int, str | None]:
         if stack_status == 1 and not stack_containers:
-            return 4, self._missing_stack_containers_error
+            return self._stack_error_status, self._missing_stack_containers_error
 
         if stack_status == 1 and stack_containers:
             normalized_states = {
@@ -400,7 +405,7 @@ class AppManger:
                     # All containers are in a normal stopped state (e.g. "exited").
                     # The stack is still Active — just not running right now.
                     return stack_status, None
-                return 4, "Containers were created for this stack but none of them are running."
+                return self._stack_error_status, "Containers were created for this stack but none of them are running."
 
         return stack_status, None
 
@@ -1839,8 +1844,15 @@ class AppManger:
         # Get the appInstallApps
         appInstallApps = AppManger().get_apps(endpointId)
 
-        # Get all apps that are official and active (or inactive)
-        app_official = [app for app in appInstallApps if app.app_official and (app.status == 1 or app.status == 2)]
+        # Official apps that are active (1), inactive (2) or broken (4).
+        # A broken stack is the main reason operators call redeploy, so it must
+        # not be filtered out here — it used to make the lookup below empty and
+        # the whole command fail with `list index out of range`.
+        app_official = [
+            app
+            for app in appInstallApps
+            if app.app_official and app.status in (1, 2, self._stack_error_status)
+        ]
 
         portainerManager = PortainerManager()
 
@@ -1892,7 +1904,18 @@ class AppManger:
             gitManager = GitManager(app_tmp_dir)
 
             # 从app中获取 gitConfig属性的URL属性值
-            remote_url = [app.gitConfig.get("URL") for app in app_official if app.app_id == app_id][0]
+            remote_url = next(
+                (
+                    app.gitConfig.get("URL")
+                    for app in app_official
+                    if app.app_id == app_id
+                    and isinstance(app.gitConfig, dict)
+                    and app.gitConfig.get("URL")
+                ),
+                None,
+            )
+            if not remote_url:
+                raise CustomException(400, "Invalid Request", f"No Git configuration found for app: {app_id}")
 
             # Initialize a local git repository from a directory
             gitManager.clone_remote_repo_to_local(remote_url, user_name, user_pwd)

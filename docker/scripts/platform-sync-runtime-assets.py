@@ -2919,7 +2919,71 @@ def validate_saved_asset_snapshot(state: dict[str, object], media: Path, library
             raise AppStoreTransientError(f"snapshot {entry_key} checksum mismatch")
 
 
-def reload_runtime_app_store_manifests() -> dict[str, object]:
+RELOAD_MODES = frozenset({"strict", "local"})
+
+
+def _saved_manifest_bundle(state: dict[str, object]) -> dict[str, object] | None:
+    """Rebuild the manifest bundle recorded in the sync state, when it is complete."""
+    manifests = state.get("manifests")
+    if not isinstance(manifests, dict):
+        return None
+    root = manifests.get("root")
+    catalog = manifests.get("catalog")
+    library_manifest = manifests.get("library")
+    if not isinstance(root, dict) or not isinstance(catalog, dict) or not isinstance(library_manifest, dict):
+        return None
+    index = manifests.get("appsIndex")
+    return {
+        "appstore_manifest": root,
+        "catalog_manifest": catalog,
+        "library_manifest": library_manifest,
+        "_verified_library_json": {"appsIndex": index} if isinstance(index, dict) else {},
+    }
+
+
+def validate_local_library_root(library: Path) -> None:
+    """Structural checks for a library that may hold applications which are not published yet.
+
+    The ``local`` reload mode exists so a pull request can verify an unreleased application on a
+    throw-away instance. It therefore must not compare the tree against the published contract,
+    but it still refuses entries the manifest builder cannot read safely.
+    """
+    apps_root = library / "apps"
+    if not apps_root.is_dir() or apps_root.is_symlink():
+        raise AppStoreTransientError("missing or unsafe library apps tree")
+    for path in sorted(apps_root.iterdir()):
+        if path.name.startswith("."):
+            continue
+        if path.is_symlink() or not path.is_dir():
+            raise AppStoreTransientError(f"unsafe library app entry: {path.name}")
+    for _, filename in SHARED_DICTIONARIES:
+        dictionary = library / "metadata" / filename
+        if not dictionary.is_file():
+            continue
+        try:
+            json.loads(dictionary.read_bytes())
+        except (OSError, ValueError) as exc:
+            raise AppStoreTransientError(f"invalid {filename}: {exc}") from exc
+
+
+def validate_local_reload_result(media: Path, library: Path) -> None:
+    """Checks that apply after a local reload rebuilt the browsing manifests."""
+    validate_local_library_root(library)
+    validate_runtime_asset_roots(media, library)
+
+
+def reload_runtime_app_store_manifests(mode: str = "strict") -> dict[str, object]:
+    """Rebuild the official browsing manifests from the assets already on disk.
+
+    ``strict`` requires the runtime trees to match the last verified dataset and is what
+    production refresh uses. ``local`` accepts a library that differs from the published
+    dataset (an unreleased application copied in for verification) and records the new content
+    digest together with a ``localOverlay`` marker, so the next real sync restores the
+    published assets instead of treating the overlay as a second baseline.
+    """
+    normalized_mode = (mode or "strict").strip().lower()
+    if normalized_mode not in RELOAD_MODES:
+        raise ValueError(f"unsupported Appstore reload mode: {mode}")
     lock = acquire_appstore_sync_lock(Path(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")))
     if lock is None:
         raise AppStoreTransientError("Appstore synchronization is running; retry the catalog refresh later")
@@ -2927,12 +2991,28 @@ def reload_runtime_app_store_manifests() -> dict[str, object]:
         state_path = _resolve_sync_state_path()
         state = load_sync_state(state_path)
         availability = load_sync_state(runtime_assets_status_path())
-        if availability.get("status") != "ready" or availability.get("datasetVersion") != state.get("datasetVersion"):
+        dataset_version = state.get("datasetVersion")
+        if not isinstance(dataset_version, str) or not dataset_version:
+            raise AppStoreTransientError("Official Appstore assets are not ready; synchronize before refreshing")
+        availability_status = availability.get("status")
+        if normalized_mode == "local":
+            # A local reload rebuilds from the library, so it may repair the state a failed
+            # strict reload left behind (that is exactly the "library changed" case). It still
+            # refuses to run while a sync owns the trees or before any dataset was verified.
+            if availability_status not in {"ready", "unavailable"}:
+                raise AppStoreTransientError("Official Appstore assets are not ready; synchronize before refreshing")
+        elif availability_status != "ready" or availability.get("datasetVersion") != dataset_version:
             raise AppStoreTransientError("Official Appstore assets are not ready; synchronize before refreshing")
         media = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
         library = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
         try:
-            validate_saved_asset_snapshot(state, media, library)
+            if normalized_mode == "local":
+                bundle = _saved_manifest_bundle(state)
+                if bundle is not None:
+                    verify_catalog_source(media, bundle)
+                validate_local_library_root(library)
+            else:
+                validate_saved_asset_snapshot(state, media, library)
         except (OSError, ValueError, RuntimeError) as exc:
             write_runtime_assets_status("unavailable", f"Official Appstore assets failed validation: {exc}")
             raise
@@ -2942,30 +3022,54 @@ def reload_runtime_app_store_manifests() -> dict[str, object]:
         build_and_publish_app_store_manifests(staged_media, library)
         validate_runtime_asset_roots(staged_media, library)
         digest = tree_content_fingerprint(staged_media)
+        library_digest = tree_content_fingerprint(library)
+        recorded_digests = state.get("assetDigests")
+        if not isinstance(recorded_digests, dict):
+            recorded_digests = {}
         loaded = {
             locale: len(json.loads((staged_media / "json" / f"app-store-manifest_{locale}.json").read_bytes())["apps"])
             for locale in ("zh", "en")
         }
-        if digest == state["assetDigests"]["media"]:
+        media_unchanged = digest == recorded_digests.get("media")
+        library_unchanged = library_digest == recorded_digests.get("library")
+        if media_unchanged and library_unchanged:
+            if normalized_mode == "strict" and state.get("localOverlay"):
+                # A verified dataset proves the overlay is gone (the library matches the
+                # published one again), so the marker must not outlive it.
+                write_sync_state(state_path, {key: value for key, value in state.items() if key != "localOverlay"})
             return {"loaded": loaded, "errors": []}
-        snapshot_root = Path(state["snapshotRoot"])
-        targets = [
-            media,
-            snapshot_root / "staging" / state["datasetVersion"] / "media",
-            snapshot_root / "releases" / state["datasetVersion"] / "media",
-            snapshot_root / "current" / "media",
-        ]
+        if normalized_mode == "local":
+            # The overlay is transient by design: release snapshots keep the published baseline,
+            # so an image recovery or the next sync always wins over a locally loaded application.
+            targets = [media]
+        else:
+            snapshot_root = Path(state["snapshotRoot"])
+            targets = [
+                media,
+                snapshot_root / "staging" / state["datasetVersion"] / "media",
+                snapshot_root / "releases" / state["datasetVersion"] / "media",
+                snapshot_root / "current" / "media",
+            ]
         backups = backup_trees(targets, work / "backup")
         write_runtime_assets_status("updating", "Appstore browsing manifests are being refreshed")
         try:
             replace_media_tree(staged_media, media)
-            paths = stage_snapshot(staged_media, snapshot_root, state["datasetVersion"], "media")
-            refreshed = {
-                **state,
-                "assetDigests": {**state["assetDigests"], "media": digest},
-                "snapshots": {**state["snapshots"], "media": {key: str(value) for key, value in paths.items()}},
-            }
-            validate_saved_asset_snapshot(refreshed, media, library)
+            refreshed_digests = {**recorded_digests, "media": digest}
+            if normalized_mode == "local":
+                refreshed = {
+                    **state,
+                    "assetDigests": {**refreshed_digests, "library": library_digest},
+                    "localOverlay": True,
+                }
+                validate_local_reload_result(media, library)
+            else:
+                paths = stage_snapshot(staged_media, snapshot_root, state["datasetVersion"], "media")
+                refreshed = {key: value for key, value in state.items() if key != "localOverlay"}
+                refreshed["assetDigests"] = refreshed_digests
+                refreshed["snapshots"] = {
+                    **state["snapshots"], "media": {key: str(value) for key, value in paths.items()}
+                }
+                validate_saved_asset_snapshot(refreshed, media, library)
             write_sync_state(state_path, refreshed)
             write_runtime_assets_status("ready", dataset_version=state["datasetVersion"])
         except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
@@ -3173,9 +3277,15 @@ def main() -> int:
     previous_state: dict[str, object] = {}
     try:
         previous_state = load_sync_state(sync_state_path)
-        baseline_untrusted = bool(previous_state.get("partial")) or bool(
-            previous_state and not _local_runtime_trees_match_state(previous_state)
-        ) or (sync_mode != "build" and previous_availability.get("status") != "ready")
+        # A ``localOverlay`` marks a library that was loaded for verification instead of being
+        # synchronized, so the next sync must treat it as untrusted and restore the published
+        # dataset (and drop the marker) rather than reusing those apps as a baseline.
+        baseline_untrusted = (
+            bool(previous_state.get("partial"))
+            or bool(previous_state.get("localOverlay"))
+            or bool(previous_state and not _local_runtime_trees_match_state(previous_state))
+            or (sync_mode != "build" and previous_availability.get("status") != "ready")
+        )
         if baseline_untrusted:
             log("[platform-assets] local runtime assets do not match recorded sync state; forcing full synchronization")
             if sync_mode != "build":

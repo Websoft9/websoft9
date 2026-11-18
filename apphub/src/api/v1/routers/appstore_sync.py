@@ -48,10 +48,16 @@ def sync_appstore_assets(
         500: {"model": ErrorResponse},
     },
 )
-def reload_appstore_catalogs():
+def reload_appstore_catalogs(
+    mode: str = Query(
+        "strict",
+        description="strict verifies the published dataset; local accepts an unpublished library for verification",
+        pattern="^(strict|local)$",
+    ),
+):
     from src.services.local_app_store import reload_app_store_catalog
 
-    return reload_app_store_catalog()
+    return reload_app_store_catalog(mode=mode)
 
 
 @router.get(

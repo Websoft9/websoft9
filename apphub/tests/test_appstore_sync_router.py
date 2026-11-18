@@ -55,3 +55,23 @@ def test_sync_endpoint_delegates_when_no_sync_is_running(monkeypatch):
         }
     ]
     assert result['status'] == 'accepted'
+
+
+def test_reload_endpoint_passes_the_requested_mode_through(monkeypatch):
+    """A pull request reloads with `?mode=local`; operations keep the strict default."""
+    from src.services import local_app_store
+
+    requested_modes = []
+
+    def fake_reload(*, mode='strict'):
+        requested_modes.append(mode)
+        return {
+            'official': {'loaded': {'zh': 1, 'en': 1}, 'errors': []},
+            'custom': {'loaded': 0, 'skipped': 0, 'errors': []},
+        }
+
+    monkeypatch.setattr(local_app_store, 'reload_app_store_catalog', fake_reload)
+
+    assert router_module.reload_appstore_catalogs(mode='local')['official']['loaded'] == {'zh': 1, 'en': 1}
+    assert router_module.reload_appstore_catalogs(mode='strict')['official']['errors'] == []
+    assert requested_modes == ['local', 'strict']

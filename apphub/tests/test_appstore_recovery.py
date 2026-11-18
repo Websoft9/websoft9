@@ -239,6 +239,124 @@ def test_official_refresh_commit_failure_restores_projection_state_and_snapshots
     lock.close()
 
 
+def _stage_unreleased_app_update(tmp_path):
+    """Simulate the pull-request workflow: copy a newer application into the live library."""
+    env_path = tmp_path / "library/apps/wordpress/.env"
+    env_path.write_text("W9_HTTP_PORT_SET=8080\nW9_VERSION=1.19.0\n", encoding="utf-8")
+    return env_path
+
+
+def _manifest_settings(tmp_path, locale):
+    manifest = json.loads((tmp_path / f"media/json/app-store-manifest_{locale}.json").read_bytes())
+    return manifest["apps"][0]["settings"]
+
+
+def test_strict_reload_refuses_an_unpublished_library_and_blocks_installation(tmp_path, contract_v2):
+    assert runtime_assets.main() == 0
+    before = _read_state(tmp_path)
+    _stage_unreleased_app_update(tmp_path)
+
+    with pytest.raises(runtime_assets.AppStoreTransientError, match="snapshot library content does not match saved state"):
+        runtime_assets.reload_runtime_app_store_manifests()
+
+    assert _read_state(tmp_path) == before
+    assert get_appstore_assets_state()["status"] == "unavailable"
+    with pytest.raises(CustomException) as error:
+        require_appstore_assets()
+    assert error.value.status_code == 503
+
+
+def test_local_reload_repairs_the_state_a_failed_strict_reload_left_behind(tmp_path, contract_v2):
+    """A strict reload failure must not lock the instance out of the local verification path."""
+    assert runtime_assets.main() == 0
+    _stage_unreleased_app_update(tmp_path)
+    with pytest.raises(runtime_assets.AppStoreTransientError):
+        runtime_assets.reload_runtime_app_store_manifests()
+    assert get_appstore_assets_state()["status"] == "unavailable"
+
+    assert runtime_assets.reload_runtime_app_store_manifests("local") == {"loaded": {"zh": 1, "en": 1}, "errors": []}
+
+    assert get_appstore_assets_state()["status"] == "ready"
+    assert _read_state(tmp_path)["localOverlay"] is True
+    for locale in ("en", "zh"):
+        assert _manifest_settings(tmp_path, locale) == {"W9_HTTP_PORT_SET": "8080"}
+
+
+def test_local_reload_only_runs_after_a_verified_dataset(tmp_path, contract_v2):
+    (tmp_path / "state.json").unlink(missing_ok=True)
+    runtime_assets.write_runtime_assets_status("unavailable", "Appstore assets have not been verified")
+
+    with pytest.raises(runtime_assets.AppStoreTransientError, match="Official Appstore assets are not ready"):
+        runtime_assets.reload_runtime_app_store_manifests("local")
+
+
+def test_local_reload_accepts_an_unpublished_application_and_records_an_overlay(tmp_path, contract_v2):
+    assert runtime_assets.main() == 0
+    before = _read_state(tmp_path)
+    _stage_unreleased_app_update(tmp_path)
+
+    assert runtime_assets.reload_runtime_app_store_manifests("local") == {"loaded": {"zh": 1, "en": 1}, "errors": []}
+
+    after = _read_state(tmp_path)
+    assert after["localOverlay"] is True
+    assert after["datasetVersion"] == before["datasetVersion"]
+    assert after["assetDigests"]["library"] == runtime_assets.tree_content_fingerprint(tmp_path / "library")
+    assert after["assetDigests"]["library"] != before["assetDigests"]["library"]
+    # Release snapshots must keep the published baseline: an overlay is never blessed as one.
+    assert after["snapshots"] == before["snapshots"]
+    assert get_appstore_assets_state()["status"] == "ready"
+    require_appstore_assets()
+    for locale in ("en", "zh"):
+        assert _manifest_settings(tmp_path, locale) == {"W9_HTTP_PORT_SET": "8080"}
+
+
+def test_local_reload_is_idempotent(tmp_path, contract_v2):
+    assert runtime_assets.main() == 0
+    _stage_unreleased_app_update(tmp_path)
+    assert runtime_assets.reload_runtime_app_store_manifests("local") == {"loaded": {"zh": 1, "en": 1}, "errors": []}
+    settled = (tmp_path / "state.json").read_bytes()
+
+    assert runtime_assets.reload_runtime_app_store_manifests("local") == {"loaded": {"zh": 1, "en": 1}, "errors": []}
+
+    assert (tmp_path / "state.json").read_bytes() == settled
+    assert get_appstore_assets_state()["status"] == "ready"
+
+
+def test_local_reload_still_refuses_a_broken_library_tree(tmp_path, contract_v2):
+    assert runtime_assets.main() == 0
+    shutil.rmtree(tmp_path / "library/apps")
+
+    with pytest.raises(runtime_assets.AppStoreTransientError, match="missing or unsafe library apps tree"):
+        runtime_assets.reload_runtime_app_store_manifests("local")
+
+    assert get_appstore_assets_state()["status"] == "unavailable"
+
+
+def test_reload_rejects_unknown_modes(tmp_path, contract_v2):
+    assert runtime_assets.main() == 0
+
+    with pytest.raises(ValueError, match="unsupported Appstore reload mode"):
+        runtime_assets.reload_runtime_app_store_manifests("preview")
+
+
+def test_the_next_sync_restores_published_assets_after_a_local_overlay(tmp_path, contract_v2):
+    assert runtime_assets.main() == 0
+    published_state = _read_state(tmp_path)
+    env_path = _stage_unreleased_app_update(tmp_path)
+    assert runtime_assets.reload_runtime_app_store_manifests("local") == {"loaded": {"zh": 1, "en": 1}, "errors": []}
+
+    assert runtime_assets.main() == 0
+
+    restored = _read_state(tmp_path)
+    assert "localOverlay" not in restored
+    assert restored["assetDigests"]["library"] == published_state["assetDigests"]["library"]
+    assert env_path.read_text(encoding="utf-8") == "W9_HTTP_PORT_SET=80\n"
+    for locale in ("en", "zh"):
+        assert _manifest_settings(tmp_path, locale) == {"W9_HTTP_PORT_SET": "80"}
+    assert runtime_assets.main() == 0
+    assert _read_state(tmp_path)["updated"] is False
+
+
 def test_runtime_sync_refuses_unlocked_writes_and_keeps_verified_baseline(tmp_path, monkeypatch, contract_v2):
     assert runtime_assets.main() == 0
     before = _read_state(tmp_path)

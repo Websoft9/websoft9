@@ -8,7 +8,7 @@ import click
 from src.cli.cli_output import CLIError, run_cli_action
 
 
-def reload_app_store_catalogs(as_json: bool) -> None:
+def reload_app_store_catalogs(as_json: bool, *, mode: str = "strict") -> None:
     """Rebuild the App Store catalogs from the assets already on disk.
 
     Shared by ``appstore reload`` and the deprecated ``app refresh`` alias so the
@@ -17,7 +17,7 @@ def reload_app_store_catalogs(as_json: bool) -> None:
     from src.services.local_app_store import reload_app_store_catalog
 
     try:
-        report: dict[str, Any] = reload_app_store_catalog()
+        report: dict[str, Any] = reload_app_store_catalog(mode=mode)
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -257,10 +257,17 @@ def register_appstore_commands(appstore_group: click.Group) -> None:
 
     @appstore_group.command(name="reload")
     @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON report.")
-    def appstore_reload(as_json: bool) -> None:
+    @click.option(
+        "--local",
+        "local_mode",
+        is_flag=True,
+        help="Rebuild from the library as it is on disk and accept applications that are not published yet.",
+    )
+    def appstore_reload(as_json: bool, local_mode: bool) -> None:
         """Rebuild the App Store catalogs from the assets already on disk.
 
         Reloads the official and custom manifests without downloading anything;
-        use `websoft9 appstore sync` to fetch newer assets first.
+        use `websoft9 appstore sync` to fetch newer assets first. `--local` skips the
+        published-dataset check for local verification of an unreleased application.
         """
-        reload_app_store_catalogs(as_json)
+        reload_app_store_catalogs(as_json, mode="local" if local_mode else "strict")

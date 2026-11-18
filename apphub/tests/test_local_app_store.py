@@ -96,7 +96,11 @@ def test_resolve_local_app_store_root_prefers_explicit_environment_path(tmp_path
 
 def test_catalog_refresh_rebuilds_official_and_custom_catalogs(tmp_path, monkeypatch):
     _write_app(tmp_path, "canvas")
-    monkeypatch.setattr(local_app_store, "_refresh_official_app_store", lambda: {"loaded": {"zh": 2, "en": 2}, "errors": []})
+    monkeypatch.setattr(
+        local_app_store,
+        "_refresh_official_app_store",
+        lambda mode="strict": {"loaded": {"zh": 2, "en": 2}, "errors": []},
+    )
 
     report = reload_app_store_catalog(tmp_path)
 
@@ -110,7 +114,7 @@ def test_catalog_refresh_preserves_each_catalog_failure_in_its_report(tmp_path, 
     monkeypatch.setattr(
         local_app_store,
         "_refresh_official_app_store",
-        lambda: (_ for _ in ()).throw(RuntimeError("invalid official metadata")),
+        lambda mode="strict": (_ for _ in ()).throw(RuntimeError("invalid official metadata")),
     )
     _write_app(tmp_path, "broken", media=[])
 

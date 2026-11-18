@@ -195,7 +195,7 @@ def _resolve_runtime_asset_builder_path() -> Path:
     return Path(__file__).resolve().parents[3] / "docker" / "scripts" / "platform-sync-runtime-assets.py"
 
 
-def _refresh_official_app_store() -> dict[str, Any]:
+def _refresh_official_app_store(mode: str = "strict") -> dict[str, Any]:
     builder_path = _resolve_runtime_asset_builder_path()
     module_spec = importlib.util.spec_from_file_location("platform_sync_runtime_assets", builder_path)
     if module_spec is None or module_spec.loader is None:
@@ -203,23 +203,26 @@ def _refresh_official_app_store() -> dict[str, Any]:
 
     builder_module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(builder_module)
-    report = builder_module.reload_runtime_app_store_manifests()
+    report = builder_module.reload_runtime_app_store_manifests(mode)
     if not isinstance(report, dict):
         raise RuntimeError("official app store refresh returned an invalid report")
     return dict(report)
 
 
-def reload_app_store_catalog(root: Path | None = None) -> dict[str, Any]:
+def reload_app_store_catalog(root: Path | None = None, *, mode: str = "strict") -> dict[str, Any]:
     """Rebuild the official and custom App Store catalogs from the assets on disk.
 
     This reloads manifests from what the platform already has; it never downloads
     anything. Use ``appstore sync`` (``POST /appstore/sync``) for that.
+
+    ``mode="local"`` accepts a library that holds applications which are not published yet,
+    which is how a pull request verifies an unreleased application on a throw-away instance.
     """
     official_report: dict[str, Any]
     custom_report: dict[str, Any]
 
     try:
-        official_report = _refresh_official_app_store()
+        official_report = _refresh_official_app_store(mode)
     except Exception as exc:
         official_report = {"loaded": {}, "errors": [{"error": str(exc)}]}
 

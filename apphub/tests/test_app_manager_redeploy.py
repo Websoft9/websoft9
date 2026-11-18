@@ -344,3 +344,55 @@ def test_redeploy_aligns_proxy_ports_after_a_port_change(redeploy, compose_works
     asyncio.run(redeploy.manager.redeploy_app(app_id, False, 21))
 
     assert redeploy.proxy.updated == [(4, '9090')]
+
+
+def _inventory_with_status(status, app_id, git_url=None):
+    """Inventory entry for the app under redeploy, in an arbitrary runtime status."""
+
+    return [
+        SimpleNamespace(
+            app_id=app_id,
+            app_official=True,
+            status=status,
+            gitConfig={'URL': git_url} if git_url else {},
+        )
+    ]
+
+
+def test_redeploy_repairs_an_active_stack_that_lost_its_containers(redeploy, compose_workspace):
+    """`No containers were created for this stack.` marks a broken app, not a missing one.
+
+    The runtime state is reported as an error (status 4) while Portainer keeps the stack Active, so
+    the app used to be filtered out of the redeploy inventory and the command died with
+    `list index out of range` instead of repairing anything.
+    """
+
+    app_id, prepare = compose_workspace
+    prepare('services:\n  web:\n    image: websoft9dev/wordpress:6.5\n')
+    redeploy.monkeypatch.setattr(
+        AppManger,
+        'get_apps',
+        lambda self, *args, **kwargs: _inventory_with_status(
+            AppManger._stack_error_status, app_id, f'http://gitea.local/git/{app_id}.git'
+        ),
+    )
+
+    asyncio.run(redeploy.manager.redeploy_app(app_id, False, 21))
+
+    assert len(redeploy.portainer.redeploy_calls) == 1
+
+
+def test_redeploy_reports_a_broken_app_without_a_git_remote(redeploy, compose_workspace):
+    app_id, prepare = compose_workspace
+    prepare('services:\n  web:\n    image: websoft9dev/wordpress:6.5\n')
+    redeploy.monkeypatch.setattr(
+        AppManger,
+        'get_apps',
+        lambda self, *args, **kwargs: _inventory_with_status(AppManger._stack_error_status, app_id),
+    )
+
+    with pytest.raises(CustomException) as error:
+        asyncio.run(redeploy.manager.redeploy_app(app_id, False, 21))
+
+    assert error.value.status_code == 400
+    assert error.value.details == f'No Git configuration found for app: {app_id}'

@@ -165,7 +165,7 @@ def test_reload_outputs_private_app_report_as_json(monkeypatch):
 
     _install_local_app_store_stub(
         monkeypatch,
-        lambda: {
+        lambda mode="strict": {
             "official": {"loaded": {"zh": 2, "en": 2}, "errors": []},
             "custom": {"loaded": 2, "skipped": 0, "errors": []},
         },
@@ -185,7 +185,7 @@ def test_reload_returns_nonzero_when_private_apps_are_skipped(monkeypatch):
 
     _install_local_app_store_stub(
         monkeypatch,
-        lambda: {
+        lambda mode="strict": {
             "official": {"loaded": {"zh": 2, "en": 2}, "errors": []},
             "custom": {"loaded": 1, "skipped": 1, "errors": [{"app": "invalid-app", "error": "missing compose file"}]},
         },
@@ -205,7 +205,7 @@ def test_reload_surfaces_local_catalog_validation_errors(monkeypatch):
 
     _install_local_app_store_stub(
         monkeypatch,
-        lambda: {
+        lambda mode="strict": {
             "official": {"loaded": {"zh": 2, "en": 2}, "errors": []},
             "custom": {
                 "loaded": 0,
@@ -227,7 +227,7 @@ def test_the_deprecated_app_refresh_alias_still_reloads_the_catalog(monkeypatch)
 
     _install_local_app_store_stub(
         monkeypatch,
-        lambda: {
+        lambda mode="strict": {
             "official": {"loaded": {"zh": 1, "en": 1}, "errors": []},
             "custom": {"loaded": 1, "skipped": 0, "errors": []},
         },
@@ -238,3 +238,28 @@ def test_the_deprecated_app_refresh_alias_still_reloads_the_catalog(monkeypatch)
     assert result.exit_code == 0
     assert json.loads(result.output.splitlines()[-1])["custom"]["loaded"] == 1
     assert "appstore reload" in result.output
+
+
+def test_reload_local_flag_requests_the_local_mode(monkeypatch):
+    """A pull request verifies an unreleased application with `appstore reload --local`."""
+    from src.cli.apphub_cli import appstore
+
+    requested_modes = []
+
+    def reload_app_store_catalog(*_args, mode="strict", **_kwargs):
+        requested_modes.append(mode)
+        return {
+            "official": {"loaded": {"zh": 1, "en": 1}, "errors": []},
+            "custom": {"loaded": 0, "skipped": 0, "errors": []},
+        }
+
+    _install_local_app_store_stub(monkeypatch, reload_app_store_catalog)
+
+    result = CliRunner().invoke(appstore, ["reload", "--local", "--json"])
+
+    assert result.exit_code == 0
+    assert requested_modes == ["local"]
+
+    requested_modes.clear()
+    assert CliRunner().invoke(appstore, ["reload", "--json"]).exit_code == 0
+    assert requested_modes == ["strict"]
